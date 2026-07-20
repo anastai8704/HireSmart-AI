@@ -1,9 +1,25 @@
-const http = require("http");
+const express = require("express");
 
-const server = http.createServer((req, res) => {
-  res.end("Welcome to HireSmart AI");
+const app = express();
+
+const PORT = 5000;
+
+app.get("/", (req, res) => {
+    res.send("Welcome to HireSmart AI");
 });
 
-server.listen(5000, () => {
-  console.log("Server is running on http://localhost:5000");
+app.get("/about", (req, res) => {
+    res.send("About HireSmart AI");
+});
+
+app.get("/jobs", (req, res) => {
+    res.send("List of Jobs");
+});
+
+app.get("/login", (req, res) => {
+    res.send("Login Page");
+});
+
+app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
 });
