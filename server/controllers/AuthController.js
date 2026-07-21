@@ -1,23 +1,53 @@
 const User = require("../models/User");
+const bcrypt = require("bcryptjs");
 
-const register = async (req, res) => {
+exports.register = async (req, res) => {
     try {
 
-        console.log("Request Body:", req.body);
+        const { name, email, password } = req.body;
 
-        res.status(200).json({
+        // Validation
+        if (!name || !email || !password) {
+            return res.status(400).json({
+                success: false,
+                message: "All fields are required"
+            });
+        }
+
+        // Check existing user
+        const existingUser = await User.findOne({ email });
+
+        if (existingUser) {
+            return res.status(400).json({
+                success: false,
+                message: "Email already registered"
+            });
+        }
+
+        // Hash password
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        // Create user
+        const user = await User.create({
+            name,
+            email,
+            password: hashedPassword
+        });
+
+        return res.status(201).json({
             success: true,
-            message: "Register API Working"
+            message: "User Registered Successfully",
+            user
         });
 
     } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
-    }
-};
 
-module.exports = {
-    register
+        console.log(error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Server Error"
+        });
+
+    }
 };
