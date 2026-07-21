@@ -3,3 +3,5 @@ node_modules
 dist
 build
 coverage
+server/node_modules/
+server/.env
