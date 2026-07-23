@@ -4,14 +4,13 @@ exports.getProfile = (req, res) => {
 
         success: true,
 
-        message: "Protected Route Accessed Successfully",
+        message: "Profile fetched successfully",
 
         user: req.user
 
     });
 
 };
-
 exports.adminDashboard = (req, res) => {
 
     return res.status(200).json({
