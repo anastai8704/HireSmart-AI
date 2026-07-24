@@ -66,35 +66,70 @@ exports.createJob = async (req, res) => {
 // Get All Jobs
 // ==========================
 exports.getAllJobs = async (req, res) => {
-
     try {
 
-        const jobs = await Job.find()
-            .populate("recruiter", "name email")
-            .sort({ createdAt: -1 });
+        const keyword = req.query.keyword
+            ? {
+                  $or: [
+                      {
+                          title: {
+                              $regex: req.query.keyword,
+                              $options: "i",
+                          },
+                      },
+                      {
+                          company: {
+                              $regex: req.query.keyword,
+                              $options: "i",
+                          },
+                      },
+                  ],
+              }
+            : {};
 
-        return res.status(200).json({
+        const location = req.query.location
+            ? {
+                  location: {
+                      $regex: req.query.location,
+                      $options: "i",
+                  },
+              }
+            : {};
+
+        const jobType = req.query.jobType
+            ? { jobType: req.query.jobType }
+            : {};
+
+        const experience = req.query.experience
+            ? { experience: req.query.experience }
+            : {};
+
+        const jobs = await Job.find({
+            ...keyword,
+            ...location,
+            ...jobType,
+            ...experience,
+        });
+
+        res.status(200).json({
             success: true,
             count: jobs.length,
-            jobs
+            jobs,
         });
 
     } catch (error) {
 
-        console.log(error);
-
-        return res.status(500).json({
+        res.status(500).json({
             success: false,
-            message: "Server Error"
+            message: "Server Error",
         });
-    }
 
+    }
 };
 // ==========================
 // Get Single Job
 // ==========================
-exports.getJobById = async (req, res) => {
-
+exports.getSingleJob = async (req, res) => {
     try {
 
         const job = await Job.findById(req.params.id)
@@ -223,4 +258,32 @@ exports.deleteJob = async (req, res) => {
 
     }
 
+};
+
+// ==========================
+// Get Logged-in Recruiter's Jobs
+// ==========================
+exports.getMyJobs = async (req, res) => {
+    try {
+
+        const jobs = await Job.find({
+            recruiter: req.user.id
+        });
+
+        return res.status(200).json({
+            success: true,
+            count: jobs.length,
+            jobs,
+        });
+
+    } catch (error) {
+
+        console.error(error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Server Error",
+        });
+
+    }
 };

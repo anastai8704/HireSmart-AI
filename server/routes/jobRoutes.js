@@ -5,22 +5,42 @@ const router = express.Router();
 const {
     createJob,
     getAllJobs,
-    getJobById,
+    getSingleJob,
     updateJob,
-    deleteJob
+    deleteJob,
+    getMyJobs,
 } = require("../controllers/jobController");
 
 const {
     protect,
-    authorize
+    authorize,
 } = require("../middleware/authMiddleware");
 
 
-// Public Route
-router.get("/", getAllJobs);
-router.get("/:id", getJobById);
+// ==========================
+// Public Routes
+// ==========================
 
-// Recruiter/Admin Only
+// Get All Jobs
+router.get("/", getAllJobs);
+
+// Get Logged-in Recruiter's Jobs
+router.get(
+    "/my-jobs",
+    protect,
+    authorize("recruiter", "admin"),
+    getMyJobs
+);
+
+// Get Single Job
+router.get("/:id", getSingleJob);
+
+
+// ==========================
+// Recruiter/Admin Routes
+// ==========================
+
+// Create Job
 router.post(
     "/",
     protect,
@@ -28,6 +48,7 @@ router.post(
     createJob
 );
 
+// Update Job
 router.put(
     "/:id",
     protect,
@@ -35,6 +56,7 @@ router.put(
     updateJob
 );
 
+// Delete Job
 router.delete(
     "/:id",
     protect,
