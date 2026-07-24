@@ -4,7 +4,8 @@ const router = express.Router();
 
 const {
     createJob,
-    getAllJobs
+    getAllJobs,
+    getJobById
 } = require("../controllers/jobController");
 
 const {
@@ -15,7 +16,7 @@ const {
 
 // Public Route
 router.get("/", getAllJobs);
-
+router.get("/:id", getJobById);
 
 // Recruiter/Admin Only
 router.post(
