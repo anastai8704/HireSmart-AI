@@ -5,7 +5,7 @@ const jwt = require("jsonwebtoken");
 exports.register = async (req, res) => {
     try {
 
-        const { name, email, password } = req.body;
+        const { name, email, password, role } = req.body;
 
         // Validation
         if (!name || !email || !password) {
@@ -28,11 +28,22 @@ exports.register = async (req, res) => {
         // Hash password
         const hashedPassword = await bcrypt.hash(password, 10);
 
+        //invalid roles
+        const allowedRoles = ["candidate", "recruiter", "admin"];
+
+        if (role && !allowedRoles.includes(role)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid role",
+    });
+}
+
         // Create user
         const user = await User.create({
             name,
             email,
-            password: hashedPassword
+            password: hashedPassword,
+            role: role || "candidate"
         });
 
         // Response object
