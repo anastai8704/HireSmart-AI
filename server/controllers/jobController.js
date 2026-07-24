@@ -178,3 +178,49 @@ exports.updateJob = async (req, res) => {
     }
 
 };
+// ==========================
+// Delete Job
+// ==========================
+exports.deleteJob = async (req, res) => {
+
+    try {
+
+        const job = await Job.findById(req.params.id);
+
+        if (!job) {
+            return res.status(404).json({
+                success: false,
+                message: "Job not found"
+            });
+        }
+
+        // Only job owner or admin can delete
+        if (
+            job.recruiter.toString() !== req.user.id &&
+            req.user.role !== "admin"
+        ) {
+            return res.status(403).json({
+                success: false,
+                message: "You are not authorized to delete this job."
+            });
+        }
+
+        await Job.findByIdAndDelete(req.params.id);
+
+        return res.status(200).json({
+            success: true,
+            message: "Job Deleted Successfully"
+        });
+
+    } catch (error) {
+
+        console.log(error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Server Error"
+        });
+
+    }
+
+};
