@@ -1,5 +1,8 @@
 const Job = require("../models/Job");
 
+// ==========================
+// Create Job
+// ==========================
 exports.createJob = async (req, res) => {
     try {
 
@@ -14,18 +17,19 @@ exports.createJob = async (req, res) => {
             skills
         } = req.body;
 
-        // Validation
         if (
             !title ||
             !company ||
             !location ||
             !salary ||
             !experience ||
-            !description
+            !jobType ||
+            !description ||
+            !skills
         ) {
             return res.status(400).json({
                 success: false,
-                message: "Please fill all required fields"
+                message: "All fields are required"
             });
         }
 
@@ -41,7 +45,7 @@ exports.createJob = async (req, res) => {
             recruiter: req.user.id
         });
 
-        res.status(201).json({
+        return res.status(201).json({
             success: true,
             message: "Job Created Successfully",
             job
@@ -51,10 +55,39 @@ exports.createJob = async (req, res) => {
 
         console.log(error);
 
-        res.status(500).json({
+        return res.status(500).json({
             success: false,
             message: "Server Error"
         });
-
     }
+};
+
+
+// ==========================
+// Get All Jobs
+// ==========================
+exports.getAllJobs = async (req, res) => {
+
+    try {
+
+        const jobs = await Job.find()
+            .populate("recruiter", "name email")
+            .sort({ createdAt: -1 });
+
+        return res.status(200).json({
+            success: true,
+            count: jobs.length,
+            jobs
+        });
+
+    } catch (error) {
+
+        console.log(error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Server Error"
+        });
+    }
+
 };
