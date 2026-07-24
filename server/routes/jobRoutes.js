@@ -9,6 +9,7 @@ const {
     updateJob,
     deleteJob,
     getMyJobs,
+    applyJob,
 } = require("../controllers/jobController");
 
 const {
@@ -30,6 +31,14 @@ router.get(
     protect,
     authorize("recruiter", "admin"),
     getMyJobs
+);
+
+// Apply for Job
+router.post(
+    "/:id/apply",
+    protect,
+    authorize("candidate"),
+    applyJob
 );
 
 // Get Single Job
