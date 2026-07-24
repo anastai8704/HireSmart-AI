@@ -124,3 +124,57 @@ exports.getJobById = async (req, res) => {
     }
 
 };
+// ==========================
+// Update Job
+// ==========================
+exports.updateJob = async (req, res) => {
+
+    try {
+
+        const job = await Job.findById(req.params.id);
+
+        if (!job) {
+            return res.status(404).json({
+                success: false,
+                message: "Job not found"
+            });
+        }
+
+        // Only job owner or admin can update
+        if (
+            job.recruiter.toString() !== req.user.id &&
+            req.user.role !== "admin"
+        ) {
+            return res.status(403).json({
+                success: false,
+                message: "You are not authorized to update this job."
+            });
+        }
+
+        const updatedJob = await Job.findByIdAndUpdate(
+            req.params.id,
+            req.body,
+            {
+                new: true,
+                runValidators: true
+            }
+        );
+
+        return res.status(200).json({
+            success: true,
+            message: "Job Updated Successfully",
+            job: updatedJob
+        });
+
+    } catch (error) {
+
+        console.log(error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Server Error"
+        });
+
+    }
+
+};

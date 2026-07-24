@@ -5,7 +5,8 @@ const router = express.Router();
 const {
     createJob,
     getAllJobs,
-    getJobById
+    getJobById,
+    updateJob
 } = require("../controllers/jobController");
 
 const {
@@ -24,6 +25,13 @@ router.post(
     protect,
     authorize("recruiter", "admin"),
     createJob
+);
+
+router.put(
+    "/:id",
+    protect,
+    authorize("recruiter", "admin"),
+    updateJob
 );
 
 module.exports = router;
