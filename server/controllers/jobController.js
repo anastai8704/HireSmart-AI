@@ -548,3 +548,49 @@ exports.getSavedJobs = async (req, res) => {
     }
 
 };
+// ==========================
+// Unsave Job
+// ==========================
+exports.unsaveJob = async (req, res) => {
+
+    try {
+
+        const user = await User.findById(req.user.id);
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found",
+            });
+        }
+
+        if (!user.savedJobs.includes(req.params.id)) {
+            return res.status(400).json({
+                success: false,
+                message: "Job is not saved.",
+            });
+        }
+
+        user.savedJobs = user.savedJobs.filter(
+            (jobId) => jobId.toString() !== req.params.id
+        );
+
+        await user.save();
+
+        return res.status(200).json({
+            success: true,
+            message: "Job removed from saved jobs",
+        });
+
+    } catch (error) {
+
+        console.error(error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Server Error",
+        });
+
+    }
+
+};
