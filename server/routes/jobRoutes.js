@@ -14,6 +14,7 @@ const {
     getAppliedJobs,
     withdrawApplication,
     saveJob,
+    getSavedJobs,
 } = require("../controllers/jobController");
 
 const {
@@ -63,6 +64,15 @@ router.delete(
     authorize("candidate"),
     withdrawApplication
 );
+
+// Get Saved Jobs
+router.get(
+    "/saved",
+    protect,
+    authorize("candidate"),
+    getSavedJobs
+);
+
 // ==========================
 // Recruiter Routes
 // ==========================

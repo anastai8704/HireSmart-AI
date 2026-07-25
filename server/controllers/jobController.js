@@ -514,3 +514,37 @@ exports.saveJob = async (req, res) => {
     }
 
 };
+// ==========================
+// Get Saved Jobs
+// ==========================
+exports.getSavedJobs = async (req, res) => {
+
+    try {
+
+        const user = await User.findById(req.user.id)
+            .populate({
+                path: "savedJobs",
+                populate: {
+                    path: "recruiter",
+                    select: "name email",
+                },
+            });
+
+        return res.status(200).json({
+            success: true,
+            count: user.savedJobs.length,
+            jobs: user.savedJobs,
+        });
+
+    } catch (error) {
+
+        console.error(error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Server Error",
+        });
+
+    }
+
+};
