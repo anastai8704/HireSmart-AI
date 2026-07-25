@@ -60,8 +60,6 @@ exports.createJob = async (req, res) => {
         });
     }
 };
-
-
 // ==========================
 // Get All Jobs
 // ==========================
@@ -259,7 +257,6 @@ exports.deleteJob = async (req, res) => {
     }
 
 };
-
 // ==========================
 // Get Logged-in Recruiter's Jobs
 // ==========================
@@ -319,6 +316,55 @@ exports.applyJob = async (req, res) => {
         return res.status(200).json({
             success: true,
             message: "Job Applied Successfully",
+        });
+
+    } catch (error) {
+
+        console.error(error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Server Error",
+        });
+
+    }
+
+};
+// ==========================
+// Get Applicants of a Job
+// ==========================
+exports.getJobApplicants = async (req, res) => {
+
+    try {
+
+        const job = await Job.findById(req.params.id)
+            .populate(
+                "applicants",
+                "name email phone profileImage role"
+            );
+
+        if (!job) {
+            return res.status(404).json({
+                success: false,
+                message: "Job not found",
+            });
+        }
+
+        // Only owner recruiter or admin
+        if (
+            job.recruiter.toString() !== req.user.id &&
+            req.user.role !== "admin"
+        ) {
+            return res.status(403).json({
+                success: false,
+                message: "You are not authorized to view applicants.",
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            count: job.applicants.length,
+            applicants: job.applicants,
         });
 
     } catch (error) {
