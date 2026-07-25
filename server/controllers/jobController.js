@@ -1,4 +1,5 @@
 const Job = require("../models/Job");
+const User = require("../models/User");
 // ==========================
 // Create Job
 // ==========================
@@ -365,6 +366,140 @@ exports.getJobApplicants = async (req, res) => {
             success: true,
             count: job.applicants.length,
             applicants: job.applicants,
+        });
+
+    } catch (error) {
+
+        console.error(error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Server Error",
+        });
+
+    }
+
+};
+// ==========================
+// Get Applied Jobs
+// ==========================
+exports.getAppliedJobs = async (req, res) => {
+
+    try {
+
+        const jobs = await Job.find({
+            applicants: req.user.id
+        }).populate(
+            "recruiter",
+            "name email"
+        );
+
+        return res.status(200).json({
+            success: true,
+            count: jobs.length,
+            jobs,
+        });
+
+    } catch (error) {
+
+        console.error(error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Server Error",
+        });
+
+    }
+
+};
+// ==========================
+// Withdraw Job Application
+// ==========================
+exports.withdrawApplication = async (req, res) => {
+
+    try {
+
+        const job = await Job.findById(req.params.id);
+
+        if (!job) {
+            return res.status(404).json({
+                success: false,
+                message: "Job not found",
+            });
+        }
+
+        // Check if candidate has applied
+        if (
+        !job.applicants.some(
+            applicant => applicant.toString() === req.user.id
+        )
+    ) {
+        return res.status(400).json({
+        success: false,
+        message: "You have not applied for this job.",
+    });
+}
+
+        // Remove candidate from applicants
+        job.applicants = job.applicants.filter(
+            applicant => applicant.toString() !== req.user.id
+        );
+
+        await job.save();
+
+        return res.status(200).json({
+            success: true,
+            message: "Application withdrawn successfully",
+        });
+
+    } catch (error) {
+
+        console.error(error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Server Error",
+        });
+
+    }
+
+};
+// ==========================
+// Save Job
+// ==========================
+exports.saveJob = async (req, res) => {
+
+    try {
+
+        const user = await User.findById(req.user.id);
+
+        const job = await Job.findById(req.params.id);
+
+        if (!job) {
+            return res.status(404).json({
+                success: false,
+                message: "Job not found",
+            });
+        }
+
+        if (
+    user.savedJobs.some(
+        savedJob => savedJob.toString() === job._id.toString()
+    )
+) {
+    return res.status(400).json({
+        success: false,
+        message: "Job already saved.",
+    });
+}
+
+        user.savedJobs.push(job._id);
+
+        await user.save();
+
+        return res.status(200).json({
+            success: true,
+            message: "Job saved successfully",
         });
 
     } catch (error) {

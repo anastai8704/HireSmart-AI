@@ -11,13 +11,15 @@ const {
     getMyJobs,
     applyJob,
     getJobApplicants,
+    getAppliedJobs,
+    withdrawApplication,
+    saveJob,
 } = require("../controllers/jobController");
 
 const {
     protect,
     authorize,
 } = require("../middleware/authMiddleware");
-
 
 // ==========================
 // Public Routes
@@ -26,15 +28,19 @@ const {
 // Get All Jobs
 router.get("/", getAllJobs);
 
-// Get Logged-in Recruiter's Jobs
+// ==========================
+// Candidate Routes
+// ==========================
+
+// My Applied Jobs
 router.get(
-    "/my-jobs",
+    "/applied",
     protect,
-    authorize("recruiter", "admin"),
-    getMyJobs
+    authorize("candidate"),
+    getAppliedJobs
 );
 
-// Apply for Job
+// Apply Job
 router.post(
     "/:id/apply",
     protect,
@@ -42,21 +48,40 @@ router.post(
     applyJob
 );
 
-// Get Applicants of a Job
+// Save Job
+router.post(
+    "/:id/save",
+    protect,
+    authorize("candidate"),
+    saveJob
+);
+
+// Withdraw Application
+router.delete(
+    "/:id/apply",
+    protect,
+    authorize("candidate"),
+    withdrawApplication
+);
+// ==========================
+// Recruiter Routes
+// ==========================
+
+// My Jobs
+router.get(
+    "/my-jobs",
+    protect,
+    authorize("recruiter", "admin"),
+    getMyJobs
+);
+
+// Job Applicants
 router.get(
     "/:id/applicants",
     protect,
     authorize("recruiter", "admin"),
     getJobApplicants
 );
-
-// Get Single Job
-router.get("/:id", getSingleJob);
-
-
-// ==========================
-// Recruiter/Admin Routes
-// ==========================
 
 // Create Job
 router.post(
@@ -81,5 +106,11 @@ router.delete(
     authorize("recruiter", "admin"),
     deleteJob
 );
+
+// ==========================
+// Get Single Job (LAST)
+// ==========================
+
+router.get("/:id", getSingleJob);
 
 module.exports = router;
