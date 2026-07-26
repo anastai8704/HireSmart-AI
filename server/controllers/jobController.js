@@ -594,3 +594,52 @@ exports.unsaveJob = async (req, res) => {
     }
 
 };
+// ==========================
+// Recruiter Dashboard
+// ==========================
+exports.getDashboardStats = async (req, res) => {
+
+    try {
+
+        // Total jobs created by recruiter
+        const jobs = await Job.find({
+            recruiter: req.user.id,
+        });
+
+        const totalJobs = jobs.length;
+
+        // Count all applicants
+        let totalApplications = 0;
+
+        jobs.forEach((job) => {
+            totalApplications += job.applicants.length;
+        });
+
+        // Latest Job
+        const latestJob = await Job.findOne({
+            recruiter: req.user.id,
+        })
+            .sort({ createdAt: -1 })
+            .select("title company location createdAt");
+
+        return res.status(200).json({
+            success: true,
+            dashboard: {
+                totalJobs,
+                totalApplications,
+                latestJob,
+            },
+        });
+
+    } catch (error) {
+
+        console.error(error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Server Error",
+        });
+
+    }
+
+};

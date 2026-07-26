@@ -16,6 +16,7 @@ const {
     saveJob,
     getSavedJobs,
     unsaveJob,
+    getDashboardStats,
 } = require("../controllers/jobController");
 
 const {
@@ -84,6 +85,14 @@ router.delete(
 // ==========================
 // Recruiter Routes
 // ==========================
+
+// Recruiter Dashboard
+router.get(
+    "/dashboard",
+    protect,
+    authorize("recruiter", "admin"),
+    getDashboardStats
+);
 
 // My Jobs
 router.get(
