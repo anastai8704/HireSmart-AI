@@ -17,6 +17,7 @@ const {
     getSavedJobs,
     unsaveJob,
     getDashboardStats,
+    getCandidateDashboard,
 } = require("../controllers/jobController");
 
 const {
@@ -34,6 +35,13 @@ router.get("/", getAllJobs);
 // ==========================
 // Candidate Routes
 // ==========================
+
+router.get(
+    "/candidate-dashboard",
+    protect,
+    authorize("candidate"),
+    getCandidateDashboard
+);
 
 // My Applied Jobs
 router.get(

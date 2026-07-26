@@ -643,3 +643,42 @@ exports.getDashboardStats = async (req, res) => {
     }
 
 };
+exports.getCandidateDashboard = async (req, res) => {
+
+    try {
+
+        const appliedJobs = await Job.find({
+            applicants: req.user.id,
+        });
+
+        const savedJobs = await Job.find({
+            savedBy: req.user.id,
+        });
+
+        const latestAppliedJob = await Job.findOne({
+            applicants: req.user.id,
+        })
+        .sort({ createdAt: -1 })
+        .select("title company location createdAt");
+
+        res.status(200).json({
+            success: true,
+            dashboard: {
+                totalAppliedJobs: appliedJobs.length,
+                totalSavedJobs: savedJobs.length,
+                latestAppliedJob,
+            },
+        });
+
+    } catch (error) {
+
+        console.error(error);
+
+        res.status(500).json({
+            success: false,
+            message: "Server Error",
+        });
+
+    }
+
+};
