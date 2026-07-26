@@ -19,6 +19,7 @@ const {
     getDashboardStats,
     getCandidateDashboard,
     getJobStatus,
+    getApplicantProfile,
 } = require("../controllers/jobController");
 
 const {
@@ -124,6 +125,14 @@ router.get(
     protect,
     authorize("recruiter", "admin"),
     getJobApplicants
+);
+
+//Get Applicant Profile
+router.get(
+    "/applicant/:id",
+    protect,
+    authorize("recruiter", "admin"),
+    getApplicantProfile
 );
 
 // Create Job

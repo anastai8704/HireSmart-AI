@@ -53,8 +53,7 @@ exports.createJob = async (req, res) => {
 
     } catch (error) {
 
-        console.log(error);
-
+console.error(error);
         return res.status(500).json({
             success: false,
             message: "Server Error"
@@ -148,8 +147,7 @@ exports.getSingleJob = async (req, res) => {
 
     } catch (error) {
 
-        console.log(error);
-
+console.error(error);
         return res.status(500).json({
             success: false,
             message: "Server Error"
@@ -202,8 +200,7 @@ exports.updateJob = async (req, res) => {
 
     } catch (error) {
 
-        console.log(error);
-
+console.error(error);
         return res.status(500).json({
             success: false,
             message: "Server Error"
@@ -248,8 +245,7 @@ exports.deleteJob = async (req, res) => {
 
     } catch (error) {
 
-        console.log(error);
-
+console.error(error);
         return res.status(500).json({
             success: false,
             message: "Server Error"
@@ -468,10 +464,16 @@ exports.withdrawApplication = async (req, res) => {
 // Save Job
 // ==========================
 exports.saveJob = async (req, res) => {
-
     try {
 
         const user = await User.findById(req.user.id);
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found",
+            });
+        }
 
         const job = await Job.findById(req.params.id);
 
@@ -483,15 +485,15 @@ exports.saveJob = async (req, res) => {
         }
 
         if (
-    user.savedJobs.some(
-        savedJob => savedJob.toString() === job._id.toString()
-    )
-) {
-    return res.status(400).json({
-        success: false,
-        message: "Job already saved.",
-    });
-}
+            user.savedJobs.some(
+                savedJob => savedJob.toString() === job._id.toString()
+            )
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: "Job already saved.",
+            });
+        }
 
         user.savedJobs.push(job._id);
 
@@ -512,7 +514,6 @@ exports.saveJob = async (req, res) => {
         });
 
     }
-
 };
 // ==========================
 // Get Saved Jobs
@@ -653,28 +654,36 @@ exports.getCandidateDashboard = async (req, res) => {
         });
 
         const user = await User.findById(req.user.id);
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found",
+            });
+        }
+
         const totalSavedJobs = user.savedJobs.length;
 
         const latestAppliedJob = await Job.findOne({
             applicants: req.user.id,
         })
-        .sort({ createdAt: -1 })
-        .select("title company location createdAt");
+            .sort({ createdAt: -1 })
+            .select("title company location createdAt");
 
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             dashboard: {
-            totalAppliedJobs: appliedJobs.length,
-            totalSavedJobs,
-            latestAppliedJob,
-      },
+                totalAppliedJobs: appliedJobs.length,
+                totalSavedJobs,
+                latestAppliedJob,
+            },
         });
 
     } catch (error) {
 
         console.error(error);
 
-        res.status(500).json({
+        return res.status(500).json({
             success: false,
             message: "Server Error",
         });
@@ -725,4 +734,48 @@ exports.getJobStatus = async (req, res) => {
         });
 
     }
+};
+// ==========================
+// Get Applicant Profile
+// ==========================
+exports.getApplicantProfile = async (req, res) => {
+
+    try {
+
+        const applicant = await User.findById(req.params.id)
+            .select("-password");
+
+        if (!applicant) {
+            return res.status(404).json({
+                success: false,
+                message: "Applicant not found",
+            });
+        }
+
+        if (
+            req.user.role !== "recruiter" &&
+            req.user.role !== "admin"
+        ) {
+            return res.status(403).json({
+                success: false,
+                message: "You are not authorized to view this profile.",
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            applicant,
+        });
+
+    } catch (error) {
+
+        console.error(error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Server Error",
+        });
+
+    }
+
 };
