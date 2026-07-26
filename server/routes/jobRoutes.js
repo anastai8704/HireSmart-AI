@@ -18,6 +18,7 @@ const {
     unsaveJob,
     getDashboardStats,
     getCandidateDashboard,
+    getJobStatus,
 } = require("../controllers/jobController");
 
 const {
@@ -88,6 +89,13 @@ router.delete(
     protect,
     authorize("candidate"),
     unsaveJob
+);
+
+router.get(
+    "/:id/status",
+    protect,
+    authorize("candidate"),
+    getJobStatus
 );
 
 // ==========================

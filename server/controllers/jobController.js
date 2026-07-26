@@ -518,7 +518,6 @@ exports.saveJob = async (req, res) => {
 // Get Saved Jobs
 // ==========================
 exports.getSavedJobs = async (req, res) => {
-
     try {
 
         const user = await User.findById(req.user.id)
@@ -546,7 +545,6 @@ exports.getSavedJobs = async (req, res) => {
         });
 
     }
-
 };
 // ==========================
 // Unsave Job
@@ -643,6 +641,9 @@ exports.getDashboardStats = async (req, res) => {
     }
 
 };
+// ==========================
+// Candidate Dashboard
+// ==========================
 exports.getCandidateDashboard = async (req, res) => {
 
     try {
@@ -651,9 +652,8 @@ exports.getCandidateDashboard = async (req, res) => {
             applicants: req.user.id,
         });
 
-        const savedJobs = await Job.find({
-            savedBy: req.user.id,
-        });
+        const user = await User.findById(req.user.id);
+        const totalSavedJobs = user.savedJobs.length;
 
         const latestAppliedJob = await Job.findOne({
             applicants: req.user.id,
@@ -664,10 +664,10 @@ exports.getCandidateDashboard = async (req, res) => {
         res.status(200).json({
             success: true,
             dashboard: {
-                totalAppliedJobs: appliedJobs.length,
-                totalSavedJobs: savedJobs.length,
-                latestAppliedJob,
-            },
+            totalAppliedJobs: appliedJobs.length,
+            totalSavedJobs,
+            latestAppliedJob,
+      },
         });
 
     } catch (error) {
@@ -681,4 +681,48 @@ exports.getCandidateDashboard = async (req, res) => {
 
     }
 
+};
+// ==========================
+// getJobStatus
+// ==========================
+exports.getJobStatus = async (req, res) => {
+    try {
+
+        const job = await Job.findById(req.params.id);
+
+        if (!job) {
+            return res.status(404).json({
+                success: false,
+                message: "Job not found",
+            });
+        }
+
+        const user = await User.findById(req.user.id);
+
+        const isApplied = job.applicants.some(
+            applicant => applicant.toString() === req.user.id
+        );
+
+        const isSaved = user.savedJobs.some(
+            savedJob => savedJob.toString() === job._id.toString()
+        );
+
+        return res.status(200).json({
+            success: true,
+            status: {
+                isApplied,
+                isSaved,
+            },
+        });
+
+    } catch (error) {
+
+        console.error(error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Server Error",
+        });
+
+    }
 };
