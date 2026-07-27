@@ -353,6 +353,7 @@ exports.getJobApplicants = async (req, res) => {
             });
         }
 
+        // Only recruiter or admin can view applicants
         if (
             job.recruiter.toString() !== req.user.id &&
             req.user.role !== "admin"
@@ -363,10 +364,19 @@ exports.getJobApplicants = async (req, res) => {
             });
         }
 
+        // Filter applicants by status
+        let applicants = job.applicants;
+
+        if (req.query.status) {
+            applicants = applicants.filter(
+                applicant => applicant.status === req.query.status
+            );
+        }
+
         return res.status(200).json({
             success: true,
-            count: job.applicants.length,
-            applicants: job.applicants,
+            count: applicants.length,
+            applicants,
         });
 
     } catch (error) {
