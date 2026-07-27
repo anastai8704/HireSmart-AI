@@ -612,12 +612,50 @@ exports.getDashboardStats = async (req, res) => {
 
         const totalJobs = jobs.length;
 
-        // Count all applicants
-        let totalApplications = 0;
+let totalApplications = 0;
 
-        jobs.forEach((job) => {
-            totalApplications += job.applicants.length;
-        });
+let applied = 0;
+let shortlisted = 0;
+let interview = 0;
+let selected = 0;
+let rejected = 0;
+
+jobs.forEach((job) => {
+
+    totalApplications += job.applicants.length;
+
+    job.applicants.forEach((applicant) => {
+
+        switch (applicant.status) {
+
+            case "Applied":
+                applied++;
+                break;
+
+            case "Shortlisted":
+                shortlisted++;
+                break;
+
+            case "Interview":
+                interview++;
+                break;
+
+            case "Selected":
+                selected++;
+                break;
+
+            case "Rejected":
+                rejected++;
+                break;
+
+            default:
+                break;
+
+        }
+
+    });
+
+});
 
         // Latest Job
         const latestJob = await Job.findOne({
@@ -628,11 +666,16 @@ exports.getDashboardStats = async (req, res) => {
 
         return res.status(200).json({
             success: true,
-            dashboard: {
-                totalJobs,
-                totalApplications,
-                latestJob,
-            },
+dashboard: {
+    totalJobs,
+    totalApplications,
+    applied,
+    shortlisted,
+    interview,
+    selected,
+    rejected,
+    latestJob,
+},
         });
 
     } catch (error) {
