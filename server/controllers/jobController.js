@@ -297,16 +297,22 @@ exports.applyJob = async (req, res) => {
             });
         }
 
-        // Prevent duplicate applications
-        if (
-    job.applicants.some(applicant => applicant.toString() === req.user.id)) {
+        const alreadyApplied = job.applicants.some(
+            applicant =>
+                applicant.candidate.toString() === req.user.id
+        );
+
+        if (alreadyApplied) {
             return res.status(400).json({
                 success: false,
                 message: "You have already applied for this job.",
             });
         }
 
-        job.applicants.push(req.user.id);
+        job.applicants.push({
+            candidate: req.user.id,
+            status: "Applied",
+        });
 
         await job.save();
 
@@ -336,7 +342,7 @@ exports.getJobApplicants = async (req, res) => {
 
         const job = await Job.findById(req.params.id)
             .populate(
-                "applicants",
+                "applicants.candidate",
                 "name email phone profileImage role"
             );
 
@@ -347,7 +353,6 @@ exports.getJobApplicants = async (req, res) => {
             });
         }
 
-        // Only owner recruiter or admin
         if (
             job.recruiter.toString() !== req.user.id &&
             req.user.role !== "admin"
@@ -384,7 +389,7 @@ exports.getAppliedJobs = async (req, res) => {
     try {
 
         const jobs = await Job.find({
-            applicants: req.user.id
+            "applicants.candidate": req.user.id,
         }).populate(
             "recruiter",
             "name email"
@@ -424,21 +429,21 @@ exports.withdrawApplication = async (req, res) => {
             });
         }
 
-        // Check if candidate has applied
-        if (
-        !job.applicants.some(
-            applicant => applicant.toString() === req.user.id
-        )
-    ) {
-        return res.status(400).json({
-        success: false,
-        message: "You have not applied for this job.",
-    });
-}
+        const applied = job.applicants.some(
+            applicant =>
+                applicant.candidate.toString() === req.user.id
+        );
 
-        // Remove candidate from applicants
+        if (!applied) {
+            return res.status(400).json({
+                success: false,
+                message: "You have not applied for this job.",
+            });
+        }
+
         job.applicants = job.applicants.filter(
-            applicant => applicant.toString() !== req.user.id
+            applicant =>
+                applicant.candidate.toString() !== req.user.id
         );
 
         await job.save();
@@ -650,25 +655,18 @@ exports.getCandidateDashboard = async (req, res) => {
     try {
 
         const appliedJobs = await Job.find({
-            applicants: req.user.id,
+            "applicants.candidate": req.user.id,
         });
 
         const user = await User.findById(req.user.id);
 
-        if (!user) {
-            return res.status(404).json({
-                success: false,
-                message: "User not found",
-            });
-        }
-
         const totalSavedJobs = user.savedJobs.length;
 
         const latestAppliedJob = await Job.findOne({
-            applicants: req.user.id,
+            "applicants.candidate": req.user.id,
         })
-            .sort({ createdAt: -1 })
-            .select("title company location createdAt");
+        .sort({ createdAt: -1 })
+        .select("title company location createdAt");
 
         return res.status(200).json({
             success: true,
@@ -695,6 +693,7 @@ exports.getCandidateDashboard = async (req, res) => {
 // getJobStatus
 // ==========================
 exports.getJobStatus = async (req, res) => {
+
     try {
 
         const job = await Job.findById(req.params.id);
@@ -709,7 +708,8 @@ exports.getJobStatus = async (req, res) => {
         const user = await User.findById(req.user.id);
 
         const isApplied = job.applicants.some(
-            applicant => applicant.toString() === req.user.id
+            applicant =>
+                applicant.candidate.toString() === req.user.id
         );
 
         const isSaved = user.savedJobs.some(
@@ -734,6 +734,7 @@ exports.getJobStatus = async (req, res) => {
         });
 
     }
+
 };
 // ==========================
 // Get Applicant Profile
@@ -764,6 +765,81 @@ exports.getApplicantProfile = async (req, res) => {
 
         return res.status(200).json({
             success: true,
+            applicant,
+        });
+
+    } catch (error) {
+
+        console.error(error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Server Error",
+        });
+
+    }
+
+};
+// ==========================
+// Update Applicant Status
+// ==========================
+exports.updateApplicantStatus = async (req, res) => {
+
+    try {
+
+        const { status } = req.body;
+        const validStatuses = [
+           "Applied",
+           "Shortlisted",
+           "Interview",
+           "Selected",
+           "Rejected",
+];
+
+        if (!validStatuses.includes(status)) {
+        return res.status(400).json({
+           success: false,
+           message: "Invalid status",
+    });
+}        
+        const job = await Job.findById(req.params.jobId);
+
+        if (!job) {
+            return res.status(404).json({
+                success: false,
+                message: "Job not found",
+            });
+        }
+
+        if (
+            job.recruiter.toString() !== req.user.id &&
+            req.user.role !== "admin"
+        ) {
+            return res.status(403).json({
+                success: false,
+                message: "You are not authorized.",
+            });
+        }
+
+        const applicant = job.applicants.find(
+            item =>
+                item.candidate.toString() === req.params.userId
+        );
+
+        if (!applicant) {
+            return res.status(404).json({
+                success: false,
+                message: "Applicant not found",
+            });
+        }
+
+        applicant.status = status;
+
+        await job.save();
+
+        return res.status(200).json({
+            success: true,
+            message: "Applicant status updated",
             applicant,
         });
 

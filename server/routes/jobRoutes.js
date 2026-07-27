@@ -20,6 +20,7 @@ const {
     getCandidateDashboard,
     getJobStatus,
     getApplicantProfile,
+    updateApplicantStatus,
 } = require("../controllers/jobController");
 
 const {
@@ -51,6 +52,13 @@ router.get(
     protect,
     authorize("candidate"),
     getAppliedJobs
+);
+
+router.put(
+    "/:jobId/applicant/:userId/status",
+    protect,
+    authorize("recruiter", "admin"),
+    updateApplicantStatus
 );
 
 // Apply Job

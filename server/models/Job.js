@@ -55,10 +55,24 @@ const jobSchema = new mongoose.Schema(
 
     applicants: [
     {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
+        candidate: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+        },
+
+        status: {
+            type: String,
+            enum: [
+                "Applied",
+                "Shortlisted",
+                "Interview",
+                "Selected",
+                "Rejected",
+            ],
+            default: "Applied",
+        },
     },
-    ],
+],
 
     savedBy: [
     {
