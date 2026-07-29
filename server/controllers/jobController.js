@@ -915,3 +915,108 @@ exports.updateApplicantStatus = async (req, res) => {
     }
 
 };
+// ==========================
+//  getRecruiterAnalytics
+// =========================  
+exports.getRecruiterAnalytics = async (req, res) => {
+    try {
+
+        const recruiterId = req.user._id;
+
+        const jobs = await Job.find({
+            recruiter: recruiterId
+        });
+
+        let totalCandidates = 0;
+
+        let applied = 0;
+        let shortlisted = 0;
+        let interview = 0;
+        let selected = 0;
+        let rejected = 0;
+
+        let topJob = null;
+        let maxApplications = 0;
+
+        for (const job of jobs) {
+
+            totalCandidates += job.applicants.length;
+
+            if (job.applicants.length > maxApplications) {
+
+                maxApplications = job.applicants.length;
+
+                topJob = {
+                    _id: job._id,
+                    title: job.title,
+                    applications: job.applicants.length
+                };
+            }
+
+            for (const applicant of job.applicants) {
+
+                switch (applicant.status) {
+
+                    case "Applied":
+                        applied++;
+                        break;
+
+                    case "Shortlisted":
+                        shortlisted++;
+                        break;
+
+                    case "Interview":
+                        interview++;
+                        break;
+
+                    case "Selected":
+                        selected++;
+                        break;
+
+                    case "Rejected":
+                        rejected++;
+                        break;
+                }
+            }
+        }
+
+        return res.status(200).json({
+
+            success: true,
+
+            analytics: {
+
+                totalJobs: jobs.length,
+
+                totalCandidates,
+
+                applied,
+
+                shortlisted,
+
+                interview,
+
+                selected,
+
+                rejected,
+
+                topJob
+
+            }
+
+        });
+
+    } catch (error) {
+
+        console.log(error);
+
+        return res.status(500).json({
+
+            success: false,
+
+            message: "Server Error"
+
+        });
+
+    }
+};

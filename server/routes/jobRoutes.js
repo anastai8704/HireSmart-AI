@@ -21,6 +21,7 @@ const {
     getJobStatus,
     getApplicantProfile,
     updateApplicantStatus,
+    getRecruiterAnalytics,
 } = require("../controllers/jobController");
 
 const {
@@ -133,6 +134,14 @@ router.get(
     protect,
     authorize("recruiter", "admin"),
     getJobApplicants
+);
+
+//getRecruiterAnalytics
+router.get(
+    "/analytics",
+    protect,
+    authorize("recruiter"),
+    getRecruiterAnalytics
 );
 
 //Get Applicant Profile
