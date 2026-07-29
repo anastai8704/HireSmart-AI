@@ -380,6 +380,39 @@ exports.getJobApplicants = async (req, res) => {
         applicant.candidate.name.toLowerCase().includes(keyword)
     );
     }
+    if (req.query.sort === "newest") {
+
+    applicants.sort(
+        (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+    );
+
+}
+
+else if (req.query.sort === "oldest") {
+
+    applicants.sort(
+        (a, b) => new Date(a.createdAt) - new Date(b.createdAt)
+    );
+
+}
+
+else if (req.query.sort === "name") {
+
+    applicants.sort(
+        (a, b) =>
+            a.candidate.name.localeCompare(b.candidate.name)
+    );
+
+}
+
+else if (req.query.sort === "status") {
+
+    applicants.sort(
+        (a, b) =>
+            a.status.localeCompare(b.status)
+    );
+
+}
         return res.status(200).json({
             success: true,
             count: applicants.length,
