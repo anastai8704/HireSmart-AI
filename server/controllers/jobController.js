@@ -372,7 +372,14 @@ exports.getJobApplicants = async (req, res) => {
                 applicant => applicant.status === req.query.status
             );
         }
+        // Search by candidate name
+        if (req.query.search) {
+        const keyword = req.query.search.toLowerCase();
 
+        applicants = applicants.filter(applicant =>
+        applicant.candidate.name.toLowerCase().includes(keyword)
+    );
+    }
         return res.status(200).json({
             success: true,
             count: applicants.length,
