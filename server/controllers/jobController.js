@@ -363,6 +363,9 @@ exports.getJobApplicants = async (req, res) => {
                 message: "You are not authorized to view applicants.",
             });
         }
+        
+        const page = Number(req.query.page) || 1;
+        const limit = Number(req.query.limit) || 5;
 
         // Filter applicants by status
         let applicants = job.applicants;
@@ -413,12 +416,25 @@ else if (req.query.sort === "status") {
     );
 
 }
-        return res.status(200).json({
-            success: true,
-            count: applicants.length,
-            applicants,
-        });
 
+const startIndex = (page - 1) * limit;
+const endIndex = startIndex + limit;
+
+const paginatedApplicants = applicants.slice(
+    startIndex,
+    endIndex
+);
+
+        return res.status(200).json({
+    success: true,
+    count: paginatedApplicants.length,
+    page,
+    limit,
+    totalApplicants: applicants.length,
+    totalPages: Math.ceil(applicants.length / limit),
+    applicants: paginatedApplicants,
+});
+        
     } catch (error) {
 
         console.error(error);
