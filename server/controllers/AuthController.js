@@ -1,6 +1,6 @@
-const User = require("../models/User");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const User = require("../models/User");
 
 exports.register = async (req, res) => {
     try {
@@ -142,4 +142,57 @@ exports.login = async (req, res) => {
         });
 
     }
+};
+// ==========================
+// Upload Resume
+// ==========================
+exports.uploadResume = async (req, res) => {
+
+    try {
+
+        if (!req.file) {
+
+            return res.status(400).json({
+
+                success: false,
+
+                message: "Please upload resume"
+
+            });
+
+        }
+
+        const user = await User.findById(req.user.id);
+
+        user.resume = req.file.path.replace(/\\/g, "/");
+        user.resumeOriginalName = req.file.originalname;
+        user.resumeMimeType = req.file.mimetype;
+        user.resumeSize = req.file.size;
+
+        await user.save();
+
+        return res.status(200).json({
+
+            success: true,
+
+            message: "Resume uploaded successfully",
+
+            resume: user.resume
+
+        });
+
+    } catch (error) {
+
+        console.log(error);
+
+        return res.status(500).json({
+
+            success: false,
+
+            message: "Server Error"
+
+        });
+
+    }
+
 };

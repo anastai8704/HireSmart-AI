@@ -41,6 +41,25 @@ const userSchema = new mongoose.Schema(
         type: mongoose.Schema.Types.ObjectId,
         ref: "Job",
     },],
+    resume: {
+    type: String,
+    default: ""
+},
+
+resumeOriginalName: {
+    type: String,
+    default: ""
+},
+
+resumeMimeType: {
+    type: String,
+    default: ""
+},
+
+resumeSize: {
+    type: Number,
+    default: 0
+},
   },
   {
     timestamps: true,
