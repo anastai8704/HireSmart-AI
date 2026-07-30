@@ -22,12 +22,14 @@ const {
     getApplicantProfile,
     updateApplicantStatus,
     getRecruiterAnalytics,
+    downloadCandidateResume,
 } = require("../controllers/jobController");
 
 const {
     protect,
     authorize,
 } = require("../middleware/authMiddleware");
+
 
 // ==========================
 // Public Routes
@@ -174,6 +176,14 @@ router.delete(
     protect,
     authorize("recruiter", "admin"),
     deleteJob
+);
+
+// Download Candidate Resume
+router.get(
+    "/candidate/:candidateId/resume",
+    protect,
+    authorize("recruiter"),
+    downloadCandidateResume
 );
 
 // ==========================

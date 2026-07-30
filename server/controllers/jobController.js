@@ -1,5 +1,8 @@
+const path = require("path");
+const fs = require("fs");
 const Job = require("../models/Job");
 const User = require("../models/User");
+
 // ==========================
 // Create Job
 // ==========================
@@ -1065,6 +1068,48 @@ exports.getRecruiterAnalytics = async (req, res) => {
 
             message: "Server Error"
 
+        });
+
+    }
+};
+// ==========================
+// Download Candidate Resume
+// ==========================
+exports.downloadCandidateResume = async (req, res) => {
+    try {
+
+        const { candidateId } = req.params;
+
+        const candidate = await User.findById(candidateId);
+
+        if (!candidate || !candidate.resume) {
+            return res.status(404).json({
+                success: false,
+                message: "Resume not found"
+            });
+        }
+
+        const filePath = path.join(process.cwd(), candidate.resume);
+
+        if (!fs.existsSync(filePath)) {
+            return res.status(404).json({
+                success: false,
+                message: "Resume file missing"
+            });
+        }
+
+        return res.download(
+            filePath,
+            candidate.resumeOriginalName
+        );
+
+    } catch (error) {
+
+        console.error(error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Server Error"
         });
 
     }
