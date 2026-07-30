@@ -2,17 +2,19 @@ const express = require("express");
 const router = express.Router();
 
 const {
+    register,
+    login,
+    uploadResume,
+    deleteResume,
+} = require("../controllers/authController");
+
+const {
     protect,
     authorize,
 } = require("../middleware/authMiddleware");
 
-const {
-    register,
-    login,
-    uploadResume,
-} = require("../controllers/authController");
-
 const upload = require("../middleware/uploadResume");
+
 
 router.post("/register", register);
 
@@ -24,6 +26,13 @@ router.put(
     authorize("candidate"),
     upload.single("resume"),
     uploadResume
+);
+
+router.delete(
+    "/resume",
+    protect,
+    authorize("candidate"),
+    deleteResume
 );
 
 module.exports = router;

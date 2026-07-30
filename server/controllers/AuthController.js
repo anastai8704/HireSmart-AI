@@ -1,6 +1,7 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
+const fs = require("fs");
 
 exports.register = async (req, res) => {
     try {
@@ -153,16 +154,24 @@ exports.uploadResume = async (req, res) => {
         if (!req.file) {
 
             return res.status(400).json({
-
                 success: false,
-
-                message: "Please upload resume"
-
+                message: "Please upload a resume"
             });
 
         }
 
         const user = await User.findById(req.user.id);
+
+        // Delete old resume
+        if (user.resume) {
+
+            if (fs.existsSync(user.resume)) {
+
+                fs.unlinkSync(user.resume);
+
+            }
+
+        }
 
         user.resume = req.file.path.replace(/\\/g, "/");
         user.resumeOriginalName = req.file.originalname;
@@ -178,6 +187,63 @@ exports.uploadResume = async (req, res) => {
             message: "Resume uploaded successfully",
 
             resume: user.resume
+
+        });
+
+    } catch (error) {
+
+        console.log(error);
+
+        return res.status(500).json({
+
+            success: false,
+
+            message: "Server Error"
+
+        });
+
+    }
+
+};
+// ==========================
+// Delete Resume
+// ==========================
+exports.deleteResume = async (req, res) => {
+
+    try {
+
+        const user = await User.findById(req.user.id);
+
+        if (!user.resume) {
+
+            return res.status(404).json({
+
+                success: false,
+
+                message: "Resume not found"
+
+            });
+
+        }
+
+        if (fs.existsSync(user.resume)) {
+
+            fs.unlinkSync(user.resume);
+
+        }
+
+        user.resume = "";
+        user.resumeOriginalName = "";
+        user.resumeMimeType = "";
+        user.resumeSize = 0;
+
+        await user.save();
+
+        return res.status(200).json({
+
+            success: true,
+
+            message: "Resume deleted successfully"
 
         });
 
