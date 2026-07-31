@@ -4,6 +4,9 @@ const app = express();
 
 app.use(express.json());
 
+const requestLogger = require("./middleware/requestLogger");
+app.use(requestLogger);
+
 const authRoutes = require("./routes/authRoutes");
 const userRoutes = require("./routes/userRoutes");
 const jobRoutes = require("./routes/jobRoutes");
