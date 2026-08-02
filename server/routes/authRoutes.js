@@ -3,10 +3,13 @@ const router = express.Router();
 
 const {
     register,
+    registerRecruiter,
+    createRecruiter,
     login,
     uploadResume,
     deleteResume,
-} = require("../controllers/authController");
+    downloadMyResume,
+} = require("../controllers/AuthController");
 
 const {
     protect,
@@ -18,7 +21,16 @@ const upload = require("../middleware/uploadResume");
 
 router.post("/register", register);
 
+router.post("/register-recruiter", registerRecruiter);
+
 router.post("/login", login);
+
+router.post(
+    "/recruiters",
+    protect,
+    authorize("admin"),
+    createRecruiter
+);
 
 router.put(
     "/resume",
@@ -33,6 +45,13 @@ router.delete(
     protect,
     authorize("candidate"),
     deleteResume
+);
+
+router.get(
+    "/resume",
+    protect,
+    authorize("candidate"),
+    downloadMyResume
 );
 
 module.exports = router;

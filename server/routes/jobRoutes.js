@@ -21,6 +21,7 @@ const {
     getJobStatus,
     getApplicantProfile,
     updateApplicantStatus,
+    updateRecruiterNotes,
     getRecruiterAnalytics,
     downloadCandidateResume,
 } = require("../controllers/jobController");
@@ -62,6 +63,13 @@ router.put(
     protect,
     authorize("recruiter", "admin"),
     updateApplicantStatus
+);
+
+router.put(
+    "/:jobId/applicant/:userId/notes",
+    protect,
+    authorize("recruiter", "admin"),
+    updateRecruiterNotes
 );
 
 // Apply Job
@@ -182,7 +190,7 @@ router.delete(
 router.get(
     "/candidate/:candidateId/resume",
     protect,
-    authorize("recruiter"),
+    authorize("recruiter", "admin"),
     downloadCandidateResume
 );
 

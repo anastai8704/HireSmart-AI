@@ -1,12 +1,23 @@
 const multer = require("multer");
 const path = require("path");
+const AppError = require("../utils/AppError");
+const {
+    ensureResumeDirectory,
+    resumeDirectory,
+} = require("../utils/resumeStorage");
+
+ensureResumeDirectory();
+
+const supportedFiles = {
+    ".pdf": "application/pdf",
+    ".doc": "application/msword",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+};
 
 const storage = multer.diskStorage({
 
     destination(req, file, cb) {
-
-        cb(null, "uploads/resumes");
-
+        cb(null, resumeDirectory);
     },
 
     filename(req, file, cb) {
@@ -24,24 +35,10 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req, file, cb) => {
+    const extension = path.extname(file.originalname).toLowerCase();
 
-    const allowed = [
-
-        "application/pdf",
-
-        "application/msword",
-
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-
-    ];
-
-    if (!allowed.includes(file.mimetype)) {
-
-        return cb(
-            new Error("Only PDF DOC DOCX allowed"),
-            false
-        );
-
+    if (supportedFiles[extension] !== file.mimetype) {
+        return cb(new AppError("Only PDF, DOC, and DOCX resumes are allowed", 400));
     }
 
     cb(null, true);

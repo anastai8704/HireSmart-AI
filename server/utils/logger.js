@@ -2,6 +2,7 @@ const winston = require("winston");
 const path = require("path");
 
 const logDir = path.join(__dirname, "../logs");
+const isTest = process.env.NODE_ENV === "test";
 
 const logger = winston.createLogger({
     level: "info",
@@ -18,7 +19,9 @@ const logger = winston.createLogger({
         })
     ),
 
-    transports: [
+    silent: isTest,
+
+    transports: isTest ? [] : [
         new winston.transports.File({
             filename: path.join(logDir, "error.log"),
             level: "error",
@@ -30,7 +33,7 @@ const logger = winston.createLogger({
     ],
 });
 
-if (process.env.NODE_ENV !== "production") {
+if (!isTest && process.env.NODE_ENV !== "production") {
     logger.add(
         new winston.transports.Console({
             format: winston.format.combine(

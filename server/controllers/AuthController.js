@@ -1,264 +1,232 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+
 const User = require("../models/User");
-const fs = require("fs");
+const { Application } = require("../models/Application");
+const { config } = require("../config/env");
+const asyncHandler = require("../middleware/asyncHandler");
+const AppError = require("../utils/AppError");
+const {
+    getResumePath,
+    removeStoredResume,
+} = require("../utils/resumeStorage");
+const {
+    validateRegistration,
+    validateLogin,
+} = require("../validators/authValidator");
 
-exports.register = async (req, res) => {
-    try {
+const normalizeEmail = (email) => String(email || "").trim().toLowerCase();
 
-        const { name, email, password, role } = req.body;
+const buildUserResponse = (user) => ({
+    id: user._id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    phone: user.phone,
+    profileImage: user.profileImage,
+    resume: user.resume
+        ? {
+              originalName: user.resumeOriginalName,
+              mimeType: user.resumeMimeType,
+              size: user.resumeSize,
+              uploadedAt: user.resumeUploadedAt,
+          }
+        : null,
+});
 
-        // Validation
-        if (!name || !email || !password) {
-            return res.status(400).json({
-                success: false,
-                message: "All fields are required"
-            });
-        }
+const removeResumeIfUnreferenced = async (storedResume) => {
+    if (!storedResume) {
+        return;
+    }
 
-        // Check existing user
-        const existingUser = await User.findOne({ email });
-
-        if (existingUser) {
-            return res.status(400).json({
-                success: false,
-                message: "Email already registered"
-            });
-        }
-
-        // Hash password
-        const hashedPassword = await bcrypt.hash(password, 10);
-
-        //invalid roles
-        const allowedRoles = ["candidate", "recruiter", "admin"];
-
-        if (role && !allowedRoles.includes(role)) {
-            return res.status(400).json({
-                success: false,
-                message: "Invalid role",
+    const isReferencedByApplication = await Application.exists({
+        "resumeSnapshot.storageKey": storedResume,
     });
-}
 
-        // Create user
-        const user = await User.create({
-            name,
-            email,
-            password: hashedPassword,
-            role: role || "candidate"
-        });
-
-        // Response object
-        const userResponse = {
-            id: user._id,
-            name: user.name,
-            email: user.email,
-            role: user.role,
-            phone: user.phone,
-            profileImage: user.profileImage,
-        };
-
-        return res.status(201).json({
-            success: true,
-            message: "User Registered Successfully",
-            user: userResponse,
-        });
-
-    } catch (error) {
-        console.error("Register Error:", error);
-
-        return res.status(500).json({
-            success: false,
-            message: "Server Error"
-        });
+    if (!isReferencedByApplication) {
+        await removeStoredResume(storedResume);
     }
 };
-exports.login = async (req, res) => {
-    try {
 
-        const { email, password } = req.body;
+const createUser = async ({ name, email, password, role }) => {
+    validateRegistration({ name, email, password });
 
-        // Validation
-        if (!email || !password) {
-            return res.status(400).json({
-                success: false,
-                message: "Email and Password are required"
-            });
-        }
+    const normalizedEmail = normalizeEmail(email);
+    const existingUser = await User.findOne({ email: normalizedEmail });
 
-        // Check user
-        const user = await User.findOne({ email });
-
-        if (!user) {
-            return res.status(404).json({
-                success: false,
-                message: "User not found"
-            });
-        }
-
-        // Compare password
-        const isMatch = await bcrypt.compare(password, user.password);
-
-        if (!isMatch) {
-            return res.status(401).json({
-                success: false,
-                message: "Invalid Password"
-            });
-        }
-
-        // Generate Token
-        const token = jwt.sign(
-            {
-                id: user._id,
-                role: user.role
-            },
-            process.env.JWT_SECRET,
-            {
-                expiresIn: "7d"
-            }
-        );
-
-        const userResponse = {
-            id: user._id,
-            name: user.name,
-            email: user.email,
-            role: user.role,
-            phone: user.phone,
-            profileImage: user.profileImage,
-        };
-
-        return res.status(200).json({
-            success: true,
-            message: "Login Successful",
-            token,
-            user: userResponse
-        });
-
-    } catch (error) {
-
-        console.error("Login Error:", error);
-
-        return res.status(500).json({
-            success: false,
-            message: "Server Error"
-        });
-
+    if (existingUser) {
+        throw new AppError("An account with this email already exists", 409);
     }
+
+    const hashedPassword = await bcrypt.hash(password, 8);
+
+    return User.create({
+        name: String(name).trim(),
+        email: normalizedEmail,
+        password: hashedPassword,
+        role,
+    });
 };
-// ==========================
-// Upload Resume
-// ==========================
-exports.uploadResume = async (req, res) => {
+
+exports.register = asyncHandler(async (req, res) => {
+    validateRegistration(req.body);
+
+    const user = await createUser({
+        name: req.body.name,
+        email: req.body.email,
+        password: req.body.password,
+        role: "candidate",
+    });
+
+    res.status(201).json({
+        success: true,
+        message: "Candidate account created successfully",
+        user: buildUserResponse(user),
+    });
+});
+
+exports.registerRecruiter = asyncHandler(async (req, res) => {
+    if (config.recruiterInviteCode) {
+        const { inviteCode } = req.body;
+
+        if (!inviteCode || inviteCode !== config.recruiterInviteCode) {
+            throw new AppError("Invalid recruiter invite code", 403);
+        }
+    }
+
+    validateRegistration(req.body);
+
+    const user = await createUser({
+        name: req.body.name,
+        email: req.body.email,
+        password: req.body.password,
+        role: "recruiter",
+    });
+
+    res.status(201).json({
+        success: true,
+        message: "Recruiter account created successfully",
+        user: buildUserResponse(user),
+    });
+});
+
+exports.createRecruiter = asyncHandler(async (req, res) => {
+    const user = await createUser({
+        name: req.body.name,
+        email: req.body.email,
+        password: req.body.password,
+        role: "recruiter",
+    });
+
+    res.status(201).json({
+        success: true,
+        message: "Recruiter account created successfully",
+        user: buildUserResponse(user),
+    });
+});
+
+exports.login = asyncHandler(async (req, res) => {
+    validateLogin(req.body);
+
+    const { email, password } = req.body;
+    const user = await User.findOne({ email: normalizeEmail(email) }).select("+password");
+
+    if (!user || !(await bcrypt.compare(password, user.password))) {
+        throw new AppError("Invalid email or password", 401);
+    }
+
+    const token = jwt.sign(
+        { id: user._id, role: user.role },
+        config.jwtSecret,
+        { expiresIn: config.jwtExpiresIn }
+    );
+
+    res.status(200).json({
+        success: true,
+        message: "Login successful",
+        token,
+        user: buildUserResponse(user),
+    });
+});
+
+exports.uploadResume = asyncHandler(async (req, res) => {
+    if (!req.file) {
+        throw new AppError("Please upload a resume", 400);
+    }
+
+    const user = await User.findById(req.user.id);
+
+    if (!user) {
+        await removeStoredResume(req.file.filename);
+        throw new AppError("User not found", 404);
+    }
+
+    const previousResume = user.resume;
+
+    user.resume = req.file.filename;
+    user.resumeOriginalName = req.file.originalname;
+    user.resumeMimeType = req.file.mimetype;
+    user.resumeSize = req.file.size;
+    user.resumeUploadedAt = new Date();
 
     try {
-
-        if (!req.file) {
-
-            return res.status(400).json({
-                success: false,
-                message: "Please upload a resume"
-            });
-
-        }
-
-        const user = await User.findById(req.user.id);
-
-        // Delete old resume
-        if (user.resume) {
-
-            if (fs.existsSync(user.resume)) {
-
-                fs.unlinkSync(user.resume);
-
-            }
-
-        }
-
-        user.resume = req.file.path.replace(/\\/g, "/");
-        user.resumeOriginalName = req.file.originalname;
-        user.resumeMimeType = req.file.mimetype;
-        user.resumeSize = req.file.size;
-
         await user.save();
-
-        return res.status(200).json({
-
-            success: true,
-
-            message: "Resume uploaded successfully",
-
-            resume: user.resume
-
-        });
-
     } catch (error) {
-
-        console.log(error);
-
-        return res.status(500).json({
-
-            success: false,
-
-            message: "Server Error"
-
-        });
-
+        await removeStoredResume(req.file.filename);
+        throw error;
     }
 
-};
-// ==========================
-// Delete Resume
-// ==========================
-exports.deleteResume = async (req, res) => {
+    await removeResumeIfUnreferenced(previousResume);
+
+    res.status(200).json({
+        success: true,
+        message: "Resume uploaded successfully",
+        resume: buildUserResponse(user).resume,
+    });
+});
+
+exports.deleteResume = asyncHandler(async (req, res) => {
+    const user = await User.findById(req.user.id);
+
+    if (!user || !user.resume) {
+        throw new AppError("Resume not found", 404);
+    }
+
+    const previousResume = user.resume;
+
+    user.resume = "";
+    user.resumeOriginalName = "";
+    user.resumeMimeType = "";
+    user.resumeSize = 0;
+    user.resumeUploadedAt = null;
+
+    await user.save();
+    await removeResumeIfUnreferenced(previousResume);
+
+    res.status(200).json({
+        success: true,
+        message: "Resume deleted successfully",
+    });
+});
+
+exports.downloadMyResume = asyncHandler(async (req, res, next) => {
+    const user = await User.findById(req.user.id);
+
+    if (!user || !user.resume) {
+        throw new AppError("Resume not found", 404);
+    }
+
+    const filePath = getResumePath(user.resume);
 
     try {
-
-        const user = await User.findById(req.user.id);
-
-        if (!user.resume) {
-
-            return res.status(404).json({
-
-                success: false,
-
-                message: "Resume not found"
-
-            });
-
-        }
-
-        if (fs.existsSync(user.resume)) {
-
-            fs.unlinkSync(user.resume);
-
-        }
-
-        user.resume = "";
-        user.resumeOriginalName = "";
-        user.resumeMimeType = "";
-        user.resumeSize = 0;
-
-        await user.save();
-
-        return res.status(200).json({
-
-            success: true,
-
-            message: "Resume deleted successfully"
-
-        });
-
-    } catch (error) {
-
-        console.log(error);
-
-        return res.status(500).json({
-
-            success: false,
-
-            message: "Server Error"
-
-        });
-
+        await require("node:fs").promises.access(filePath);
+    } catch {
+        throw new AppError("Resume file is unavailable", 404);
     }
 
-};
+    res.download(filePath, user.resumeOriginalName, (error) => {
+        if (error) {
+            next(error);
+        }
+    });
+});

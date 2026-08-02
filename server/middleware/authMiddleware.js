@@ -1,5 +1,6 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
+const { config } = require("../config/env");
 
 exports.protect = async (req, res, next) => {
 
@@ -27,7 +28,7 @@ exports.protect = async (req, res, next) => {
 
         const decoded = jwt.verify(
             token,
-            process.env.JWT_SECRET
+            config.jwtSecret
         );
 
         const user = await User
@@ -41,6 +42,13 @@ exports.protect = async (req, res, next) => {
                 message: "User not found"
             });
 
+        }
+
+        if (!user.isActive) {
+            return res.status(403).json({
+                success: false,
+                message: "This account has been deactivated",
+            });
         }
 
         req.user = user;
