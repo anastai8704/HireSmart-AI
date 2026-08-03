@@ -3,9 +3,11 @@ const fs = require("node:fs");
 const Job = require("../models/Job");
 const User = require("../models/User");
 const { Application, applicationStatuses } = require("../models/Application");
+const { roles } = require("../constants/enums");
 const asyncHandler = require("../middleware/asyncHandler");
 const AppError = require("../utils/AppError");
-const { getResumePath } = require("../utils/resumeStorage");
+const resumeService = require("../services/resumeService");
+const storageService = require("../services/storageService");
 const {
     validateJobPayload,
 } = require("../validators/jobValidator");
@@ -13,9 +15,6 @@ const {
     validateApplicationStatus,
     validateResumeDownloadRequest,
 } = require("../validators/applicationValidator");
-
-const jobTypes = ["Full-Time", "Part-Time", "Internship", "Contract", "Remote"];
-const jobStatuses = ["draft", "published", "closed"];
 const publicJobFields =
     "title company location salary experience jobType description skills status closesAt recruiter createdAt updatedAt";
 
@@ -34,103 +33,6 @@ const parsePagination = (query) => {
     }
 
     return { page, limit, skip: (page - 1) * limit };
-};
-
-const normalizeSkills = (skills) => {
-    const values = Array.isArray(skills) ? skills : String(skills || "").split(",");
-    const normalized = [
-        ...new Set(values.map((skill) => String(skill).trim()).filter(Boolean)),
-    ];
-
-    if (normalized.length === 0 || normalized.length > 50) {
-        throw new AppError("Please provide between 1 and 50 skills", 400);
-    }
-
-    return normalized;
-};
-
-const parseDate = (value) => {
-    if (value === null || value === "") {
-        return null;
-    }
-
-    const date = new Date(value);
-
-    if (Number.isNaN(date.getTime())) {
-        throw new AppError("closesAt must be a valid date", 400);
-    }
-
-    return date;
-};
-
-const buildJobPayload = (body, { partial = false } = {}) => {
-    const payload = {};
-    const stringFields = ["title", "company", "location", "experience", "description"];
-
-    for (const field of stringFields) {
-        if (body[field] !== undefined) {
-            const value = String(body[field]).trim();
-
-            if (!value) {
-                throw new AppError(`${field} cannot be empty`, 400);
-            }
-
-            payload[field] = value;
-        }
-    }
-
-    if (body.salary !== undefined) {
-        const salary = Number(body.salary);
-
-        if (!Number.isFinite(salary) || salary < 0) {
-            throw new AppError("salary must be a non-negative number", 400);
-        }
-
-        payload.salary = salary;
-    }
-
-    if (body.jobType !== undefined) {
-        if (!jobTypes.includes(body.jobType)) {
-            throw new AppError("Invalid job type", 400);
-        }
-
-        payload.jobType = body.jobType;
-    }
-
-    if (body.status !== undefined) {
-        if (!jobStatuses.includes(body.status)) {
-            throw new AppError("Invalid job status", 400);
-        }
-
-        payload.status = body.status;
-    }
-
-    if (body.skills !== undefined) {
-        payload.skills = normalizeSkills(body.skills);
-    }
-
-    if (body.closesAt !== undefined) {
-        payload.closesAt = parseDate(body.closesAt);
-    }
-
-    if (!partial) {
-        const requiredFields = [
-            "title",
-            "company",
-            "location",
-            "salary",
-            "experience",
-            "description",
-            "skills",
-        ];
-        const missing = requiredFields.filter((field) => payload[field] === undefined);
-
-        if (missing.length > 0) {
-            throw new AppError(`Missing required fields: ${missing.join(", ")}`, 400);
-        }
-    }
-
-    return payload;
 };
 
 const getOwnedJob = async (jobId, user) => {
@@ -375,6 +277,7 @@ exports.applyJob = asyncHandler(async (req, res) => {
         ],
     });
 
+
     res.status(201).json({
         success: true,
         message: "Job application submitted successfully",
@@ -611,7 +514,7 @@ exports.getJobStatus = asyncHandler(async (req, res) => {
 exports.getApplicantProfile = asyncHandler(async (req, res) => {
     const candidate = await User.findById(req.params.id).select("name email phone profileImage createdAt");
 
-    if (!candidate || candidate.role !== "candidate") {
+    if (!candidate || candidate.role !== roles.candidate) {
         throw new AppError("Applicant not found", 404);
     }
 
@@ -759,17 +662,24 @@ exports.downloadCandidateResume = asyncHandler(async (req, res, next) => {
         throw new AppError("Candidate has not applied for this job", 404);
     }
 
-    const filePath = getResumePath(application.resumeSnapshot.storageKey);
+    const provider = application.resumeSnapshot.provider || "local";
+
+    let fileStream;
 
     try {
-        await fs.promises.access(filePath);
-    } catch {
+        fileStream = await storageService.getFileStream(application.resumeSnapshot.storageKey, provider);
+    } catch (error) {
+        console.log("[jobController] getFileStream error:", error && error.message);
         throw new AppError("Resume file is unavailable", 404);
     }
 
-    res.download(filePath, application.resumeSnapshot.originalName, (error) => {
-        if (error) {
-            next(error);
-        }
-    });
+
+    res.setHeader("Content-Type", application.resumeSnapshot.mimeType || "application/octet-stream");
+    res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="${encodeURIComponent(application.resumeSnapshot.originalName || "resume")}`
+    );
+
+    fileStream.on("error", next);
+    fileStream.pipe(res);
 });

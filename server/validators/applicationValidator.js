@@ -1,15 +1,8 @@
 const AppError = require("../utils/AppError");
-
-const validStatuses = [
-    "Applied",
-    "Shortlisted",
-    "Interview",
-    "Selected",
-    "Rejected",
-];
+const { applicationStatuses } = require("../constants/enums");
 
 const validateApplicationStatus = (status) => {
-    if (!validStatuses.includes(status)) {
+    if (!applicationStatuses.includes(status)) {
         throw new AppError("Invalid application status", 400);
     }
 };

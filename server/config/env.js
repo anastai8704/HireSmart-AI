@@ -21,6 +21,25 @@ const config = Object.freeze({
         .map((origin) => origin.trim())
         .filter(Boolean),
     recruiterInviteCode: process.env.RECRUITER_INVITE_CODE || "",
+    emailFrom: process.env.EMAIL_FROM || "no-reply@hiresmart.ai",
+    clientUrl: process.env.CLIENT_URL || "http://localhost:5173",
+    smtpHost: process.env.SMTP_HOST || "",
+    smtpPort: Number(process.env.SMTP_PORT || 587),
+    smtpSecure: String(process.env.SMTP_SECURE).toLowerCase() === "true",
+    smtpUser: process.env.SMTP_USER || "",
+    smtpPass: process.env.SMTP_PASS || "",
+    storageProvider: (process.env.STORAGE_PROVIDER || "local").toLowerCase(),
+    s3Bucket: process.env.S3_BUCKET || "",
+    s3Region: process.env.S3_REGION || "",
+    s3Endpoint: process.env.S3_ENDPOINT || "",
+    s3AccessKeyId: process.env.S3_ACCESS_KEY_ID || "",
+    s3SecretAccessKey: process.env.S3_SECRET_ACCESS_KEY || "",
+    s3ForcePathStyle: String(process.env.S3_FORCE_PATH_STYLE).toLowerCase() === "true",
+    requireEmailVerification: String(process.env.REQUIRE_EMAIL_VERIFICATION).toLowerCase() === "true",
+    emailVerificationTokenExpiresIn:
+        Number(process.env.EMAIL_VERIFICATION_TOKEN_EXPIRES_IN) || 24 * 60 * 60 * 1000,
+    passwordResetTokenExpiresIn:
+        Number(process.env.PASSWORD_RESET_TOKEN_EXPIRES_IN) || 60 * 60 * 1000,
 });
 
 const validateEnvironment = () => {

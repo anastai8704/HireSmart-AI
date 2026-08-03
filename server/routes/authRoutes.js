@@ -6,10 +6,15 @@ const {
     registerRecruiter,
     createRecruiter,
     login,
+    verifyEmail,
+    resendVerificationEmail,
+    forgotPassword,
+    resetPassword,
+    changePassword,
     uploadResume,
     deleteResume,
     downloadMyResume,
-} = require("../controllers/AuthController");
+} = require("../controllers/authController");
 
 const {
     protect,
@@ -24,12 +29,22 @@ router.post("/register", register);
 router.post("/register-recruiter", registerRecruiter);
 
 router.post("/login", login);
+router.post("/verify-email", verifyEmail);
+router.post("/resend-verification", resendVerificationEmail);
+router.post("/forgot-password", forgotPassword);
+router.post("/reset-password", resetPassword);
 
 router.post(
     "/recruiters",
     protect,
     authorize("admin"),
     createRecruiter
+);
+
+router.post(
+    "/change-password",
+    protect,
+    changePassword
 );
 
 router.put(

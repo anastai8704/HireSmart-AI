@@ -2,7 +2,7 @@ const dns = require("node:dns");
 dns.setServers(["8.8.8.8", "1.1.1.1"]);
 
 const app = require("./app");
-const connectDB = require("./config/db");
+const { connectDB, disconnectDB } = require("./config/db");
 const { config, validateEnvironment } = require("./config/env");
 const logger = require("./utils/logger");
 
@@ -15,9 +15,14 @@ const startServer = async () => {
     });
 
     const shutdown = (signal) => {
-        logger.info(`${signal} received. Closing server.`);
-        server.close(() => process.exit(0));
-    };
+    logger.info(`${signal} received. Closing server...`);
+
+    server.close(async () => {
+        await disconnectDB();
+        logger.info("Server stopped successfully.");
+        process.exit(0);
+    });
+};
 
     process.once("SIGINT", () => shutdown("SIGINT"));
     process.once("SIGTERM", () => shutdown("SIGTERM"));

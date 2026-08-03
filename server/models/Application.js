@@ -1,13 +1,5 @@
 const mongoose = require("mongoose");
-
-const applicationStatuses = [
-    "Applied",
-    "Shortlisted",
-    "Interview",
-    "Selected",
-    "Rejected",
-    "Withdrawn",
-];
+const { applicationStatuses } = require("../constants/enums");
 
 const statusHistorySchema = new mongoose.Schema(
     {
@@ -66,6 +58,12 @@ const applicationSchema = new mongoose.Schema(
                 required: true,
                 select: false,
             },
+            provider: {
+                type: String,
+                enum: ["local", "s3"],
+                required: true,
+                default: "local",
+            },
             originalName: {
                 type: String,
                 required: true,
@@ -77,6 +75,10 @@ const applicationSchema = new mongoose.Schema(
             size: {
                 type: Number,
                 required: true,
+            },
+            text: {
+                type: String,
+                default: "",
             },
         },
         recruiterNotes: {

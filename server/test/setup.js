@@ -42,7 +42,7 @@ const startDatabase = async () => {
         process.env.MONGO_URI = replaceDatabaseName(process.env.MONGO_URI, "hiresmart_test");
     }
 
-    const connectDB = require("../config/db");
+    const { connectDB } = require("../config/db");
     await connectDB();
 };
 

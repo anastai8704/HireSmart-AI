@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { roles } = require("../constants/enums");
 
 const userSchema = new mongoose.Schema(
     {
@@ -24,14 +25,36 @@ const userSchema = new mongoose.Schema(
         },
         role: {
             type: String,
-            enum: ["candidate", "recruiter", "admin"],
-            default: "candidate",
+            enum: Object.values(roles),
+            default: roles.candidate,
             index: true,
         },
         isActive: {
             type: Boolean,
             default: true,
             index: true,
+        },
+        emailVerified: {
+            type: Boolean,
+            default: false,
+            index: true,
+        },
+        emailVerificationToken: {
+            type: String,
+            select: false,
+        },
+        emailVerificationTokenExpires: {
+            type: Date,
+        },
+        resetPasswordToken: {
+            type: String,
+            select: false,
+        },
+        resetPasswordTokenExpires: {
+            type: Date,
+        },
+        passwordChangedAt: {
+            type: Date,
         },
         phone: {
             type: String,
@@ -95,6 +118,11 @@ const userSchema = new mongoose.Schema(
             type: String,
             default: "",
         },
+        resumeProvider: {
+            type: String,
+            enum: ["local", "s3"],
+            default: "local",
+        },
         resumeOriginalName: {
             type: String,
             default: "",
@@ -110,6 +138,14 @@ const userSchema = new mongoose.Schema(
         resumeUploadedAt: {
             type: Date,
             default: null,
+        },
+        resumeText: {
+            type: String,
+            default: "",
+        },
+        resumeSummary: {
+            type: String,
+            default: "",
         },
     },
     {

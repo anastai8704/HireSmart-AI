@@ -6,12 +6,29 @@ const logger = require("../utils/logger");
 dns.setServers(["8.8.8.8", "1.1.1.1"]);
 
 const connectDB = async () => {
-    await mongoose.connect(config.mongoUri, {
-        serverSelectionTimeoutMS: 10000,
-        connectTimeoutMS: 10000,
-    });
+    try {
+        await mongoose.connect(config.mongoUri, {
+            serverSelectionTimeoutMS: 10000,
+            connectTimeoutMS: 10000,
+        });
 
-    logger.info("MongoDB connected successfully");
+        logger.info("MongoDB connected successfully");
+    } catch (error) {
+        logger.error(`MongoDB Connection Failed: ${error.message}`);
+        process.exit(1);
+    }
 };
 
-module.exports = connectDB;
+const disconnectDB = async () => {
+    try {
+        await mongoose.connection.close();
+        logger.info("MongoDB connection closed");
+    } catch (error) {
+        logger.error(`Error closing MongoDB: ${error.message}`);
+    }
+};
+
+module.exports = {
+    connectDB,
+    disconnectDB,
+};

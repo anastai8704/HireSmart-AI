@@ -1,12 +1,6 @@
 const multer = require("multer");
 const path = require("path");
 const AppError = require("../utils/AppError");
-const {
-    ensureResumeDirectory,
-    resumeDirectory,
-} = require("../utils/resumeStorage");
-
-ensureResumeDirectory();
 
 const supportedFiles = {
     ".pdf": "application/pdf",
@@ -14,25 +8,7 @@ const supportedFiles = {
     ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 };
 
-const storage = multer.diskStorage({
-
-    destination(req, file, cb) {
-        cb(null, resumeDirectory);
-    },
-
-    filename(req, file, cb) {
-
-        const uniqueName =
-            Date.now() + "-" + Math.round(Math.random() * 1E9);
-
-        cb(
-            null,
-            uniqueName + path.extname(file.originalname)
-        );
-
-    }
-
-});
+const storage = multer.memoryStorage();
 
 const fileFilter = (req, file, cb) => {
     const extension = path.extname(file.originalname).toLowerCase();
@@ -42,19 +18,12 @@ const fileFilter = (req, file, cb) => {
     }
 
     cb(null, true);
-
 };
 
 module.exports = multer({
-
     storage,
-
     fileFilter,
-
     limits: {
-
-        fileSize: 5 * 1024 * 1024
-
-    }
-
+        fileSize: 5 * 1024 * 1024,
+    },
 });

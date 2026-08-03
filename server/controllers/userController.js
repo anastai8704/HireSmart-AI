@@ -1,6 +1,7 @@
 const Job = require("../models/Job");
 const User = require("../models/User");
 const { Application, applicationStatuses } = require("../models/Application");
+const { roles } = require("../constants/enums");
 const asyncHandler = require("../middleware/asyncHandler");
 const AppError = require("../utils/AppError");
 const { validateProfileUpdate } = require("../validators/userValidator");
@@ -165,7 +166,7 @@ exports.listUsers = asyncHandler(async (req, res) => {
     const filter = {};
 
     if (req.query.role) {
-        if (!["candidate", "recruiter", "admin"].includes(req.query.role)) {
+        if (!Object.values(roles).includes(req.query.role)) {
             throw new AppError("Invalid user role", 400);
         }
 

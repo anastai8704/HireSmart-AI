@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { jobTypes, jobStatuses } = require("../constants/enums");
 
 const jobSchema = new mongoose.Schema(
     {
@@ -13,8 +14,8 @@ const jobSchema = new mongoose.Schema(
             type: String,
             required: true,
             trim: true,
-            minlength: 2,
             maxlength: 150,
+            index: true,
         },
         location: {
             type: String,
@@ -35,8 +36,8 @@ const jobSchema = new mongoose.Schema(
         },
         jobType: {
             type: String,
-            enum: ["Full-Time", "Part-Time", "Internship", "Contract", "Remote"],
-            default: "Full-Time",
+            enum: jobTypes,
+            default: jobTypes[0],
         },
         description: {
             type: String,
@@ -55,8 +56,8 @@ const jobSchema = new mongoose.Schema(
         },
         status: {
             type: String,
-            enum: ["draft", "published", "closed"],
-            default: "published",
+            enum: jobStatuses,
+            default: jobStatuses[1],
             index: true,
         },
         closesAt: {
@@ -77,6 +78,10 @@ const jobSchema = new mongoose.Schema(
 
 jobSchema.index({ status: 1, createdAt: -1 });
 jobSchema.index({ recruiter: 1, status: 1, createdAt: -1 });
-jobSchema.index({ title: "text", company: "text", location: "text", skills: "text" });
+jobSchema.index({
+    title: "text",
+    location: "text",
+    skills: "text",
+});
 
 module.exports = mongoose.model("Job", jobSchema);

@@ -1,7 +1,5 @@
 const AppError = require("../utils/AppError");
-
-const jobTypes = ["Full-Time", "Part-Time", "Internship", "Contract", "Remote"];
-const jobStatuses = ["draft", "published", "closed"];
+const { jobTypes, jobStatuses } = require("../constants/enums");
 
 const normalizeSkills = (skills) => {
     const values = Array.isArray(skills) ? skills : String(skills || "").split(",");
