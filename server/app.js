@@ -14,6 +14,7 @@ const AppError = require("./utils/AppError");
 const authRoutes = require("./routes/authRoutes");
 const userRoutes = require("./routes/userRoutes");
 const jobRoutes = require("./routes/jobRoutes");
+const candidateProfileRoutes = require("./routes/candidateProfileRoutes");
 
 const app = express();
 
@@ -73,6 +74,7 @@ app.use("/api", apiLimiter);
 app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/jobs", jobRoutes);
+app.use("/api/candidate", candidateProfileRoutes);
 
 app.get("/", (req, res) => {
     res.send("Welcome to HireSmart AI");
