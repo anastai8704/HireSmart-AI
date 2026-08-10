@@ -13,7 +13,6 @@ AI-Powered Applicant Tracking System (ATS) + Resume Analyzer
 
 Developed by Team HireSmart AI.
 
-md
 ## Team Members
 
 - Anas - Project Lead
