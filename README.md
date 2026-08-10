@@ -12,3 +12,11 @@ AI-Powered Applicant Tracking System (ATS) + Resume Analyzer
 - Tailwind CSS
 
 Developed by Team HireSmart AI.
+
+md
+## Team Members
+
+- Anas - Project Lead
+- Member 2 - Developer
+- Member 3 - Developer
+- Member 4 - Developer
