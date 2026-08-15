@@ -9,7 +9,8 @@
     "test": "cross-env NODE_ENV=test node --test --test-concurrency=1",
     "check": "node scripts/check-syntax.js",
     "bootstrap:admin": "node scripts/bootstrap-admin.js",
-    "migrate:applications": "node scripts/migrate-legacy-applications.js"
+    "migrate:applications": "node scripts/migrate-legacy-applications.js",
+    "seed": "node scripts/seed-data.js"
   },
   "keywords": [],
   "author": "",
