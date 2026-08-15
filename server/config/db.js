@@ -5,9 +5,10 @@ const logger = require("../utils/logger");
 
 dns.setServers(["8.8.8.8", "1.1.1.1"]);
 
-const connectDB = async () => {
+const connectDB = async (uriOverride) => {
     try {
-        await mongoose.connect(config.mongoUri, {
+        const uri = uriOverride || process.env.MONGO_URI || config.mongoUri;
+        await mongoose.connect(uri, {
             serverSelectionTimeoutMS: 10000,
             connectTimeoutMS: 10000,
         });
