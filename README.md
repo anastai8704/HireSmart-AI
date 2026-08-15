@@ -120,6 +120,7 @@ with **no account at all** at `/resume-check`.
 | **[docs/LEARN.md](docs/LEARN.md)** | Complete walkthrough from zero — how web apps work, every layer of this one, the AI explained, security, testing |
 | **[docs/VIVA.md](docs/VIVA.md)** | Examiner and interview questions with model answers |
 | **[docs/RESUME.md](docs/RESUME.md)** | Resume bullets, LinkedIn wording, STAR interview stories |
+| **[docs/ci/](docs/ci/)** | GitHub Actions pipeline and how to activate it |
 | **[docs/backend-api.md](docs/backend-api.md)** | Full REST API reference |
 
 ---
@@ -190,7 +191,8 @@ Unit tests cover the AI engine as pure functions. Integration tests run real HTT
 requests through Express against an in-memory MongoDB, with a safety guard that
 refuses to run if the connection string ever points at production.
 
-Every push runs [GitHub Actions](.github/workflows/ci.yml): backend tests against a
+A GitHub Actions pipeline is included in [`docs/ci/`](docs/ci/) (one manual copy step to
+activate — see that folder). It runs backend tests against a
 real MongoDB service container, plus frontend lint and a production build.
 
 ---
