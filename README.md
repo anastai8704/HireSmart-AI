@@ -1,12 +1,14 @@
 # HireSmart AI
 
+[![CI](https://github.com/anastai8704/HireSmart-AI/actions/workflows/ci.yml/badge.svg)](https://github.com/anastai8704/HireSmart-AI/actions/workflows/ci.yml)
+
 **AI-Powered Applicant Tracking System + Resume Analyzer**
 
 Scores any resume against any job with an **explainable** matching engine, ranks
 applicants automatically for recruiters, and tells candidates exactly what to fix.
 
 ```
-Tests: 40 passing   ·   Stack: React · Node.js · Express · MongoDB · Tailwind CSS
+Tests: 42 passing   ·   Stack: React · Node.js · Express · MongoDB · Tailwind CSS
 ```
 
 ---
@@ -63,6 +65,21 @@ They always work, and they unit-test in milliseconds.
 ---
 
 ## Quick start
+
+### Option A — Docker (one command, nothing else to install)
+
+```bash
+docker compose up --build
+```
+
+Open <http://localhost:8080>. This builds the API, the frontend and MongoDB, wires them
+together and starts everything. Seed the demo data with:
+
+```bash
+docker compose exec api npm run seed
+```
+
+### Option B — Run locally
 
 **Prerequisites:** Node.js 18+ and MongoDB (local, or a free
 [Atlas](https://www.mongodb.com/atlas) cluster).
@@ -162,16 +179,19 @@ Route guards in React are **UX only** — all enforcement is server-side.
 
 ---
 
-## Testing
+## Testing and CI
 
 ```bash
 cd server && npm test
-# tests 40 · pass 40 · fail 0
+# tests 42 · pass 42 · fail 0
 ```
 
 Unit tests cover the AI engine as pure functions. Integration tests run real HTTP
 requests through Express against an in-memory MongoDB, with a safety guard that
 refuses to run if the connection string ever points at production.
+
+Every push runs [GitHub Actions](.github/workflows/ci.yml): backend tests against a
+real MongoDB service container, plus frontend lint and a production build.
 
 ---
 

@@ -1,0 +1,93 @@
+# Continuous Integration
+# -----------------------------------------------------------------------------
+# Runs automatically on every push and pull request. If anything here fails,
+# GitHub shows a red X on the commit and blocks the merge.
+#
+# Why this matters: it is the difference between "it works on my machine" and
+# "it provably works on a clean machine". It also puts a passing-tests badge on
+# your README, which is the cheapest professionalism signal there is.
+
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Backend: install dependencies and run the full test suite against a real
+  # MongoDB, started here as a service container.
+  # ---------------------------------------------------------------------------
+  backend:
+    name: Backend tests
+    runs-on: ubuntu-latest
+
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        # Wait until Mongo actually answers before starting the tests.
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.runCommand({ping:1})'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      NODE_ENV: test
+      # A throwaway secret: CI never touches real data.
+      JWT_SECRET: ci_only_secret_not_used_anywhere_else
+      MONGO_URI: mongodb://127.0.0.1:27017/hiresmart_test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      # `npm ci` (not `npm install`) installs the exact locked versions, so CI
+      # tests the same dependency tree every single time.
+      - name: Install dependencies
+        working-directory: server
+        run: npm ci
+
+      - name: Check every file parses
+        working-directory: server
+        run: npm run check
+
+      - name: Run tests
+        working-directory: server
+        run: npm test
+
+  # ---------------------------------------------------------------------------
+  # Frontend: lint, then prove the production build succeeds.
+  # ---------------------------------------------------------------------------
+  frontend:
+    name: Frontend lint and build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install dependencies
+        working-directory: client
+        run: npm ci
+
+      - name: Lint
+        working-directory: client
+        run: npm run lint
+
+      - name: Production build
+        working-directory: client
+        run: npm run build
