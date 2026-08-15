@@ -1,0 +1,35 @@
+2026-08-15 11:27:25 [INFO] MongoDB connected successfully
+2026-08-15 11:27:28 [INFO] MongoDB connected successfully
+2026-08-15 11:27:40 [INFO] MongoDB connected successfully
+2026-08-15 11:27:40 [INFO] Server listening on port 5000
+2026-08-15 11:27:40 [INFO] GET / 200 1.819 ms
+2026-08-15 11:27:45 [INFO] GET /health 200 0.801 ms
+2026-08-15 11:27:45 [INFO] POST /api/auth/login 200 51.565 ms
+2026-08-15 11:27:45 [INFO] GET /api/jobs?limit=3 200 14.700 ms
+2026-08-15 11:27:45 [INFO] GET /api/jobs/candidate-dashboard 200 12.904 ms
+2026-08-15 11:28:33 [INFO] MongoDB connected successfully
+2026-08-15 11:28:33 [INFO] Server listening on port 5000
+2026-08-15 11:29:26 [INFO] MongoDB connected successfully
+2026-08-15 11:29:26 [INFO] Server listening on port 5000
+2026-08-15 11:30:43 [INFO] MongoDB connected successfully
+2026-08-15 11:30:43 [INFO] Server listening on port 5000
+2026-08-15 11:31:23 [INFO] MongoDB connected successfully
+2026-08-15 11:31:23 [INFO] Server listening on port 5000
+2026-08-15 11:31:49 [INFO] MongoDB connected successfully
+2026-08-15 11:31:49 [INFO] Server listening on port 5000
+2026-08-15 11:32:21 [INFO] MongoDB connected successfully
+2026-08-15 11:32:21 [INFO] Server listening on port 5000
+2026-08-15 11:33:02 [INFO] MongoDB connected successfully
+2026-08-15 11:33:02 [INFO] Server listening on port 5000
+2026-08-15 11:33:12 [INFO] MongoDB connected successfully
+2026-08-15 11:33:12 [INFO] Server listening on port 5000
+2026-08-15 11:33:27 [INFO] POST /api/matching/resume/analyze-text 200 27.193 ms
+2026-08-15 11:33:39 [INFO] MongoDB connected successfully
+2026-08-15 11:33:39 [INFO] Server listening on port 5000
+2026-08-15 11:33:47 [INFO] MongoDB connected successfully
+2026-08-15 11:33:47 [INFO] Server listening on port 5000
+2026-08-15 11:34:00 [INFO] POST /api/auth/login 200 53.917 ms
+2026-08-15 11:34:00 [INFO] POST /api/auth/login 200 25.379 ms
+2026-08-15 11:34:00 [INFO] GET /api/matching/recommendations?limit=3 200 14.905 ms
+2026-08-15 11:34:00 [INFO] GET /api/jobs/my-jobs 200 12.086 ms
+2026-08-15 11:34:00 [INFO] GET /api/matching/jobs/6a804d206b249ae55be92265/ranking 200 15.866 ms
