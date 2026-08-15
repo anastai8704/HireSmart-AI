@@ -33,3 +33,4 @@
 2026-08-15 11:34:00 [INFO] GET /api/matching/recommendations?limit=3 200 14.905 ms
 2026-08-15 11:34:00 [INFO] GET /api/jobs/my-jobs 200 12.086 ms
 2026-08-15 11:34:00 [INFO] GET /api/matching/jobs/6a804d206b249ae55be92265/ranking 200 15.866 ms
+2026-08-15 11:45:20 [INFO] GET /api/jobs?limit=1 200 11.653 ms
