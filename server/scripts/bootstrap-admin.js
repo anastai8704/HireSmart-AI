@@ -1,7 +1,7 @@
 const bcrypt = require("bcryptjs");
 const mongoose = require("mongoose");
 
-const connectDB = require("../config/db");
+const { connectDB } = require("../config/db");
 const { validateEnvironment } = require("../config/env");
 const User = require("../models/User");
 
