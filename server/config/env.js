@@ -8,6 +8,26 @@ dotenv.config({
 
 const nodeEnv = process.env.NODE_ENV || "development";
 
+// In automated tests there is usually no .env file (it is git-ignored), so we
+// fall back to throw-away values. This keeps `npm test` working on a fresh
+// clone while never affecting development or production, where the real
+// validateEnvironment() check below still applies.
+if (nodeEnv === "test") {
+    const testDefaults = {
+        JWT_SECRET: "test_only_secret_do_not_use_in_production",
+        JWT_EXPIRES_IN: "1h",
+        STORAGE_PROVIDER: "local",
+        REQUIRE_EMAIL_VERIFICATION: "false",
+        CLIENT_URL: "http://localhost:5173",
+    };
+
+    for (const [key, value] of Object.entries(testDefaults)) {
+        if (!process.env[key]) {
+            process.env[key] = value;
+        }
+    }
+}
+
 const config = Object.freeze({
     nodeEnv,
     isProduction: nodeEnv === "production",

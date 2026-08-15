@@ -2,14 +2,33 @@ const path = require("node:path");
 const { MongoMemoryServer } = require("mongodb-memory-server");
 const mongoose = require("mongoose");
 const dotenv = require("dotenv");
+const { useLocalMongodIfAvailable } = require("./mongo-binary");
 
 let mongoServer;
+
+// Sensible defaults so the test-suite runs on a fresh clone with no .env file.
+// Real values (if a .env exists) still win, because dotenv never overwrites
+// variables that are already set on process.env.
+const TEST_ENV_DEFAULTS = {
+    NODE_ENV: "test",
+    JWT_SECRET: "test_only_secret_do_not_use_in_production",
+    JWT_EXPIRES_IN: "1h",
+    STORAGE_PROVIDER: "local",
+    REQUIRE_EMAIL_VERIFICATION: "false",
+    CLIENT_URL: "http://localhost:5173",
+};
 
 const loadTestEnv = () => {
     dotenv.config({
         path: path.join(__dirname, "..", ".env"),
         silent: true,
     });
+
+    for (const [key, value] of Object.entries(TEST_ENV_DEFAULTS)) {
+        if (!process.env[key]) {
+            process.env[key] = value;
+        }
+    }
 };
 
 const replaceDatabaseName = (uri, dbName) => {
@@ -28,12 +47,18 @@ const replaceDatabaseName = (uri, dbName) => {
 const startDatabase = async () => {
     loadTestEnv();
 
+    // Reuse a locally available mongod when one exists, instead of downloading.
+    const localBinary = useLocalMongodIfAvailable();
+
     let testUri = "";
 
     try {
         mongoServer = await MongoMemoryServer.create({
             instance: { dbName: "hiresmart_test" },
-            binary: { version: "6.0.8" },
+            // Only pin a download version when we have to download at all.
+            ...(localBinary
+                ? {}
+                : { binary: { version: process.env.MONGOMS_VERSION || "7.0.14" } }),
         });
         testUri = mongoServer.getUri();
         process.env.MONGO_URI = testUri;
