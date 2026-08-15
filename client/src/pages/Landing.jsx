@@ -22,8 +22,8 @@ import {
 import Badge from "../components/ui/Badge";
 import Button from "../components/ui/Button";
 import { Card, CardContent } from "../components/ui/Card";
-import { useAuth } from "../context/AuthContext";
-import { homeRouteForRole } from "../components/layout/ProtectedRoute";
+import { useAuth } from "../context/useAuth";
+import { homeRouteForRole } from "../lib/roleRoutes";
 
 const FEATURES = [
     {

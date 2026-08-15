@@ -27,7 +27,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 export const useFetch = (requestFn, deps = [], { enabled = true } = {}) => {
     const [data, setData] = useState(null);
     const [error, setError] = useState(null);
-    const [isLoading, setIsLoading] = useState(enabled);
+    const [isFetching, setIsFetching] = useState(enabled);
+
+    // Derived rather than stored: when a request is disabled it is by definition
+    // not loading. Deriving avoids an extra setState inside an effect, which
+    // would cause a second render pass on every mount.
+    const isLoading = enabled ? isFetching : false;
 
     // Guards against updating state after the component has unmounted, and
     // against an older slow request overwriting a newer fast one.
@@ -36,8 +41,15 @@ export const useFetch = (requestFn, deps = [], { enabled = true } = {}) => {
 
     // Keep the latest function in a ref so callers can pass an inline arrow
     // function without it re-triggering the effect on every render.
+    //
+    // The assignment happens inside an effect, never during render. Mutating a
+    // ref while rendering is unsafe in React 18+ concurrent mode, where a render
+    // can be started and thrown away before it ever commits.
     const savedRequest = useRef(requestFn);
-    savedRequest.current = requestFn;
+
+    useEffect(() => {
+        savedRequest.current = requestFn;
+    });
 
     useEffect(() => {
         isMounted.current = true;
@@ -49,7 +61,7 @@ export const useFetch = (requestFn, deps = [], { enabled = true } = {}) => {
     const execute = useCallback(async () => {
         const currentRequest = ++requestId.current;
 
-        setIsLoading(true);
+        setIsFetching(true);
         setError(null);
 
         try {
@@ -69,17 +81,23 @@ export const useFetch = (requestFn, deps = [], { enabled = true } = {}) => {
             return null;
         } finally {
             if (isMounted.current && currentRequest === requestId.current) {
-                setIsLoading(false);
+                setIsFetching(false);
             }
         }
     }, []);
 
     useEffect(() => {
         if (!enabled) {
-            setIsLoading(false);
             return;
         }
 
+        // execute() sets state only after awaiting the request, which is the
+        // supported way to synchronise with an external system. The two
+        // suppressions below are deliberate:
+        //   - set-state-in-effect: the linter cannot see past the await.
+        //   - exhaustive-deps: `deps` is a caller-supplied array, spread on
+        //     purpose so each screen controls exactly when it refetches.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         execute();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [...deps, enabled]);

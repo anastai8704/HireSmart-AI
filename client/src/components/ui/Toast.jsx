@@ -14,12 +14,11 @@
  *   toast.error("Could not save the job");
  */
 
-import { createContext, useCallback, useContext, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { AlertCircle, CheckCircle2, Info, X, XCircle } from "lucide-react";
 
+import { ToastContext } from "./ToastContext";
 import { cn } from "../../lib/utils";
-
-const ToastContext = createContext(null);
 
 const TOAST_STYLES = {
     success: {
@@ -127,16 +126,6 @@ export const ToastProvider = ({ children }) => {
             </div>
         </ToastContext.Provider>
     );
-};
-
-export const useToast = () => {
-    const context = useContext(ToastContext);
-
-    if (!context) {
-        throw new Error("useToast must be used inside a <ToastProvider>");
-    }
-
-    return context;
 };
 
 export default ToastProvider;

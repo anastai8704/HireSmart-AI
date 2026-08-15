@@ -13,15 +13,8 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 
 import { LoadingState } from "../ui/States";
-import { useAuth } from "../../context/AuthContext";
-
-/** Where each role belongs after signing in. */
-export const homeRouteForRole = (role) =>
-    ({
-        candidate: "/dashboard",
-        recruiter: "/recruiter",
-        admin: "/admin",
-    }[role] || "/");
+import { homeRouteForRole } from "../../lib/roleRoutes";
+import { useAuth } from "../../context/useAuth";
 
 /**
  * Requires a signed-in user, and optionally a specific role.

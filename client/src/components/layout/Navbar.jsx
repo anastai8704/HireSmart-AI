@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 
 import Button from "../ui/Button";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../context/useAuth";
 import { cn, initials } from "../../lib/utils";
 
 /** Navigation entries per role. One place to add or remove a page. */
@@ -59,18 +59,31 @@ const Navbar = () => {
     const navigate = useNavigate();
     const location = useLocation();
 
-    const [isMobileOpen, setIsMobileOpen] = useState(false);
-    const [isMenuOpen, setIsMenuOpen] = useState(false);
+    // Both menus must close when the route changes, otherwise the mobile drawer
+    // stays open on top of the page the user just navigated to.
+    //
+    // Rather than closing them from an effect (which would render the stale open
+    // menu once, then immediately re-render), we remember WHICH route the menu
+    // was opened on and derive "open" during render. Navigating away therefore
+    // closes the menu in the very same render.
+    const [openedAt, setOpenedAt] = useState(null);
+    const [menu, setMenu] = useState(null); // null | "mobile" | "account"
+
+    const isMobileOpen = menu === "mobile" && openedAt === location.pathname;
+    const isMenuOpen = menu === "account" && openedAt === location.pathname;
+
+    const toggleMenu = (name) => {
+        setMenu((current) =>
+            current === name && openedAt === location.pathname ? null : name
+        );
+        setOpenedAt(location.pathname);
+    };
+
+    const closeMenus = () => setMenu(null);
+
     const menuRef = useRef(null);
 
     const links = NAV_LINKS[isAuthenticated ? role : "anonymous"] || NAV_LINKS.anonymous;
-
-    // Close both menus whenever the route changes, otherwise the mobile drawer
-    // stays open on top of the page the user just navigated to.
-    useEffect(() => {
-        setIsMobileOpen(false);
-        setIsMenuOpen(false);
-    }, [location.pathname]);
 
     // Close the account dropdown when clicking anywhere outside it.
     useEffect(() => {
@@ -78,7 +91,7 @@ const Navbar = () => {
 
         const handleClickOutside = (event) => {
             if (menuRef.current && !menuRef.current.contains(event.target)) {
-                setIsMenuOpen(false);
+                closeMenus();
             }
         };
 
@@ -130,7 +143,7 @@ const Navbar = () => {
                         <div className="relative hidden md:block" ref={menuRef}>
                             <button
                                 type="button"
-                                onClick={() => setIsMenuOpen((open) => !open)}
+                                onClick={() => toggleMenu("account")}
                                 className="flex items-center gap-2 rounded-lg py-1.5 pl-1.5 pr-2.5 transition-colors hover:bg-ink-100"
                                 aria-expanded={isMenuOpen}
                                 aria-haspopup="menu"
@@ -211,7 +224,7 @@ const Navbar = () => {
                     {/* Mobile toggle */}
                     <button
                         type="button"
-                        onClick={() => setIsMobileOpen((open) => !open)}
+                        onClick={() => toggleMenu("mobile")}
                         className="rounded-lg p-2 text-ink-600 transition-colors hover:bg-ink-100 md:hidden"
                         aria-label={isMobileOpen ? "Close menu" : "Open menu"}
                         aria-expanded={isMobileOpen}

@@ -18,9 +18,9 @@ import Button from "../../components/ui/Button";
 import Input from "../../components/ui/Input";
 import { Card, CardContent } from "../../components/ui/Card";
 import { InlineError } from "../../components/ui/States";
-import { homeRouteForRole } from "../../components/layout/ProtectedRoute";
-import { useAuth } from "../../context/AuthContext";
-import { useToast } from "../../components/ui/Toast";
+import { homeRouteForRole } from "../../lib/roleRoutes";
+import { useAuth } from "../../context/useAuth";
+import { useToast } from "../../components/ui/useToast";
 
 /** Accounts created by `npm run seed`, offered as one-click logins. */
 const DEMO_ACCOUNTS = [

@@ -9,8 +9,8 @@ import { Link } from "react-router-dom";
 import { ShieldAlert } from "lucide-react";
 
 import Button from "../components/ui/Button";
-import { homeRouteForRole } from "../components/layout/ProtectedRoute";
-import { useAuth } from "../context/AuthContext";
+import { homeRouteForRole } from "../lib/roleRoutes";
+import { useAuth } from "../context/useAuth";
 
 const Forbidden = () => {
     const { role } = useAuth();

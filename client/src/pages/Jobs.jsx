@@ -19,9 +19,9 @@ import JobCard from "../components/jobs/JobCard";
 import { Card, CardContent } from "../components/ui/Card";
 import { EmptyState, ErrorState, SkeletonList } from "../components/ui/States";
 import { jobApi } from "../lib/api";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/useAuth";
 import { useDebouncedValue, useFetch, useMutation } from "../hooks/useApi";
-import { useToast } from "../components/ui/Toast";
+import { useToast } from "../components/ui/useToast";
 
 const JOB_TYPES = ["Full-Time", "Part-Time", "Internship", "Contract", "Remote"];
 

@@ -17,7 +17,7 @@
  *   refresh()   - re-fetch the profile after an update
  */
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useEffect, useMemo, useState } from "react";
 
 import { authApi, userApi } from "../lib/api";
 import { setUnauthorizedHandler, tokenStorage } from "../lib/apiClient";
@@ -26,7 +26,13 @@ const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
-    const [status, setStatus] = useState("loading");
+
+    // Lazy initialiser: if there is no stored token we already know the visitor
+    // is anonymous, so we start in that state instead of rendering "loading"
+    // and immediately calling setState from an effect (which costs a render).
+    const [status, setStatus] = useState(() =>
+        tokenStorage.get() ? "loading" : "anonymous"
+    );
 
     /**
      * On first load, a token in localStorage means the user was signed in
@@ -34,8 +40,9 @@ export const AuthProvider = ({ children }) => {
      * profile. If the token expired the request fails and we sign out.
      */
     const bootstrap = useCallback(async () => {
+        // No token means there is nothing to verify; the initial state above is
+        // already correct.
         if (!tokenStorage.get()) {
-            setStatus("anonymous");
             return;
         }
 
@@ -51,6 +58,10 @@ export const AuthProvider = ({ children }) => {
     }, []);
 
     useEffect(() => {
+        // bootstrap() only calls setState after awaiting the network, so this is
+        // the "subscribe to an external system" case the docs endorse, not a
+        // synchronous cascade. The linter cannot see across the await boundary.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         bootstrap();
     }, [bootstrap]);
 
@@ -129,17 +140,6 @@ export const AuthProvider = ({ children }) => {
     );
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-};
-
-/** Reads the auth state. Throws early if used outside the provider. */
-export const useAuth = () => {
-    const context = useContext(AuthContext);
-
-    if (!context) {
-        throw new Error("useAuth must be used inside an <AuthProvider>");
-    }
-
-    return context;
 };
 
 export default AuthContext;
