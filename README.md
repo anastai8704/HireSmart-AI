@@ -84,6 +84,19 @@ docker compose exec api npm run seed
 **Prerequisites:** Node.js 18+ and MongoDB (local, or a free
 [Atlas](https://www.mongodb.com/atlas) cluster).
 
+**Fastest path** — installs both apps and creates `server/.env` with a generated
+secret:
+
+```powershell
+.\setup.ps1          # Windows PowerShell
+```
+
+```bash
+./setup.sh           # macOS / Linux
+```
+
+Or do it manually:
+
 ```bash
 # 1. Backend
 cd server
@@ -112,6 +125,11 @@ The login page has one-click buttons for both. You can also try the resume analy
 with **no account at all** at `/resume-check`.
 
 ---
+
+> **After any `git pull` that changes `package.json`, run `npm install` again**
+> (or re-run the setup script). Git does not track `node_modules`, so new
+> dependencies are not downloaded automatically. Skipping this produces
+> `Failed to resolve import "react-router-dom" ... Are they installed?`
 
 ## Documentation
 
