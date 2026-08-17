@@ -1,5 +1,5 @@
 const path = require("node:path");
-const pdfParse = require("pdf-parse");
+const { PDFParse } = require("pdf-parse");
 const mammoth = require("mammoth");
 
 const { config } = require("../config/env");
@@ -20,7 +20,11 @@ const extractSummary = (text) => {
         return "";
     }
 
-    const sections = normalized.split(/\.|\n/).map((segment) => segment.trim()).filter(Boolean);
+    const sections = normalized
+        .split(/\.|\n/)
+        .map((segment) => segment.trim())
+        .filter(Boolean);
+
     return sections.slice(0, 4).join(". ").slice(0, 300).trim();
 };
 
@@ -28,21 +32,45 @@ const parseResumeContent = async (buffer, originalName) => {
     const extension = path.extname(originalName).toLowerCase();
 
     try {
+        // PDF extraction
         if (extension === ".pdf") {
-            const { text } = await pdfParse(buffer);
-            const normalized = normalizeText(text);
-            return { text: normalized, summary: extractSummary(normalized) };
+            const parser = new PDFParse({ data: buffer });
+
+            try {
+                const result = await parser.getText();
+                const normalized = normalizeText(result.text);
+
+                return {
+                    text: normalized,
+                    summary: extractSummary(normalized),
+                };
+            } finally {
+                await parser.destroy();
+            }
         }
 
+        // DOCX extraction
         if (extension === ".docx") {
             const result = await mammoth.extractRawText({ buffer });
             const normalized = normalizeText(result.value);
-            return { text: normalized, summary: extractSummary(normalized) };
+
+            return {
+                text: normalized,
+                summary: extractSummary(normalized),
+            };
         }
 
-        return { text: "", summary: "" };
+        return {
+            text: "",
+            summary: "",
+        };
     } catch (error) {
-        return { text: "", summary: "" };
+        console.error("Resume parsing error:", error);
+
+        return {
+            text: "",
+            summary: "",
+        };
     }
 };
 
@@ -50,13 +78,19 @@ const uploadResume = async (file) => {
     if (!file || !file.buffer || !file.originalname) {
         throw new Error("Invalid resume file");
     }
+    const deleteFile = async (storageKey, provider) => {
+    return storageService.deleteFile(storageKey, provider);
+};
 
     const { storageKey, provider } = await storageService.saveFile({
         buffer: file.buffer,
         originalName: file.originalname,
     });
 
-    const parsed = await parseResumeContent(file.buffer, file.originalname);
+    const parsed = await parseResumeContent(
+        file.buffer,
+        file.originalname
+    );
 
     return {
         storageKey,
@@ -70,6 +104,12 @@ const uploadResume = async (file) => {
     };
 };
 
+  const deleteFile = async (storageKey, provider) => {
+    return storageService.deleteFile(storageKey, provider);
+};
+
+
 module.exports = {
     uploadResume,
+    deleteFile,
 };

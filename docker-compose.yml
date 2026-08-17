@@ -1,0 +1,99 @@
+# Run the entire stack with one command
+# -----------------------------------------------------------------------------
+#   docker compose up --build
+#
+# Then open http://localhost:8080
+#
+# WHY THIS FILE IS WORTH HAVING
+# Without it, running this project means: install Node, install the right Node
+# version, install MongoDB, start MongoDB, configure a .env, run two npm
+# installs and start two servers. With it, anyone with Docker runs one command.
+#
+# For an examiner or an interviewer who wants to try your project, that
+# difference decides whether they actually see it.
+
+services:
+  # ---------------------------------------------------------------------------
+  # Database
+  # ---------------------------------------------------------------------------
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+
+    # No ports are published. Only other containers on this network can reach
+    # the database - it is not exposed to the internet or even to your laptop.
+    # Uncomment the block below only if you want to inspect it with Compass.
+    # ports:
+    #   - "27017:27017"
+
+    volumes:
+      # A named volume keeps the data when containers are recreated. Without
+      # this, `docker compose down` would delete your entire database.
+      - mongo-data:/data/db
+
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ping:1})"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  # ---------------------------------------------------------------------------
+  # Backend API
+  # ---------------------------------------------------------------------------
+  api:
+    build:
+      context: ./server
+    restart: unless-stopped
+
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+
+      # `mongo` is the service name above. Docker's internal DNS resolves it to
+      # that container's IP - this is why containers never need IP addresses.
+      MONGO_URI: mongodb://mongo:27017/hiresmart_ai
+
+      # CHANGE THIS before deploying anywhere real. Generate one with:
+      #   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+      JWT_SECRET: ${JWT_SECRET:-change_me_in_production_use_a_32_byte_random_hex_string}
+      JWT_EXPIRES_IN: 7d
+
+      # Nginx proxies /api to this service, so the browser only ever sees one
+      # origin and CORS never comes into play.
+      CORS_ORIGIN: http://localhost:8080
+      CLIENT_URL: http://localhost:8080
+
+      STORAGE_PROVIDER: local
+      REQUIRE_EMAIL_VERIFICATION: "false"
+
+    volumes:
+      # Uploaded resumes must outlive the container.
+      - resume-uploads:/app/uploads
+
+    depends_on:
+      mongo:
+        # Wait for Mongo to be genuinely ready, not merely started.
+        condition: service_healthy
+
+  # ---------------------------------------------------------------------------
+  # Frontend (static build served by Nginx, which also proxies /api)
+  # ---------------------------------------------------------------------------
+  web:
+    build:
+      context: ./client
+      args:
+        # Relative URL: the browser calls the same origin it loaded from, and
+        # Nginx forwards /api to the api service.
+        VITE_API_URL: /api
+    restart: unless-stopped
+
+    ports:
+      - "8080:80"
+
+    depends_on:
+      - api
+
+volumes:
+  mongo-data:
+  resume-uploads:

@@ -71,6 +71,70 @@ Public job responses intentionally exclude applications, candidate identities, s
 | GET | `/jobs/dashboard` | Recruiter/Admin | Get recruiter summary metrics. |
 | GET | `/jobs/analytics` | Recruiter | Get recruiter funnel analytics and top job. |
 
+## AI: matching, ranking and resume analysis
+
+All AI endpoints are pure computation - no external API key or network call is
+required, so they always work offline.
+
+| Method | Endpoint | Access | Purpose |
+| --- | --- | --- | --- |
+| POST | `/matching/resume/analyze-text` | Public | Analyse pasted resume text (50-50,000 chars). Nothing is stored. |
+| GET | `/matching/resume/analysis` | Candidate | ATS health report for the caller's uploaded resume. |
+| GET | `/matching/recommendations?limit=10` | Candidate | Open jobs ranked by fit. Scores below 20 are filtered out. |
+| GET | `/matching/jobs/:jobId/fit` | Candidate | Gap analysis for one job: score, missing keywords, tailoring tips. |
+| GET | `/matching/jobs/:jobId/ranking` | Owner/Admin | All applicants for a job, scored and ranked best-first. |
+| GET | `/matching/applications/:applicationId/match` | Owner/Admin | Match score for a single application. |
+
+### Match response shape
+
+Every match includes a full breakdown so the score can be explained in the UI:
+
+```json
+{
+  "matchScore": 90,
+  "verdict": "Excellent match",
+  "matchedSkills": ["react", "node", "mongodb"],
+  "missingSkills": ["kubernetes"],
+  "breakdown": {
+    "skills":     { "score": 92,  "weight": 0.55, "applicable": true },
+    "semantic":   { "score": 88,  "weight": 0.25, "applicable": true, "rawSimilarity": 0.3961 },
+    "experience": { "score": 100, "weight": 0.15, "applicable": true, "requiredYears": 3, "candidateYears": 4 },
+    "education":  { "score": 67,  "weight": 0.05, "applicable": true, "signals": ["master", "mca"] }
+  },
+  "explanation": [
+    "Matched 6 of 7 required skills.",
+    "Missing: kubernetes.",
+    "Resume content aligns closely with the job description.",
+    "Meets the 3+ year experience requirement."
+  ]
+}
+```
+
+Components with `applicable: false` are excluded from the final score and the
+remaining weights are re-normalised, so a job that states no experience requirement
+does not cap every candidate below 100.
+
+### Resume analysis response shape
+
+```json
+{
+  "atsScore": 82,
+  "grade": "A",
+  "wordCount": 486,
+  "summary": "Strong, ATS-friendly resume...",
+  "contact": { "email": "...", "phone": "...", "linkedin": "...", "github": "...", "portfolio": null },
+  "sections": { "present": ["Contact", "Skills", "Experience"], "missing": ["Projects"] },
+  "skills": { "all": ["react", "node"], "byCategory": { "frontend": ["react"], "backend": ["node"] } },
+  "checks": [{ "key": "contact", "label": "Contact information", "score": 85, "weight": 0.15 }],
+  "suggestions": [
+    { "severity": "critical", "title": "Add a phone number", "detail": "Recruiters shortlist by phone first..." }
+  ]
+}
+```
+
+Suggestions are sorted `critical` -> `high` -> `medium` -> `low`, so the top items are
+always the highest-impact fixes.
+
 ## Migration and environment
 
 Existing deployments that use the old `Job.applicants` array must run `npm run migrate:applications` exactly once after taking a database backup. The script creates `Application` records and leaves the old arrays untouched for rollback verification.
