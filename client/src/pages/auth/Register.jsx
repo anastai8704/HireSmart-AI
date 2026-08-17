@@ -179,8 +179,8 @@ const Register = () => {
                             <Input
                                 label="Full name"
                                 name="name"
-                                autoComplete="name"
-                                placeholder="Anas Tai"
+                                autoComplete="name"     
+                                placeholder="Enter your first and last name"                          
                                 icon={<User className="h-4 w-4" />}
                                 value={form.name}
                                 onChange={handleChange}
@@ -207,7 +207,7 @@ const Register = () => {
                                     <Input
                                         label="Company name"
                                         name="companyName"
-                                        placeholder="Acme Technologies"
+                                        placeholder="Enter your company name"
                                         icon={<Building2 className="h-4 w-4" />}
                                         value={form.companyName}
                                         onChange={handleChange}
@@ -219,7 +219,7 @@ const Register = () => {
                                         label="Company website"
                                         name="companyWebsite"
                                         type="url"
-                                        placeholder="https://acme.com"
+                                        placeholder="https://"
                                         value={form.companyWebsite}
                                         onChange={handleChange}
                                         hint="Optional, but it builds trust with candidates."

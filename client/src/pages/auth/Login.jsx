@@ -22,11 +22,6 @@ import { homeRouteForRole } from "../../lib/roleRoutes";
 import { useAuth } from "../../context/useAuth";
 import { useToast } from "../../components/ui/useToast";
 
-/** Accounts created by `npm run seed`, offered as one-click logins. */
-const DEMO_ACCOUNTS = [
-    { label: "Candidate", email: "anastai.candidate@hiresmart.ai", password: "Password@123" },
-    { label: "Recruiter", email: "alexander.recruiter@hiresmart.ai", password: "Password@123" },
-];
 
 const Login = () => {
     const { login } = useAuth();
@@ -129,36 +124,6 @@ const Login = () => {
                                 Sign in
                             </Button>
                         </form>
-
-                        {/* ---- Demo accounts ---- */}
-                        <div className="mt-6 border-t border-ink-100 pt-5">
-                            <p className="mb-2.5 text-center text-xs font-medium text-ink-500">
-                                Or explore with a demo account
-                            </p>
-
-                            <div className="grid grid-cols-2 gap-2">
-                                {DEMO_ACCOUNTS.map((account) => (
-                                    <Button
-                                        key={account.label}
-                                        variant="secondary"
-                                        size="sm"
-                                        disabled={isSubmitting}
-                                        onClick={() =>
-                                            signIn({
-                                                email: account.email,
-                                                password: account.password,
-                                            })
-                                        }
-                                    >
-                                        {account.label}
-                                    </Button>
-                                ))}
-                            </div>
-
-                            <p className="mt-2 text-center text-[11px] text-ink-400">
-                                Demo data is created by running <code>npm run seed</code>.
-                            </p>
-                        </div>
                     </CardContent>
                 </Card>
 
