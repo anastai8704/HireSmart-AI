@@ -84,13 +84,6 @@ const Footer = () => (
                     </ul>
                 </div>
             </div>
-
-            <div className="mt-8 border-t border-ink-100 pt-6 text-center text-xs text-ink-400">
-                <p>
-                    &copy; {new Date().getFullYear()} HireSmart AI. Built as an MCA final
-                    semester project.
-                </p>
-            </div>
         </div>
     </footer>
 );
