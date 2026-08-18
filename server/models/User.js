@@ -56,6 +56,22 @@ const userSchema = new mongoose.Schema(
         passwordChangedAt: {
             type: Date,
         },
+        tokenInvalidBefore: {
+            type: Date,
+            default: null,
+        },
+        accountStatus: {
+            type: String,
+            enum: ["pending_verification", "active", "suspended", "deletion_pending", "deleted"],
+            default: "pending_verification",
+            index: true,
+        },
+        onboardingCompleted: {
+            type: Boolean,
+            default: false,
+        },
+        locale: { type: String, default: "en", maxlength: 20 },
+        timezone: { type: String, default: "UTC", maxlength: 100 },
         phone: {
             type: String,
             default: "",

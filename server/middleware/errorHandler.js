@@ -1,6 +1,6 @@
 const logger = require("../utils/logger");
 
-const errorHandler = (err, req, res, next) => {
+const errorHandler = (err, req, res, _next) => {
     let statusCode = err.statusCode || 500;
     let message = err.message || "Internal Server Error";
 
@@ -32,11 +32,21 @@ const errorHandler = (err, req, res, next) => {
 
     logger.error(err.stack || err.message);
 
-    res.status(statusCode).json({
+    const body = {
         success: false,
         status: `${statusCode}`.startsWith("4") ? "fail" : "error",
         message: statusCode >= 500 ? "Internal Server Error" : message,
-    });
+    };
+
+    // The versioned API has a stable machine-readable error contract while the
+    // legacy routes retain their exact response shape for compatibility.
+    if (req.originalUrl.startsWith("/api/v1")) {
+        body.code = statusCode >= 500 ? "INTERNAL_ERROR" : (err.code || "REQUEST_FAILED");
+        body.requestId = req.id;
+        if (err.fieldErrors) body.fieldErrors = err.fieldErrors;
+    }
+
+    res.status(statusCode).json(body);
 };
 
 module.exports = errorHandler;

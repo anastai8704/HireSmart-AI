@@ -132,7 +132,7 @@ exports.rankApplicantsForJob = asyncHandler(async (req, res) => {
                     application.candidate.resumeText ||
                     "",
             })),
-    }).map(({ resumeText, ...rest }) => rest); // never leak full resume text to the list view
+    }).map((item) => { const safe = { ...item }; delete safe.resumeText; return safe; }); // never leak full resume text to the list view
 
     res.status(200).json({
         success: true,
@@ -172,7 +172,10 @@ exports.recommendJobs = asyncHandler(async (req, res) => {
     const limit = Math.min(Number(req.query.limit) || 10, 50);
 
     // Only score jobs the candidate could actually apply to.
-    const jobs = await Job.find({ status: "published" })
+    const jobs = await Job.find({
+        status: "published",
+        $or: [{ closesAt: null }, { closesAt: { $gte: new Date() } }],
+    })
         .select("title company location salary experience jobType description skills createdAt")
         .sort({ createdAt: -1 })
         .limit(200) // cap the working set so scoring stays fast
@@ -204,7 +207,11 @@ exports.recommendJobs = asyncHandler(async (req, res) => {
 exports.getJobFit = asyncHandler(async (req, res) => {
     const job = await Job.findById(req.params.jobId).lean();
 
-    if (!job || job.status !== "published") {
+    if (
+        !job ||
+        job.status !== "published" ||
+        (job.closesAt && new Date(job.closesAt) < new Date())
+    ) {
         throw new AppError("Job not found", 404);
     }
 

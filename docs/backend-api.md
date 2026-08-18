@@ -1,142 +1,156 @@
-# HireSmart AI Backend API
+# HireSmart Backend API
 
-Base URL: `http://localhost:5000/api`
+The production contract is **`/api/v1`**. Legacy `/api/auth`, `/api/user`, `/api/jobs`, `/api/candidate`, and `/api/matching` routes are available only when `ENABLE_LEGACY_API=true` for migration/testing. They are disabled by default in production and the React client uses only `/api/v1`.
 
-All JSON responses include `success`. Error responses additionally include `status` (`fail` or `error`) and `message`.
+## Contract
 
-## Authentication
-
-Pass the login token on protected requests:
-
-```http
-Authorization: Bearer <token>
-```
-
-| Method | Endpoint | Access | Purpose |
-| --- | --- | --- | --- |
-| POST | `/auth/register` | Public | Create a candidate account. Supplied roles are ignored. |
-| POST | `/auth/login` | Public | Obtain a JWT. |
-| POST | `/auth/recruiters` | Admin | Create a recruiter account. |
-| PUT | `/auth/resume` | Candidate | Upload a PDF, DOC, or DOCX resume (max 5 MB). |
-| GET | `/auth/resume` | Candidate | Download the caller's current resume. |
-| DELETE | `/auth/resume` | Candidate | Delete the caller's current resume. |
-
-Create the first admin locally with `npm run bootstrap:admin` after setting the `ADMIN_*` values in `server/.env`. Do not expose this command through HTTP.
-
-## Profiles and administration
-
-| Method | Endpoint | Access | Purpose |
-| --- | --- | --- | --- |
-| GET | `/user/profile` | Signed in | Get the caller's safe profile and resume metadata. |
-| PUT | `/user/profile` | Signed in | Update name, contact/profile fields, skills, or recruiter company fields. |
-| GET | `/user/admin` | Admin | Get platform user, job, and application status totals. |
-| GET | `/user/admin/users?page=1&limit=20&role=&search=` | Admin | List safe user records. |
-| PATCH | `/user/admin/users/:id/status` | Admin | Set `{ "isActive": true|false }`; admins cannot change themselves. |
-
-## Public jobs
-
-| Method | Endpoint | Access | Purpose |
-| --- | --- | --- | --- |
-| GET | `/jobs?page=1&limit=12&keyword=&location=&experience=&jobType=&sort=` | Public | List open, published jobs. Sort: `newest`, `oldest`, `salary_high`, `salary_low`. |
-| GET | `/jobs/:id` | Public | Get an open, published job. |
-
-Public job responses intentionally exclude applications, candidate identities, saved-job records, and resume data.
-
-## Candidate workflow
-
-| Method | Endpoint | Access | Purpose |
-| --- | --- | --- | --- |
-| POST | `/jobs/:id/apply` | Candidate | Apply using the candidate's current uploaded resume. |
-| DELETE | `/jobs/:id/apply` | Candidate | Withdraw an eligible application. |
-| GET | `/jobs/applied?page=1&limit=12` | Candidate | List the caller's applications. |
-| POST | `/jobs/:id/save` | Candidate | Save an open job. |
-| DELETE | `/jobs/:id/save` | Candidate | Remove a saved job. |
-| GET | `/jobs/saved` | Candidate | List saved jobs. |
-| GET | `/jobs/:id/status` | Candidate | Get saved/applied state for a job. |
-| GET | `/jobs/candidate-dashboard` | Candidate | Get application and saved-job summary data. |
-
-## Recruiter workflow
-
-| Method | Endpoint | Access | Purpose |
-| --- | --- | --- | --- |
-| POST | `/jobs` | Recruiter/Admin | Create a job. Required: title, company, location, salary, experience, description, skills. |
-| PUT | `/jobs/:id` | Owner/Admin | Update whitelisted job fields, including `status` (`draft`, `published`, `closed`). |
-| DELETE | `/jobs/:id` | Owner/Admin | Delete a job and its applications; saved-job references are cleaned up. |
-| GET | `/jobs/my-jobs?page=1&limit=12` | Recruiter/Admin | List a recruiter's jobs and application counts. |
-| GET | `/jobs/:id/applicants?page=1&limit=20&status=&search=&sort=` | Owner/Admin | List applicants. Sort: `newest`, `oldest`, `name`, `status`. |
-| PUT | `/jobs/:jobId/applicant/:userId/status` | Owner/Admin | Change an application status and add an optional status note. |
-| PUT | `/jobs/:jobId/applicant/:userId/notes` | Owner/Admin | Set private `{ "recruiterNotes": "..." }`. |
-| GET | `/jobs/applicant/:id` | Recruiter/Admin | Get a candidate profile only if they applied to one of the recruiter's jobs. |
-| GET | `/jobs/candidate/:candidateId/resume?jobId=:jobId` | Owner/Admin | Download the resume snapshot submitted for that application. |
-| GET | `/jobs/dashboard` | Recruiter/Admin | Get recruiter summary metrics. |
-| GET | `/jobs/analytics` | Recruiter | Get recruiter funnel analytics and top job. |
-
-## AI: matching, ranking and resume analysis
-
-All AI endpoints are pure computation - no external API key or network call is
-required, so they always work offline.
-
-| Method | Endpoint | Access | Purpose |
-| --- | --- | --- | --- |
-| POST | `/matching/resume/analyze-text` | Public | Analyse pasted resume text (50-50,000 chars). Nothing is stored. |
-| GET | `/matching/resume/analysis` | Candidate | ATS health report for the caller's uploaded resume. |
-| GET | `/matching/recommendations?limit=10` | Candidate | Open jobs ranked by fit. Scores below 20 are filtered out. |
-| GET | `/matching/jobs/:jobId/fit` | Candidate | Gap analysis for one job: score, missing keywords, tailoring tips. |
-| GET | `/matching/jobs/:jobId/ranking` | Owner/Admin | All applicants for a job, scored and ranked best-first. |
-| GET | `/matching/applications/:applicationId/match` | Owner/Admin | Match score for a single application. |
-
-### Match response shape
-
-Every match includes a full breakdown so the score can be explained in the UI:
+Successful v1 requests return `{ "data": ..., "meta": ...? }`. Errors return:
 
 ```json
 {
-  "matchScore": 90,
-  "verdict": "Excellent match",
-  "matchedSkills": ["react", "node", "mongodb"],
-  "missingSkills": ["kubernetes"],
-  "breakdown": {
-    "skills":     { "score": 92,  "weight": 0.55, "applicable": true },
-    "semantic":   { "score": 88,  "weight": 0.25, "applicable": true, "rawSimilarity": 0.3961 },
-    "experience": { "score": 100, "weight": 0.15, "applicable": true, "requiredYears": 3, "candidateYears": 4 },
-    "education":  { "score": 67,  "weight": 0.05, "applicable": true, "signals": ["master", "mca"] }
-  },
-  "explanation": [
-    "Matched 6 of 7 required skills.",
-    "Missing: kubernetes.",
-    "Resume content aligns closely with the job description.",
-    "Meets the 3+ year experience requirement."
-  ]
+  "success": false,
+  "status": "fail",
+  "message": "Safe message",
+  "code": "MACHINE_READABLE_CODE",
+  "requestId": "uuid",
+  "fieldErrors": []
 }
 ```
 
-Components with `applicable: false` are excluded from the final score and the
-remaining weights are re-normalised, so a job that states no experience requirement
-does not cap every candidate below 100.
+Use `Authorization: Bearer <short-lived-access-token>`. Login and token rotation set a Secure/HttpOnly refresh cookie plus a readable `hiresmart_csrf` cookie. Send that CSRF value in `X-CSRF-Token` when calling `/auth/token`. Organization routes validate membership and permission; cross-tenant resources return 404. List endpoints accept `limit` (1–100), `after`, and the documented filters. Timestamps are UTC ISO-8601.
 
-### Resume analysis response shape
+## Authentication and account
 
-```json
-{
-  "atsScore": 82,
-  "grade": "A",
-  "wordCount": 486,
-  "summary": "Strong, ATS-friendly resume...",
-  "contact": { "email": "...", "phone": "...", "linkedin": "...", "github": "...", "portfolio": null },
-  "sections": { "present": ["Contact", "Skills", "Experience"], "missing": ["Projects"] },
-  "skills": { "all": ["react", "node"], "byCategory": { "frontend": ["react"], "backend": ["node"] } },
-  "checks": [{ "key": "contact", "label": "Contact information", "score": 85, "weight": 0.15 }],
-  "suggestions": [
-    { "severity": "critical", "title": "Add a phone number", "detail": "Recruiters shortlist by phone first..." }
-  ]
-}
+| Method | Route | Access | Purpose |
+|---|---|---|---|
+| POST | `/auth/register` | Public, limited | Candidate or recruiter registration; recruiter registration atomically creates an organization owner membership |
+| POST | `/auth/verify-email` | Public, limited | Consume one-time email token |
+| POST | `/auth/verification-emails` | Public, limited | Resend without account enumeration |
+| POST | `/auth/login` | Public, limited | Issue access token and rotating refresh cookie |
+| POST | `/auth/token` | Refresh cookie, limited | Rotate refresh session and access token |
+| POST | `/auth/logout` | Authenticated | Revoke current session |
+| GET/DELETE | `/auth/sessions[/:sessionId]` | Self | List/revoke sessions |
+| POST | `/auth/password/forgot` | Public, limited | Generic reset request |
+| POST | `/auth/password/reset` | Public, limited | Reset password and revoke sessions |
+| PATCH | `/auth/password` | Self | Change password and revoke other sessions |
+| GET | `/users/me` | Self | Identity/onboarding status |
+| GET | `/users/me/export` | Self | Export safe account/profile/application data |
+| DELETE | `/users/me` | Self | Revoke sessions and start account deletion lifecycle |
+
+Passwords are 12–128 characters on v1. Production requires verified email. Refresh tokens are stored only as hashes.
+
+## Organizations and team
+
+| Method | Route | Permission |
+|---|---|---|
+| GET/POST | `/organizations` | Authenticated / verified user |
+| GET/PATCH | `/organizations/:organizationId` | member / `organization.manage` |
+| GET/POST | `/organizations/:organizationId/members` | `member.manage` |
+| PATCH | `/organizations/:organizationId/members/:membershipId` | `member.manage`; last owner protected |
+
+Roles: `owner`, `admin`, `recruiter`, `hiring_manager`, `interviewer`, `viewer`. Permissions are enforced by the API, not frontend routes.
+
+## Candidate profile and versioned resumes
+
+| Method | Route | Access |
+|---|---|---|
+| GET/PATCH | `/candidates/me/profile` | Candidate self |
+| POST/GET | `/candidates/me/resumes` | Candidate self; multipart field `resume` for upload |
+| GET | `/candidates/me/resumes/versions/:versionId` | Owner |
+| GET | `/candidates/me/resumes/versions/:versionId/download` | Owner; private no-store stream |
+| DELETE | `/candidates/me/resumes/versions/:versionId` | Owner; referenced artifacts retained privately |
+| POST | `/candidates/me/resumes/versions/:versionId/retry` | Owner, failed state only |
+| POST | `/candidates/me/resumes/versions/:versionId/analysis` | Owner, AI-limited |
+| POST | `/candidates/me/resumes/versions/:versionId/tailor` | Owner, AI-limited; body contains published `jobId` |
+| GET | `/job-runs/:jobRunId` | Job owner |
+
+Uploads accept actual PDF and DOCX content up to 10 MB. Filename, declared MIME, and magic/container content must agree. Files receive random private keys, SHA-256 duplicate detection, processing state, retries, parsing, structured extraction, AI/rule analysis, and immutable versions. Legacy DOC is deliberately rejected because it cannot be parsed safely by the current worker.
+
+## Jobs, applications, matching, collaboration
+
+Public:
+
+- `GET /jobs` and `GET /jobs/:jobId`
+- `POST /jobs/:jobId/fit` (candidate; exact ready resume version)
+- `POST /jobs/:jobId/applications` (candidate; supports replay-safe `Idempotency-Key`)
+- `GET /candidates/me/recommendations`
+- `GET/POST/DELETE /candidates/me/saved-jobs[/:jobId]`
+- `GET /candidates/me/applications[/:applicationId]`
+- `POST /candidates/me/applications/:applicationId/withdraw`
+
+Organization:
+
+| Method | Route | Permission |
+|---|---|---|
+| GET/POST | `/organizations/:organizationId/jobs` | `job.read` / `job.manage` |
+| GET/PATCH | `/organizations/:organizationId/jobs/:jobId` | `job.read` / `job.manage` |
+| POST | `.../jobs/:jobId/publish` or `/close` | `job.manage` |
+| GET | `/organizations/:organizationId/assigned-jobs` | active member with `job.read` |
+| PUT | `.../jobs/:jobId/hiring-team` | `job.manage` |
+| GET | `.../jobs/:jobId/applications` | `application.review` |
+| GET | `.../applications/:applicationId` | `application.review` |
+| POST | `.../applications/:applicationId/transitions` | `application.manage` |
+| POST | `.../applications/:applicationId/shortlist` | `application.manage` |
+| GET | `.../applications/:applicationId/match` | `application.review` |
+| GET | `.../jobs/:jobId/ranking` | `application.review` |
+| GET | `.../applications/:applicationId/resume` | `application.review`, audited |
+| PUT | `.../applications/:applicationId/tags` | `application.manage` |
+| POST | `.../applications/:applicationId/messages` | `application.manage`, idempotency key supported |
+| POST | `.../applications/compare` | `application.review` |
+| GET/POST | `.../applications/:applicationId/notes` | `application.review` |
+| GET | `.../candidates/search` | `application.review`; skill/location/status/tag/experience filters |
+
+The application state machine prevents arbitrary jumps. Withdrawal changes state instead of deleting history. Each application references and snapshots its exact resume version. Hybrid matches persist required/preferred skill, experience, education, semantic and preference components plus confidence, evidence, concerns and limitations. Protected identifiers are removed before matching.
+
+## Interviews
+
+- `GET/POST /organizations/:organizationId/interviews` (`POST` supports replay-safe `Idempotency-Key`)
+- `PATCH /organizations/:organizationId/interviews/:interviewId`
+- `POST .../:interviewId/cancel`, `/complete`, `/feedback`, `/questions`
+- `GET /candidates/me/interviews`
+- `POST /interviews/:interviewId/confirm`, `/reschedule`, `/preparation` for the application candidate
+
+Lifecycle: draft → invited → confirmed/reschedule requested → completed/cancelled. Feedback is one immutable submission per evaluator and uses criterion ratings plus evidence.
+
+## AI
+
+`POST /api/v1/ai/:feature` for candidate-safe use and `POST /api/v1/organizations/:organizationId/ai/:feature` for authorized organization use.
+
+Features:
+
+- `resume_extraction`
+- `resume_rewrite`
+- `resume_improvement`
+- `jd_generation`
+- `jd_parse`
+- `jd_improvement`
+- `interview_questions`
+- `interview_preparation`
+- `recruiter_copilot`
+- `career_copilot`
+
+Body: `{ "input": {}, "subjectType": "optional", "subjectId": "optional" }`. Providers are configured by environment and use an OpenAI-compatible structured JSON API. Outputs pass strict Zod schemas; malformed/timeout/provider failures retry safely and fall back to deterministic grounded logic. Every persisted run records provider, model, prompt version, confidence, fallback, tokens and latency. AI cannot mutate hiring state.
+
+## Notifications, analytics, audit, admin, health
+
+- `GET /notifications`, `POST /notifications/:id/read`, `POST /notifications/read-all`
+- `GET /organizations/:organizationId/analytics/recruitment`
+- `GET /organizations/:organizationId/analytics/ai-usage`
+- `GET /organizations/:organizationId/audit-logs` and `/security-events`
+- Platform admin: `GET /admin/users|organizations|ai-usage|audit-logs|security-events`, `POST /admin/users/:id/suspend|reactivate`
+- `GET /health/live` and `GET /health/ready`
+
+Recruitment analytics report funnel, shortlist/interview/hire rates, time-to-stage, and AI score generation separately from human outcomes.
+
+## Environment and processes
+
+Copy `server/.env.example`; production startup rejects missing Mongo/JWT/CORS, short JWT secrets, disabled verification, and external AI providers without a key. Main processes:
+
+```bash
+npm start          # HTTP API
+npm run worker     # durable Mongo-backed background worker
+npm run migrate:v1 # idempotently migrate legacy recruiters/jobs/apps/resumes
+npm run verify     # syntax, lint and tests
 ```
 
-Suggestions are sorted `critical` -> `high` -> `medium` -> `low`, so the top items are
-always the highest-impact fixes.
-
-## Migration and environment
-
-Existing deployments that use the old `Job.applicants` array must run `npm run migrate:applications` exactly once after taking a database backup. The script creates `Application` records and leaves the old arrays untouched for rollback verification.
-
-Copy `server/.env.example` to `server/.env` and replace every placeholder. In production, `MONGO_URI`, `JWT_SECRET`, and `CORS_ORIGIN` are mandatory.
+Docker Compose starts Mongo, API, worker, private shared resume storage, frontend, and Mailpit. It requires an explicit `JWT_SECRET`; Mailpit UI is at port 8025 for local verification/reset messages.

@@ -6,19 +6,6 @@ const asyncHandler = require("../middleware/asyncHandler");
 const AppError = require("../utils/AppError");
 const { validateProfileUpdate } = require("../validators/userValidator");
 
-const editableProfileFields = [
-    "name",
-    "phone",
-    "profileImage",
-    "headline",
-    "location",
-    "bio",
-    "skills",
-    "companyName",
-    "companyWebsite",
-    "companyDescription",
-];
-
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const normalizeSkills = (skills) => {

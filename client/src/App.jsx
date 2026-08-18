@@ -1,141 +1,27 @@
-/**
- * App.jsx
- * -----------------------------------------------------------------------------
- * The application shell: providers, layout and the full route map.
- *
- * PROVIDER ORDER MATTERS
- *   BrowserRouter  - must be outermost; AuthContext navigates on logout
- *     ToastProvider  - so any screen (including auth) can raise a toast
- *       AuthProvider - supplies the user to every route guard below
- *
- * ROUTE ORGANISATION
- *   Public        - anyone, signed in or not
- *   Public-only   - /login, /register (signed-in users get redirected away)
- *   Candidate     - requires role "candidate"
- *   Recruiter     - requires role "recruiter" or "admin"
- *   Admin         - requires role "admin"
- *
- * Pages are lazy-loaded with React.lazy so the browser downloads only the code
- * for the screen being viewed. This keeps the initial bundle small - a
- * candidate never downloads the admin dashboard.
- */
-
 import { Suspense, lazy } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
-
-import Footer from "./components/layout/Footer";
-import Navbar from "./components/layout/Navbar";
-import ProtectedRoute, { PublicOnlyRoute } from "./components/layout/ProtectedRoute";
-import ScrollToTop from "./components/layout/ScrollToTop";
-import { LoadingState } from "./components/ui/States";
 import { AuthProvider } from "./context/AuthContext";
 import { ToastProvider } from "./components/ui/Toast";
-
-/* ---- Public pages ---- */
-const Landing = lazy(() => import("./pages/Landing"));
-const Jobs = lazy(() => import("./pages/Jobs"));
-const JobDetail = lazy(() => import("./pages/JobDetail"));
-const ResumeCheck = lazy(() => import("./pages/ResumeCheck"));
-const Login = lazy(() => import("./pages/auth/Login"));
-const Register = lazy(() => import("./pages/auth/Register"));
-const NotFound = lazy(() => import("./pages/NotFound"));
-const Forbidden = lazy(() => import("./pages/Forbidden"));
-
-/* ---- Candidate pages ---- */
-const CandidateDashboard = lazy(() => import("./pages/candidate/Dashboard"));
-const MyApplications = lazy(() => import("./pages/candidate/MyApplications"));
-const Recommendations = lazy(() => import("./pages/candidate/Recommendations"));
-const ResumeHub = lazy(() => import("./pages/candidate/ResumeHub"));
-
-/* ---- Recruiter pages ---- */
-const RecruiterDashboard = lazy(() => import("./pages/recruiter/Dashboard"));
-const ManageJobs = lazy(() => import("./pages/recruiter/ManageJobs"));
-const JobApplicants = lazy(() => import("./pages/recruiter/JobApplicants"));
-const RecruiterAnalytics = lazy(() => import("./pages/recruiter/Analytics"));
-
-/* ---- Admin pages ---- */
-const AdminDashboard = lazy(() => import("./pages/admin/Dashboard"));
-const ManageUsers = lazy(() => import("./pages/admin/ManageUsers"));
-
-/* ---- Shared authenticated pages ---- */
-const Profile = lazy(() => import("./pages/Profile"));
-const Settings = lazy(() => import("./pages/Settings"));
-
-const App = () => (
-    <BrowserRouter>
-        <ToastProvider>
-            <AuthProvider>
-                {/* Restores scroll position to the top on every navigation. */}
-                <ScrollToTop />
-
-                <div className="flex min-h-screen flex-col">
-                    <Navbar />
-
-                    <main className="flex-1">
-                        {/*
-                          Suspense shows a fallback while a lazily-loaded page
-                          chunk is being fetched.
-                        */}
-                        <Suspense fallback={<LoadingState message="Loading page..." />}>
-                            <Routes>
-                                {/* ---------- Public ---------- */}
-                                <Route path="/" element={<Landing />} />
-                                <Route path="/jobs" element={<Jobs />} />
-                                <Route path="/jobs/:id" element={<JobDetail />} />
-                                <Route path="/resume-check" element={<ResumeCheck />} />
-                                <Route path="/forbidden" element={<Forbidden />} />
-
-                                {/* ---------- Signed-out only ---------- */}
-                                <Route element={<PublicOnlyRoute />}>
-                                    <Route path="/login" element={<Login />} />
-                                    <Route path="/register" element={<Register />} />
-                                </Route>
-
-                                {/* ---------- Any signed-in user ---------- */}
-                                <Route element={<ProtectedRoute />}>
-                                    <Route path="/profile" element={<Profile />} />
-                                    <Route path="/settings" element={<Settings />} />
-                                </Route>
-
-                                {/* ---------- Candidate ---------- */}
-                                <Route element={<ProtectedRoute allowedRoles={["candidate"]} />}>
-                                    <Route path="/dashboard" element={<CandidateDashboard />} />
-                                    <Route path="/my-applications" element={<MyApplications />} />
-                                    <Route path="/recommendations" element={<Recommendations />} />
-                                    <Route path="/my-resume" element={<ResumeHub />} />
-                                </Route>
-
-                                {/* ---------- Recruiter (admins may also manage jobs) ---------- */}
-                                <Route element={<ProtectedRoute allowedRoles={["recruiter", "admin"]} />}>
-                                    <Route path="/recruiter" element={<RecruiterDashboard />} />
-                                    <Route path="/recruiter/jobs" element={<ManageJobs />} />
-                                    <Route
-                                        path="/recruiter/jobs/:jobId/applicants"
-                                        element={<JobApplicants />}
-                                    />
-                                    <Route path="/recruiter/analytics" element={<RecruiterAnalytics />} />
-                                </Route>
-
-                                {/* ---------- Admin ---------- */}
-                                <Route element={<ProtectedRoute allowedRoles={["admin"]} />}>
-                                    <Route path="/admin" element={<AdminDashboard />} />
-                                    <Route path="/admin/users" element={<ManageUsers />} />
-                                </Route>
-
-                                {/* Legacy/friendly redirect. */}
-                                <Route path="/home" element={<Navigate to="/" replace />} />
-
-                                {/* Anything else. */}
-                                <Route path="*" element={<NotFound />} />
-                            </Routes>
-                        </Suspense>
-                    </main>
-
-                    <Footer />
-                </div>
-            </AuthProvider>
-        </ToastProvider>
-    </BrowserRouter>
-);
-
+import { LoadingState } from "./components/ui/States";
+import ProtectedRoute, { PublicOnlyRoute } from "./components/layout/ProtectedRoute";
+import AppShell from "./components/layout/AppShell";
+import ScrollToTop from "./components/layout/ScrollToTop";
+import { useAuth } from "./context/useAuth";
+const pick=(loader,name)=>lazy(()=>loader().then(m=>({default:m[name]})));
+const Landing=pick(()=>import("./pages/PublicPages"),"LandingPage"),PublicJobs=pick(()=>import("./pages/PublicPages"),"PublicJobsPage"),PublicJob=pick(()=>import("./pages/PublicPages"),"PublicJobDetailPage"),ResumeCheck=pick(()=>import("./pages/PublicPages"),"ResumeCheckPage");
+const Login=pick(()=>import("./pages/auth/AuthPages"),"LoginPage"),Register=pick(()=>import("./pages/auth/AuthPages"),"RegisterPage"),CheckEmail=pick(()=>import("./pages/auth/AuthPages"),"CheckEmailPage"),Verify=pick(()=>import("./pages/auth/AuthPages"),"VerifyPage"),Forgot=pick(()=>import("./pages/auth/AuthPages"),"ForgotPage"),Reset=pick(()=>import("./pages/auth/AuthPages"),"ResetPage");
+const CDashboard=pick(()=>import("./pages/candidate/CandidatePages"),"CandidateDashboard"),Onboarding=pick(()=>import("./pages/candidate/CandidatePages"),"OnboardingPage"),Resumes=pick(()=>import("./pages/candidate/CandidatePages"),"ResumeManager"),ResumeDetail=pick(()=>import("./pages/candidate/CandidatePages"),"ResumeDetail"),CJobs=pick(()=>import("./pages/candidate/CandidatePages"),"CandidateJobs"),CJobDetail=pick(()=>import("./pages/candidate/CandidatePages"),"CandidateJobDetail"),Applications=pick(()=>import("./pages/candidate/CandidatePages"),"ApplicationsPage"),ApplicationDetail=pick(()=>import("./pages/candidate/CandidatePages"),"ApplicationDetail"),CInterviews=pick(()=>import("./pages/candidate/CandidatePages"),"CandidateInterviews"),InterviewPrep=pick(()=>import("./pages/candidate/CandidatePages"),"InterviewPrep"),CareerCopilot=pick(()=>import("./pages/candidate/CandidatePages"),"CareerCopilot");
+const RDashboard=pick(()=>import("./pages/recruiter/RecruiterPages"),"RecruiterDashboard"),OrgJobs=pick(()=>import("./pages/recruiter/RecruiterPages"),"JobsPage"),JobEditor=pick(()=>import("./pages/recruiter/RecruiterPages"),"JobEditor"),Applicants=pick(()=>import("./pages/recruiter/RecruiterPages"),"ApplicantsPage"),CandidateDetail=pick(()=>import("./pages/recruiter/RecruiterPages"),"CandidateDetail"),Compare=pick(()=>import("./pages/recruiter/RecruiterPages"),"ComparePage"),CandidateSearch=pick(()=>import("./pages/recruiter/RecruiterPages"),"CandidateSearch"),Interviews=pick(()=>import("./pages/recruiter/RecruiterPages"),"InterviewsPage"),InterviewDetail=pick(()=>import("./pages/recruiter/RecruiterPages"),"InterviewDetail"),Analytics=pick(()=>import("./pages/recruiter/RecruiterPages"),"AnalyticsPage"),RecruiterCopilot=pick(()=>import("./pages/recruiter/RecruiterPages"),"RecruiterCopilot"),Team=pick(()=>import("./pages/recruiter/RecruiterPages"),"TeamPage"),Assigned=pick(()=>import("./pages/recruiter/RecruiterPages"),"JobsPage");
+const Notifications=pick(()=>import("./pages/SystemPages"),"NotificationsPage"),Settings=pick(()=>import("./pages/SystemPages"),"SettingsPage"),AdminHome=pick(()=>import("./pages/SystemPages"),"AdminHome"),AdminUsers=pick(()=>import("./pages/SystemPages"),"AdminUsers"),AdminOrgs=pick(()=>import("./pages/SystemPages"),"AdminOrganizations"),AdminAI=pick(()=>import("./pages/SystemPages"),"AdminAIUsage"),AdminSecurity=pick(()=>import("./pages/SystemPages"),"AdminSecurity");
+const Forbidden=lazy(()=>import("./pages/Forbidden")),NotFound=lazy(()=>import("./pages/NotFound"));
+const LegacyWorkspaceRedirect=()=>{const auth=useAuth();return <Navigate to={auth.role==="admin"?"/app/admin":auth.organizationId?`/app/o/${auth.organizationId}`:"/app/candidate"} replace/>};
+const App=()=> <BrowserRouter><ToastProvider><AuthProvider><ScrollToTop/><Suspense fallback={<LoadingState message="Loading workspace…"/>}><Routes>
+<Route path="/" element={<Landing/>}/><Route path="/jobs" element={<PublicJobs/>}/><Route path="/jobs/:jobId" element={<PublicJob/>}/><Route path="/resume-check" element={<ResumeCheck/>}/>
+<Route element={<PublicOnlyRoute/>}><Route path="/auth/login" element={<Login/>}/><Route path="/auth/register/:intent" element={<Register/>}/><Route path="/auth/forgot-password" element={<Forgot/>}/><Route path="/auth/reset-password" element={<Reset/>}/></Route><Route path="/auth/check-email" element={<CheckEmail/>}/><Route path="/auth/verify-email" element={<Verify/>}/>
+<Route element={<ProtectedRoute/>}><Route element={<AppShell/>}><Route path="/app/notifications" element={<Notifications/>}/><Route path="/app/settings" element={<Settings/>}/></Route></Route>
+<Route element={<ProtectedRoute roles={["candidate"]}/>}><Route element={<AppShell/>}><Route path="/app/candidate" element={<CDashboard/>}/><Route path="/app/candidate/onboarding" element={<Onboarding/>}/><Route path="/app/candidate/profile" element={<Onboarding/>}/><Route path="/app/candidate/resumes" element={<Resumes/>}/><Route path="/app/candidate/resumes/:versionId" element={<ResumeDetail/>}/><Route path="/app/candidate/jobs" element={<CJobs/>}/><Route path="/app/candidate/jobs/:jobId" element={<CJobDetail/>}/><Route path="/app/candidate/recommendations" element={<CJobs recommendations/>}/><Route path="/app/candidate/applications" element={<Applications/>}/><Route path="/app/candidate/applications/:applicationId" element={<ApplicationDetail/>}/><Route path="/app/candidate/interviews" element={<CInterviews/>}/><Route path="/app/candidate/interviews/:interviewId" element={<InterviewPrep/>}/><Route path="/app/candidate/copilot" element={<CareerCopilot/>}/></Route></Route>
+<Route element={<ProtectedRoute membershipRoles={["owner","admin","recruiter","hiring_manager","interviewer","viewer"]}/>}><Route element={<AppShell/>}><Route path="/app/o/:organizationId" element={<RDashboard/>}/><Route path="/app/o/:organizationId/jobs" element={<OrgJobs/>}/><Route path="/app/o/:organizationId/jobs/new" element={<JobEditor/>}/><Route path="/app/o/:organizationId/jobs/:jobId/edit" element={<JobEditor/>}/><Route path="/app/o/:organizationId/jobs/:jobId/applications" element={<Applicants/>}/><Route path="/app/o/:organizationId/applications/:applicationId" element={<CandidateDetail/>}/><Route path="/app/o/:organizationId/candidates" element={<CandidateSearch/>}/><Route path="/app/o/:organizationId/compare" element={<Compare/>}/><Route path="/app/o/:organizationId/interviews" element={<Interviews/>}/><Route path="/app/o/:organizationId/interviews/:interviewId" element={<InterviewDetail/>}/><Route path="/app/o/:organizationId/analytics" element={<Analytics/>}/><Route path="/app/o/:organizationId/copilot" element={<RecruiterCopilot/>}/><Route path="/app/o/:organizationId/team" element={<Team/>}/><Route path="/app/o/:organizationId/assigned" element={<Assigned assigned/>}/></Route></Route>
+<Route element={<ProtectedRoute roles={["admin"]}/>}><Route element={<AppShell/>}><Route path="/app/admin" element={<AdminHome/>}/><Route path="/app/admin/users" element={<AdminUsers/>}/><Route path="/app/admin/organizations" element={<AdminOrgs/>}/><Route path="/app/admin/organizations/:organizationId" element={<AdminOrgs/>}/><Route path="/app/admin/ai-usage" element={<AdminAI/>}/><Route path="/app/admin/security" element={<AdminSecurity/>}/></Route></Route>
+<Route path="/forbidden" element={<Forbidden/>}/><Route path="/login" element={<Navigate to="/auth/login" replace/>}/><Route path="/register" element={<Navigate to="/auth/register/candidate" replace/>}/><Route path="/dashboard" element={<Navigate to="/app/candidate" replace/>}/><Route path="/my-resume" element={<Navigate to="/app/candidate/resumes" replace/>}/><Route path="/my-applications" element={<Navigate to="/app/candidate/applications" replace/>}/><Route path="/recommendations" element={<Navigate to="/app/candidate/recommendations" replace/>}/><Route path="/recruiter/*" element={<LegacyWorkspaceRedirect/>}/><Route path="*" element={<NotFound/>}/>
+</Routes></Suspense></AuthProvider></ToastProvider></BrowserRouter>;
 export default App;

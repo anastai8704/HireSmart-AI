@@ -29,11 +29,23 @@ const statusHistorySchema = new mongoose.Schema(
 
 const applicationSchema = new mongoose.Schema(
     {
+        organization: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Organization",
+            default: null,
+            index: true,
+        },
         job: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "Job",
             required: true,
             index: true,
+        },
+        jobVersion: { type: Number, default: 1, min: 1 },
+        jobSnapshot: {
+            title: String, company: String, location: String, description: String,
+            requiredSkills: { type: [String], default: [] }, preferredSkills: { type: [String], default: [] },
+            experience: String, workplaceMode: String,
         },
         candidate: {
             type: mongoose.Schema.Types.ObjectId,
@@ -81,6 +93,16 @@ const applicationSchema = new mongoose.Schema(
                 default: "",
             },
         },
+        resumeVersion: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "ResumeVersion",
+            default: null,
+            index: true,
+        },
+        source: { type: String, default: "direct", maxlength: 100 },
+        tags: { type: [String], default: [] },
+        screeningAnswers: { type: [mongoose.Schema.Types.Mixed], default: [] },
+        withdrawnAt: { type: Date, default: null },
         recruiterNotes: {
             type: String,
             trim: true,

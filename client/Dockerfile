@@ -15,7 +15,7 @@ COPY . .
 
 # Vite inlines environment variables at BUILD time, not run time, because the
 # output is static files. Anything needed by the browser must be present now.
-ARG VITE_API_URL=/api
+ARG VITE_API_URL=/api/v1
 ENV VITE_API_URL=$VITE_API_URL
 
 RUN npm run build
