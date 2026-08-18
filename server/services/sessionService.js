@@ -3,7 +3,7 @@ const jwt = require("jsonwebtoken");
 const AuthSession = require("../models/AuthSession");
 const { config } = require("../config/env");
 const AppError = require("../utils/AppError");
-const { hashIp } = require("./auditService");
+const { hashIp, security } = require("./auditService");
 
 const hash = (value) => crypto.createHash("sha256").update(value).digest("hex");
 const accessToken = (user, session) => jwt.sign({ role: user.role, sid: String(session._id) }, config.jwtSecret, { subject: String(user._id), issuer: "hiresmart-api", audience: "hiresmart-web", expiresIn: config.accessTokenExpiresIn });
@@ -15,7 +15,13 @@ const createSession = async (user, req) => {
 };
 const rotateSession = async (rawToken, req) => {
     if (!rawToken) throw new AppError("Refresh token is required", 401, "REFRESH_REQUIRED");
-    const session = await AuthSession.findOne({ tokenHash: hash(rawToken) }).select("+tokenHash +csrfHash");
+    const presentedHash = hash(rawToken);
+    const session = await AuthSession.findOne({ $or: [{ tokenHash: presentedHash }, { previousTokenHash: presentedHash }] }).select("+tokenHash +previousTokenHash +csrfHash");
+    if (session?.previousTokenHash === presentedHash) {
+        await AuthSession.updateMany({ familyId: session.familyId, revokedAt: null }, { revokedAt: new Date(), revokeReason: "refresh_token_reuse" });
+        await security({ req, user: session.user, type: "session.refresh_token_reuse", severity: "high", details: { familyId: session.familyId } });
+        throw new AppError("Refresh token reuse detected; session family revoked", 401, "SESSION_REUSE_DETECTED");
+    }
     const csrfHeader = req.get("x-csrf-token");
     const csrfCookie = req.cookies?.hiresmart_csrf;
     if (!csrfHeader || !csrfCookie || csrfHeader !== csrfCookie || !session || hash(csrfHeader) !== session.csrfHash) throw new AppError("CSRF validation failed", 403, "CSRF_INVALID");
@@ -25,6 +31,7 @@ const rotateSession = async (rawToken, req) => {
     if (!user || !user.isActive) throw new AppError("Refresh session is invalid", 401, "SESSION_INVALID");
     const next = crypto.randomBytes(48).toString("base64url");
     const nextCsrf = crypto.randomBytes(24).toString("base64url");
+    session.previousTokenHash = session.tokenHash;
     session.tokenHash = hash(next);
     session.csrfHash = hash(nextCsrf);
     session.lastUsedAt = new Date();

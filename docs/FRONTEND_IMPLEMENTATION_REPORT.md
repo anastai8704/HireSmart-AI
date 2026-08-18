@@ -91,7 +91,7 @@ NODE_ENV=test node --test --test-concurrency=1 \
   server/test/app.test.js server/test/productionCore.test.js
 ```
 
-- Frontend: 2 test files, 4 tests passed.
+- Frontend: 3 test files, 6 tests passed.
 - Backend database-independent verification: 26 tests passed in the final focused run; the broader deterministic suite passed 50 tests earlier in the implementation.
 - Client production build is code-split by public/auth/candidate/recruiter/system page groups.
 - Vite live preview starts successfully on `0.0.0.0:5173`.
@@ -101,7 +101,6 @@ The complete backend `npm test` command was also run. This sandbox has no Docker
 ## Remaining non-critical limitations
 
 - External calendar provider connection remains backend integration work; core interview scheduling is functional.
-- The backend has no platform-wide AI usage aggregate, so admin AI usage is honestly organization-scoped.
 - Team onboarding adds an already registered user because tokenized invitations are not a backend capability yet.
 - Frontend tests cover the API boundary and explainable score components; Playwright browser journeys should be expanded in CI when a full test stack is available.
 - Browser preview cannot exercise authenticated API workflows in this sandbox because MongoDB is unavailable; API contracts are covered by server workflow tests configured for CI’s isolated MongoDB service.

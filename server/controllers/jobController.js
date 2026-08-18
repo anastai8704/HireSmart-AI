@@ -4,6 +4,7 @@ const { Application, applicationStatuses } = require("../models/Application");
 const { roles } = require("../constants/enums");
 const asyncHandler = require("../middleware/asyncHandler");
 const AppError = require("../utils/AppError");
+const logger = require("../utils/logger");
 const storageService = require("../services/storageService");
 const {
     validateJobPayload,
@@ -668,7 +669,7 @@ exports.downloadCandidateResume = asyncHandler(async (req, res, next) => {
     try {
         fileStream = await storageService.getFileStream(application.resumeSnapshot.storageKey, provider);
     } catch (error) {
-        console.log("[jobController] getFileStream error:", error && error.message);
+        logger.warn(`Authorized legacy resume download failed: ${error?.code || error?.name || "storage_error"}`);
         throw new AppError("Resume file is unavailable", 404);
     }
 

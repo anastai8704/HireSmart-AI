@@ -31,16 +31,22 @@ const issueVerification = async (user) => {
 exports.register = asyncHandler(async (req, res) => {
     const email = req.body.email.toLowerCase();
     if (await User.exists({ email })) throw new AppError("An account with this email already exists", 409, "EMAIL_IN_USE");
-    const user = await User.create({ name: req.body.displayName, email, password: await bcrypt.hash(req.body.password, 12), role: req.body.accountIntent === "recruiter" ? "recruiter" : "candidate", accountStatus: config.requireEmailVerification ? "pending_verification" : "active", emailVerified: !config.requireEmailVerification });
-    let organization = null;
-    if (req.body.accountIntent === "recruiter") {
-        if (!req.body.organizationName) throw new AppError("organizationName is required for recruiters", 422, "ORGANIZATION_REQUIRED");
-        organization = await Organization.create({ name: req.body.organizationName, slug: await uniqueSlug(req.body.organizationName), industry: req.body.industry || "" });
-        await Membership.create({ organization: organization._id, user: user._id, role: "owner", status: "active" });
+    if (req.body.accountIntent === "recruiter" && !req.body.organizationName) throw new AppError("organizationName is required for recruiters", 422, "ORGANIZATION_REQUIRED");
+    let user; let organization = null;
+    try {
+        user = await User.create({ name: req.body.displayName, email, password: await bcrypt.hash(req.body.password, 12), role: req.body.accountIntent === "recruiter" ? "recruiter" : "candidate", accountStatus: config.requireEmailVerification ? "pending_verification" : "active", emailVerified: !config.requireEmailVerification });
+        if (req.body.accountIntent === "recruiter") {
+            organization = await Organization.create({ name: req.body.organizationName, slug: await uniqueSlug(req.body.organizationName), industry: req.body.industry || "" });
+            await Membership.create({ organization: organization._id, user: user._id, role: "owner", status: "active" });
+        }
+        await Consent.create({ user: user._id, purpose: "terms", policyVersion: req.body.termsPolicyVersion || "2026-08", source: "registration" });
+        await Consent.create({ user: user._id, purpose: "privacy", policyVersion: req.body.privacyPolicyVersion || "2026-08", source: "registration" });
+        if (req.body.aiProcessingConsent) await Consent.create({ user: user._id, purpose: "ai_processing", policyVersion: "2026-08", source: "registration" });
+    } catch (error) {
+        if (organization) { await Membership.deleteMany({ organization: organization._id }); await Organization.deleteOne({ _id: organization._id }); }
+        if (user) { await Consent.deleteMany({ user: user._id }); await User.deleteOne({ _id: user._id }); }
+        throw error;
     }
-    await Consent.create({ user: user._id, purpose: "terms", policyVersion: req.body.termsPolicyVersion || "2026-08", source: "registration" });
-    await Consent.create({ user: user._id, purpose: "privacy", policyVersion: req.body.privacyPolicyVersion || "2026-08", source: "registration" });
-    if (req.body.aiProcessingConsent) await Consent.create({ user: user._id, purpose: "ai_processing", policyVersion: "2026-08", source: "registration" });
     if (config.requireEmailVerification) await issueVerification(user);
     await audit({ req, action: "user.registered", resourceType: "user", resourceId: user._id, metadata: { accountIntent: req.body.accountIntent } });
     res.status(201).json({ data: { user: dto(user), organization: organization && { id: organization._id, name: organization.name, slug: organization.slug }, verificationRequired: config.requireEmailVerification } });
@@ -56,7 +62,7 @@ exports.verifyEmail = asyncHandler(async (req, res) => {
 });
 exports.resendVerification = asyncHandler(async (req, res) => {
     const user = await User.findOne({ email: req.body.email.toLowerCase() });
-    if (user && !user.emailVerified) await issueVerification(user);
+    if (user && !user.emailVerified) { try { await issueVerification(user); } catch (error) { await security({ req, user: user._id, type: "email.verification_delivery_failed", severity: "low", details: { providerError: error.code || error.name } }); } }
     res.status(202).json({ data: { accepted: true } });
 });
 exports.login = asyncHandler(async (req, res) => {
@@ -93,7 +99,7 @@ exports.sessions = asyncHandler(async (req, res) => {
 exports.revokeSession = asyncHandler(async (req, res) => { await revoke({ _id: req.params.sessionId, user: req.user._id }, "user_revoked"); res.status(204).end(); });
 exports.forgotPassword = asyncHandler(async (req, res) => {
     const user = await User.findOne({ email: req.body.email.toLowerCase() });
-    if (user) { const created = createToken(); user.resetPasswordToken = created.hashedToken; user.resetPasswordTokenExpires = new Date(Date.now() + config.passwordResetTokenExpiresIn); await user.save({ validateBeforeSave: false }); await sendPasswordResetEmail({ email: user.email, token: created.token }); }
+    if (user) { const created = createToken(); user.resetPasswordToken = created.hashedToken; user.resetPasswordTokenExpires = new Date(Date.now() + config.passwordResetTokenExpiresIn); await user.save({ validateBeforeSave: false }); try { await sendPasswordResetEmail({ email: user.email, token: created.token }); } catch (error) { await security({ req, user: user._id, type: "email.password_reset_delivery_failed", severity: "low", details: { providerError: error.code || error.name } }); } }
     res.status(202).json({ data: { accepted: true } });
 });
 exports.resetPassword = asyncHandler(async (req, res) => {

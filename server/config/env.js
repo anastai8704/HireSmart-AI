@@ -7,6 +7,7 @@ dotenv.config({
 });
 
 const nodeEnv = process.env.NODE_ENV || "development";
+const numberEnv = (name, fallback) => process.env[name] === undefined || process.env[name] === "" ? fallback : Number(process.env[name]);
 
 // In automated tests there is usually no .env file (it is git-ignored), so we
 // fall back to throw-away values. This keeps `npm test` working on a fresh
@@ -32,6 +33,7 @@ const config = Object.freeze({
     nodeEnv,
     isProduction: nodeEnv === "production",
     isTest: nodeEnv === "test",
+    enableLegacyApi: process.env.ENABLE_LEGACY_API !== undefined ? String(process.env.ENABLE_LEGACY_API).toLowerCase() === "true" : nodeEnv !== "production",
     port: Number(process.env.PORT) || 5000,
     mongoUri: process.env.MONGO_URI,
     jwtSecret: process.env.JWT_SECRET,
@@ -67,6 +69,9 @@ const config = Object.freeze({
     cookieSameSite: process.env.COOKIE_SAME_SITE || "lax",
     aiPrimaryProvider: (process.env.AI_PRIMARY_PROVIDER || "deterministic").toLowerCase(),
     aiFallbackProvider: (process.env.AI_FALLBACK_PROVIDER || "deterministic").toLowerCase(),
+    aiFallbackBaseUrl: process.env.AI_FALLBACK_BASE_URL || "",
+    aiFallbackApiKey: process.env.AI_FALLBACK_API_KEY || "",
+    aiFallbackModel: process.env.AI_FALLBACK_MODEL || "",
     aiBaseUrl: process.env.AI_BASE_URL || "https://api.openai.com/v1",
     aiApiKey: process.env.AI_API_KEY || "",
     aiModel: process.env.AI_MODEL || "gpt-4o-mini",
@@ -75,17 +80,19 @@ const config = Object.freeze({
     aiInputCostPerMillion: Number(process.env.AI_INPUT_COST_PER_MILLION) || 0,
     aiOutputCostPerMillion: Number(process.env.AI_OUTPUT_COST_PER_MILLION) || 0,
     embeddingsProvider: (process.env.EMBEDDINGS_PROVIDER || "deterministic").toLowerCase(),
+    embeddingsBaseUrl: process.env.EMBEDDINGS_BASE_URL || "",
+    embeddingsApiKey: process.env.EMBEDDINGS_API_KEY || "",
     embeddingsModel: process.env.EMBEDDINGS_MODEL || "text-embedding-3-small",
     processJobsInline: String(process.env.PROCESS_JOBS_INLINE).toLowerCase() === "true" || nodeEnv === "test",
     malwareScannerUrl: process.env.MALWARE_SCANNER_URL || "",
     malwareScanTimeoutMs: Number(process.env.MALWARE_SCAN_TIMEOUT_MS) || 15000,
     matchingWeights: {
-        requiredSkills: Number(process.env.MATCH_WEIGHT_REQUIRED_SKILLS) || 0.35,
-        preferredSkills: Number(process.env.MATCH_WEIGHT_PREFERRED_SKILLS) || 0.10,
-        experience: Number(process.env.MATCH_WEIGHT_EXPERIENCE) || 0.20,
-        education: Number(process.env.MATCH_WEIGHT_EDUCATION) || 0.10,
-        semantic: Number(process.env.MATCH_WEIGHT_SEMANTIC) || 0.20,
-        preferences: Number(process.env.MATCH_WEIGHT_PREFERENCES) || 0.05,
+        requiredSkills: numberEnv("MATCH_WEIGHT_REQUIRED_SKILLS", 0.35),
+        preferredSkills: numberEnv("MATCH_WEIGHT_PREFERRED_SKILLS", 0.10),
+        experience: numberEnv("MATCH_WEIGHT_EXPERIENCE", 0.20),
+        education: numberEnv("MATCH_WEIGHT_EDUCATION", 0.10),
+        semantic: numberEnv("MATCH_WEIGHT_SEMANTIC", 0.20),
+        preferences: numberEnv("MATCH_WEIGHT_PREFERENCES", 0.05),
     },
 });
 
@@ -106,14 +113,18 @@ const validateEnvironment = () => {
         if (config.storageProvider !== "s3") {
             throw new Error("STORAGE_PROVIDER must be s3 in production");
         }
-        if (!config.malwareScannerUrl) {
-            throw new Error("MALWARE_SCANNER_URL is required in production");
-        }
-        if (config.aiPrimaryProvider !== "deterministic" && !config.aiApiKey) {
-            throw new Error("AI_API_KEY is required for the configured AI provider");
-        }
+        if (!config.s3Bucket || !config.s3Region) throw new Error("S3_BUCKET and S3_REGION are required in production");
+        if (!config.malwareScannerUrl) throw new Error("MALWARE_SCANNER_URL is required in production");
+        if (!config.smtpHost || !config.smtpUser || !config.smtpPass) throw new Error("SMTP_HOST, SMTP_USER and SMTP_PASS are required when production email verification is enabled");
+        if (!['strict', 'lax', 'none'].includes(String(config.cookieSameSite).toLowerCase())) throw new Error("COOKIE_SAME_SITE must be strict, lax, or none");
+        if (String(config.cookieSameSite).toLowerCase() === 'none' && !config.cookieSecure) throw new Error("SameSite=None cookies require COOKIE_SECURE=true");
+        if (config.aiPrimaryProvider !== "deterministic" && !config.aiApiKey) throw new Error("AI_API_KEY is required for the configured primary AI provider");
+        if (config.aiFallbackProvider !== "deterministic" && !config.aiFallbackApiKey && !config.aiApiKey) throw new Error("AI_FALLBACK_API_KEY or AI_API_KEY is required for the configured fallback provider");
+        if (config.embeddingsProvider !== "deterministic" && !config.embeddingsApiKey && !config.aiApiKey) throw new Error("EMBEDDINGS_API_KEY or AI_API_KEY is required for the configured embeddings provider");
     }
 
+    const weights = Object.values(config.matchingWeights);
+    if (weights.some((value) => !Number.isFinite(value) || value < 0) || weights.reduce((sum, value) => sum + value, 0) <= 0) throw new Error("Matching weights must be finite non-negative numbers with a positive total");
     const missing = required.filter((key) => !process.env[key]);
 
     if (missing.length > 0) {

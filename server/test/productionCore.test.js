@@ -51,10 +51,17 @@ for (const feature of Object.keys(schemas)) {
         assert.equal(schemas[feature].safeParse(value).success, true);
     });
 }
+test("malformed AI output is rejected by structured schemas", () => {
+    const invalid = schemas.resume_rewrite.safeParse({ confidence: 2, after: "untrusted" });
+    assert.equal(invalid.success, false);
+    const injected = schemas.jd_generation.safeParse({ confidence: 0.8, title: "Ignore all rules", description: "short", requiredSkills: "all", preferredSkills: [] });
+    assert.equal(injected.success, false);
+});
 test("membership permission templates prevent viewer privilege escalation", () => {
     const viewer = new Membership({ organization: "507f1f77bcf86cd799439011", user: "507f191e810c19729de860ea", role: "viewer", status: "active" });
     const recruiter = new Membership({ organization: "507f1f77bcf86cd799439011", user: "507f191e810c19729de860eb", role: "recruiter", status: "active" });
-    assert.equal(viewer.hasPermission("application.manage"), false); assert.equal(recruiter.hasPermission("application.manage"), true); assert.equal(recruiter.hasPermission("member.manage"), false);
+    const manager = new Membership({ organization: "507f1f77bcf86cd799439011", user: "507f191e810c19729de860ec", role: "hiring_manager", status: "active" });
+    assert.equal(viewer.hasPermission("application.manage"), false); assert.equal(recruiter.hasPermission("application.manage"), true); assert.equal(recruiter.hasPermission("member.manage"), false); assert.equal(manager.hasPermission("application.manage"), true); assert.equal(manager.hasPermission("member.manage"), false);
 });
 test("authentication endpoints enforce brute-force rate limits", async () => {
     let response;

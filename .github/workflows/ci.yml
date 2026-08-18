@@ -34,6 +34,8 @@ jobs:
         working-directory: server
       - run: npm run lint
         working-directory: server
+      - run: npm run indexes:create
+        working-directory: server
       - run: npm test
         working-directory: server
       - run: npm audit --omit=dev --audit-level=high

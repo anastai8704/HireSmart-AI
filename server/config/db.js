@@ -9,6 +9,7 @@ const connectDB = async (uriOverride) => {
         await mongoose.connect(uri, {
             serverSelectionTimeoutMS: 10000,
             connectTimeoutMS: 10000,
+            autoIndex: !config.isProduction,
         });
 
         logger.info("MongoDB connected successfully");

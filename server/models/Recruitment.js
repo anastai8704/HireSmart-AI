@@ -5,6 +5,7 @@ const candidateMatchSchema = new mongoose.Schema({
     application: { type: mongoose.Schema.Types.ObjectId, ref: "Application", default: null, index: true },
     candidate: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
     job: { type: mongoose.Schema.Types.ObjectId, ref: "Job", required: true, index: true },
+    jobVersion: { type: Number, min: 1, default: 1 },
     resumeVersion: { type: mongoose.Schema.Types.ObjectId, ref: "ResumeVersion", default: null },
     scorePolicyVersion: { type: String, default: "hybrid-v1" },
     overallScore: { type: Number, min: 0, max: 100, required: true },

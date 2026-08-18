@@ -50,10 +50,7 @@ const apiLimiter = rateLimit({
     standardHeaders: "draft-8",
     legacyHeaders: false,
     skip: () => config.isTest,
-    message: {
-        success: false,
-        message: "Too many requests. Please try again later.",
-    },
+    handler: (req, res) => res.status(429).json(req.originalUrl.startsWith("/api/v1") ? { success: false, status: "fail", code: "RATE_LIMITED", message: "Too many requests. Please try again later.", requestId: req.id } : { success: false, message: "Too many requests. Please try again later." }),
 });
 
 const sanitizeRequest = (req, res, next) => {
@@ -80,11 +77,13 @@ app.use(requestLogger);
 app.use("/api", apiLimiter);
 
 app.use("/api/v1", v1Routes);
-app.use("/api/auth", authRoutes);
-app.use("/api/user", userRoutes);
-app.use("/api/jobs", jobRoutes);
-app.use("/api/candidate", candidateProfileRoutes);
-app.use("/api/matching", matchingRoutes);
+if (config.enableLegacyApi) {
+    app.use("/api/auth", authRoutes);
+    app.use("/api/user", userRoutes);
+    app.use("/api/jobs", jobRoutes);
+    app.use("/api/candidate", candidateProfileRoutes);
+    app.use("/api/matching", matchingRoutes);
+}
 
 app.get("/", (req, res) => {
     res.send("Welcome to HireSmart AI");

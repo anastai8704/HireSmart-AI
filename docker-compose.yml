@@ -49,6 +49,7 @@ services:
     environment:
       NODE_ENV: development
       PORT: 5000
+      ENABLE_LEGACY_API: "false"
 
       # `mongo` is the service name above. Docker's internal DNS resolves it to
       # that container's IP - this is why containers never need IP addresses.

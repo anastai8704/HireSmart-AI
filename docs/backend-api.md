@@ -1,6 +1,6 @@
 # HireSmart Backend API
 
-The production contract is **`/api/v1`**. Existing `/api/auth`, `/api/user`, `/api/jobs`, `/api/candidate`, and `/api/matching` routes remain available as compatibility endpoints for the current React client.
+The production contract is **`/api/v1`**. Legacy `/api/auth`, `/api/user`, `/api/jobs`, `/api/candidate`, and `/api/matching` routes are available only when `ENABLE_LEGACY_API=true` for migration/testing. They are disabled by default in production and the React client uses only `/api/v1`.
 
 ## Contract
 
@@ -72,7 +72,7 @@ Public:
 
 - `GET /jobs` and `GET /jobs/:jobId`
 - `POST /jobs/:jobId/fit` (candidate; exact ready resume version)
-- `POST /jobs/:jobId/applications` (candidate)
+- `POST /jobs/:jobId/applications` (candidate; supports replay-safe `Idempotency-Key`)
 - `GET /candidates/me/recommendations`
 - `GET/POST/DELETE /candidates/me/saved-jobs[/:jobId]`
 - `GET /candidates/me/applications[/:applicationId]`
@@ -104,7 +104,7 @@ The application state machine prevents arbitrary jumps. Withdrawal changes state
 
 ## Interviews
 
-- `GET/POST /organizations/:organizationId/interviews`
+- `GET/POST /organizations/:organizationId/interviews` (`POST` supports replay-safe `Idempotency-Key`)
 - `PATCH /organizations/:organizationId/interviews/:interviewId`
 - `POST .../:interviewId/cancel`, `/complete`, `/feedback`, `/questions`
 - `GET /candidates/me/interviews`
@@ -137,7 +137,7 @@ Body: `{ "input": {}, "subjectType": "optional", "subjectId": "optional" }`. Pro
 - `GET /organizations/:organizationId/analytics/recruitment`
 - `GET /organizations/:organizationId/analytics/ai-usage`
 - `GET /organizations/:organizationId/audit-logs` and `/security-events`
-- Platform admin: `GET /admin/users|organizations|audit-logs|security-events`, `POST /admin/users/:id/suspend`
+- Platform admin: `GET /admin/users|organizations|ai-usage|audit-logs|security-events`, `POST /admin/users/:id/suspend|reactivate`
 - `GET /health/live` and `GET /health/ready`
 
 Recruitment analytics report funnel, shortlist/interview/hire rates, time-to-stage, and AI score generation separately from human outcomes.
@@ -149,6 +149,7 @@ Copy `server/.env.example`; production startup rejects missing Mongo/JWT/CORS, s
 ```bash
 npm start          # HTTP API
 npm run worker     # durable Mongo-backed background worker
+npm run migrate:v1 # idempotently migrate legacy recruiters/jobs/apps/resumes
 npm run verify     # syntax, lint and tests
 ```
 

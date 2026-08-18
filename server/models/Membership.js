@@ -4,7 +4,7 @@ const permissionsByRole = Object.freeze({
     owner: ["organization.manage", "member.manage", "job.manage", "job.read", "application.manage", "application.review", "interview.manage", "interview.feedback", "analytics.read", "audit.read"],
     admin: ["organization.manage", "member.manage", "job.manage", "job.read", "application.manage", "application.review", "interview.manage", "interview.feedback", "analytics.read", "audit.read"],
     recruiter: ["job.manage", "job.read", "application.manage", "application.review", "interview.manage", "interview.feedback", "analytics.read"],
-    hiring_manager: ["job.read", "application.review", "interview.feedback", "analytics.read"],
+    hiring_manager: ["job.read", "application.review", "application.manage", "interview.feedback", "analytics.read"],
     interviewer: ["application.review", "interview.feedback"],
     viewer: ["job.read"],
 });

@@ -53,6 +53,7 @@ apiClient.interceptors.response.use(
 );
 
 export const bootstrapSession = async () => {
+  if (!readCookie("hiresmart_csrf")) return null;
   try { return await refreshAccessToken(); } catch { tokenStore.clear(); return null; }
 };
 export default apiClient;
