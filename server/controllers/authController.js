@@ -46,20 +46,6 @@ const createResetPasswordToken = async (user) => {
     return token;
 };
 
-const removeResumeIfUnreferenced = async (storedResume) => {
-    if (!storedResume) {
-        return;
-    }
-
-    const isReferencedByApplication = await Application.exists({
-        "resumeSnapshot.storageKey": storedResume,
-    });
-
-    if (!isReferencedByApplication) {
-        await removeStoredResume(storedResume);
-    }
-};
-
 const createUser = async ({ name, email, password, role = roles.candidate }) => {
     validateRegistration({ name, email, password });
 
@@ -70,7 +56,7 @@ const createUser = async ({ name, email, password, role = roles.candidate }) => 
         throw new AppError("An account with this email already exists", 409);
     }
 
-    const hashedPassword = await bcrypt.hash(password, 8);
+    const hashedPassword = await bcrypt.hash(password, 12);
 
     return User.create({
         name: String(name).trim(),
@@ -246,7 +232,7 @@ exports.resetPassword = asyncHandler(async (req, res) => {
         throw new AppError("Reset token is invalid or has expired", 400);
     }
 
-    user.password = await bcrypt.hash(req.body.password, 8);
+    user.password = await bcrypt.hash(req.body.password, 12);
     user.resetPasswordToken = undefined;
     user.resetPasswordTokenExpires = undefined;
     user.emailVerified = true;
@@ -328,7 +314,10 @@ exports.deleteResume = asyncHandler(async (req, res) => {
     user.resumeSummary = "";
 
     await user.save();
-    await resumeService.deleteFile(previousResume, previousProvider);
+    const referencedByApplication = await Application.exists({ "resumeSnapshot.storageKey": previousResume });
+    if (!referencedByApplication) {
+        await resumeService.deleteFile(previousResume, previousProvider);
+    }
 
     res.status(200).json({
         success: true,
@@ -351,7 +340,9 @@ exports.changePassword = asyncHandler(async (req, res) => {
         throw new AppError("Current password is incorrect", 401);
     }
 
-    user.password = await bcrypt.hash(req.body.newPassword, 8);
+    user.password = await bcrypt.hash(req.body.newPassword, 12);
+    user.passwordChangedAt = new Date();
+    user.tokenInvalidBefore = new Date(Date.now() - 1000);
     await user.save();
 
     res.status(200).json({
@@ -372,7 +363,7 @@ exports.downloadMyResume = asyncHandler(async (req, res, next) => {
 
     try {
         fileStream = await storageService.getFileStream(user.resume, provider);
-    } catch (error) {
+    } catch (_error) {
         throw new AppError("Resume file is unavailable", 404);
     }
 

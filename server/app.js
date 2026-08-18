@@ -5,6 +5,7 @@ const helmet = require("helmet");
 const hpp = require("hpp");
 const mongoSanitize = require("express-mongo-sanitize");
 const rateLimit = require("express-rate-limit");
+const cookieParser = require("cookie-parser");
 
 const { config } = require("./config/env");
 const requestLogger = require("./middleware/requestLogger");
@@ -16,10 +17,13 @@ const userRoutes = require("./routes/userRoutes");
 const jobRoutes = require("./routes/jobRoutes");
 const candidateProfileRoutes = require("./routes/candidateProfileRoutes");
 const matchingRoutes = require("./routes/matchingRoutes");
+const v1Routes = require("./routes/v1Routes");
+const requestContext = require("./middleware/requestContext");
 
 const app = express();
 
 app.disable("x-powered-by");
+if (config.isProduction) app.set("trust proxy", 1);
 
 const corsOptions = {
     origin(origin, callback) {
@@ -35,8 +39,9 @@ const corsOptions = {
         return callback(new AppError("Origin is not allowed by CORS", 403));
     },
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
-    allowedHeaders: ["Authorization", "Content-Type"],
+    allowedHeaders: ["Authorization", "Content-Type", "Idempotency-Key", "X-Organization-Id", "X-Request-Id", "X-CSRF-Token"],
     maxAge: 86400,
+    credentials: true,
 };
 
 const apiLimiter = rateLimit({
@@ -61,9 +66,11 @@ const sanitizeRequest = (req, res, next) => {
     next();
 };
 
-app.use(helmet());
+app.use(requestContext);
+app.use(helmet({ crossOriginResourcePolicy: { policy: "same-site" } }));
 app.use(cors(corsOptions));
 app.use(compression());
+app.use(cookieParser());
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 app.use(sanitizeRequest);
@@ -72,6 +79,7 @@ app.use(hpp());
 app.use(requestLogger);
 app.use("/api", apiLimiter);
 
+app.use("/api/v1", v1Routes);
 app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/jobs", jobRoutes);

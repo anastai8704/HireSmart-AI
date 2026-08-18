@@ -1,0 +1,3 @@
+const mongoose = require("mongoose"); const JobRun = require("../models/JobRun"); const asyncHandler = require("../middleware/asyncHandler");
+exports.live = (req, res) => res.json({ data: { status: "ok", uptimeSeconds: Math.floor(process.uptime()) } });
+exports.ready = asyncHandler(async (req, res) => { const mongoReady = mongoose.connection.readyState === 1; let queueReady = false; if (mongoReady) { await JobRun.exists({ _id: null }); queueReady = true; } const ready = mongoReady && queueReady; res.status(ready ? 200 : 503).json({ data: { status: ready ? "ready" : "not_ready", checks: { mongodb: mongoReady ? "up" : "down", jobStore: queueReady ? "up" : "down" } } }); });

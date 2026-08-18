@@ -52,6 +52,16 @@ const startDatabase = async () => {
 
     let testUri = "";
 
+    // CI supplies an isolated local Mongo service. Prefer it directly instead
+    // of downloading a second mongod binary at test runtime.
+    if (process.env.MONGO_URI && !process.env.MONGO_URI.includes("mongodb.net")) {
+        testUri = replaceDatabaseName(process.env.MONGO_URI, "hiresmart_test");
+        process.env.MONGO_URI = testUri;
+        const { connectDB } = require("../config/db");
+        await connectDB(testUri);
+        return;
+    }
+
     try {
         mongoServer = await MongoMemoryServer.create({
             instance: { dbName: "hiresmart_test" },

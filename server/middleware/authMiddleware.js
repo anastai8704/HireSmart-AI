@@ -29,9 +29,13 @@ exports.protect = async (req, res, next) => {
             return next(new AppError("This account has been deactivated", 403));
         }
 
+        if (user.tokenInvalidBefore && decoded.iat * 1000 < user.tokenInvalidBefore.getTime()) {
+            return next(new AppError("This session has been revoked", 401));
+        }
+
         req.user = user;
         next();
-    } catch (error) {
+    } catch (_error) {
         return next(new AppError("Invalid or expired token", 401));
     }
 };

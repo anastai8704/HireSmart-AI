@@ -8,7 +8,7 @@ Scores any resume against any job with an **explainable** matching engine, ranks
 applicants automatically for recruiters, and tells candidates exactly what to fix.
 
 ```
-Tests: 42 passing   ·   Stack: React · Node.js · Express · MongoDB · Tailwind CSS
+Automated test suite   ·   Stack: React · Node.js · Express · MongoDB · Tailwind CSS
 ```
 
 ---
@@ -63,6 +63,11 @@ Both are **pure, dependency-free functions**: no database, no network, no API ke
 They always work, and they unit-test in milliseconds.
 
 ---
+
+
+## Production API v1
+
+The backend now exposes a versioned `/api/v1` contract with rotating sessions, organizations and memberships, versioned resume processing, structured jobs/applications, hybrid explainable matching, interviews, notifications, analytics, audit/security events, configurable AI providers, and a separate background worker. The original `/api` contract remains available for the current frontend. See [docs/backend-api.md](docs/backend-api.md).
 
 ## Quick start
 
@@ -154,7 +159,7 @@ server/                    Backend — Node.js + Express + MongoDB
 ├── routes/                URL → controller mapping
 ├── services/              ★ AI engine, storage, email
 ├── validators/            Input validation
-└── test/                  40 automated tests
+└── test/                  Unit, security and API workflow tests
 
 client/                    Frontend — React + Vite + Tailwind CSS v4
 └── src/
@@ -173,7 +178,7 @@ client/                    Frontend — React + Vite + Tailwind CSS v4
 | Command | Directory | Purpose |
 |---|---|---|
 | `npm run dev` | server | API with auto-restart |
-| `npm test` | server | Run all 40 tests |
+| `npm test` | server | Run backend unit and integration tests |
 | `npm run seed` | server | Reset database with demo data |
 | `npm run bootstrap:admin` | server | Create the first admin |
 | `npm run dev` | client | React dev server |
@@ -202,7 +207,7 @@ Route guards in React are **UX only** — all enforcement is server-side.
 
 ```bash
 cd server && npm test
-# tests 42 · pass 42 · fail 0
+# runs unit and isolated-database integration tests
 ```
 
 Unit tests cover the AI engine as pure functions. Integration tests run real HTTP

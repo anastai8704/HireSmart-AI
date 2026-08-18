@@ -60,6 +60,33 @@ const config = Object.freeze({
         Number(process.env.EMAIL_VERIFICATION_TOKEN_EXPIRES_IN) || 24 * 60 * 60 * 1000,
     passwordResetTokenExpiresIn:
         Number(process.env.PASSWORD_RESET_TOKEN_EXPIRES_IN) || 60 * 60 * 1000,
+    accessTokenExpiresIn: process.env.ACCESS_TOKEN_EXPIRES_IN || "15m",
+    refreshTokenExpiresDays: Number(process.env.REFRESH_TOKEN_EXPIRES_DAYS) || 30,
+    refreshCookieName: process.env.REFRESH_COOKIE_NAME || "hiresmart_refresh",
+    cookieSecure: process.env.COOKIE_SECURE ? String(process.env.COOKIE_SECURE).toLowerCase() === "true" : nodeEnv === "production",
+    cookieSameSite: process.env.COOKIE_SAME_SITE || "lax",
+    aiPrimaryProvider: (process.env.AI_PRIMARY_PROVIDER || "deterministic").toLowerCase(),
+    aiFallbackProvider: (process.env.AI_FALLBACK_PROVIDER || "deterministic").toLowerCase(),
+    aiBaseUrl: process.env.AI_BASE_URL || "https://api.openai.com/v1",
+    aiApiKey: process.env.AI_API_KEY || "",
+    aiModel: process.env.AI_MODEL || "gpt-4o-mini",
+    aiTimeoutMs: Number(process.env.AI_TIMEOUT_MS) || 30000,
+    aiMaxRetries: Number(process.env.AI_MAX_RETRIES) || 2,
+    aiInputCostPerMillion: Number(process.env.AI_INPUT_COST_PER_MILLION) || 0,
+    aiOutputCostPerMillion: Number(process.env.AI_OUTPUT_COST_PER_MILLION) || 0,
+    embeddingsProvider: (process.env.EMBEDDINGS_PROVIDER || "deterministic").toLowerCase(),
+    embeddingsModel: process.env.EMBEDDINGS_MODEL || "text-embedding-3-small",
+    processJobsInline: String(process.env.PROCESS_JOBS_INLINE).toLowerCase() === "true" || nodeEnv === "test",
+    malwareScannerUrl: process.env.MALWARE_SCANNER_URL || "",
+    malwareScanTimeoutMs: Number(process.env.MALWARE_SCAN_TIMEOUT_MS) || 15000,
+    matchingWeights: {
+        requiredSkills: Number(process.env.MATCH_WEIGHT_REQUIRED_SKILLS) || 0.35,
+        preferredSkills: Number(process.env.MATCH_WEIGHT_PREFERRED_SKILLS) || 0.10,
+        experience: Number(process.env.MATCH_WEIGHT_EXPERIENCE) || 0.20,
+        education: Number(process.env.MATCH_WEIGHT_EDUCATION) || 0.10,
+        semantic: Number(process.env.MATCH_WEIGHT_SEMANTIC) || 0.20,
+        preferences: Number(process.env.MATCH_WEIGHT_PREFERENCES) || 0.05,
+    },
 });
 
 const validateEnvironment = () => {
@@ -67,6 +94,24 @@ const validateEnvironment = () => {
 
     if (config.isProduction) {
         required.push("CORS_ORIGIN");
+        if (config.jwtSecret && config.jwtSecret.length < 32) {
+            throw new Error("JWT_SECRET must be at least 32 characters in production");
+        }
+        if (!config.requireEmailVerification) {
+            throw new Error("REQUIRE_EMAIL_VERIFICATION must be true in production");
+        }
+        if (!config.cookieSecure) {
+            throw new Error("COOKIE_SECURE must be true in production");
+        }
+        if (config.storageProvider !== "s3") {
+            throw new Error("STORAGE_PROVIDER must be s3 in production");
+        }
+        if (!config.malwareScannerUrl) {
+            throw new Error("MALWARE_SCANNER_URL is required in production");
+        }
+        if (config.aiPrimaryProvider !== "deterministic" && !config.aiApiKey) {
+            throw new Error("AI_API_KEY is required for the configured AI provider");
+        }
     }
 
     const missing = required.filter((key) => !process.env[key]);

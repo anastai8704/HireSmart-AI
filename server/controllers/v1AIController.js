@@ -1,0 +1,6 @@
+const asyncHandler = require("../middleware/asyncHandler");
+const AppError = require("../utils/AppError");
+const { run } = require("../services/ai/orchestrator");
+const Consent = require("../models/Consent");
+const features = new Set(["resume_extraction", "resume_improvement", "jd_parse", "jd_improvement", "interview_questions", "interview_preparation", "recruiter_copilot", "career_copilot"]);
+exports.execute = asyncHandler(async (req, res) => { if (!features.has(req.params.feature)) throw new AppError("AI feature not found", 404, "RESOURCE_NOT_FOUND"); const recruiterOnly = new Set(["jd_parse", "jd_improvement", "interview_questions", "recruiter_copilot"]); if (recruiterOnly.has(req.params.feature) && !["recruiter", "admin"].includes(req.user.role)) throw new AppError("This AI feature requires recruiter access", 403, "FORBIDDEN"); const allowExternal = req.user.role !== "candidate" || Boolean(await Consent.exists({ user: req.user._id, purpose: "ai_processing", revokedAt: null })); const result = await run({ feature: req.params.feature, input: req.body.input, user: req.user._id, organization: req.auth.organizationId || null, subjectType: req.body.subjectType || "ad_hoc", subjectId: req.body.subjectId || "ad_hoc", allowExternal }); res.json({ data: result }); });

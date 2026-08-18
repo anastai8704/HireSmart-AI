@@ -3,6 +3,12 @@ const { jobTypes, jobStatuses } = require("../constants/enums");
 
 const jobSchema = new mongoose.Schema(
     {
+        organization: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Organization",
+            default: null,
+            index: true,
+        },
         title: {
             type: String,
             required: true,
@@ -54,6 +60,18 @@ const jobSchema = new mongoose.Schema(
                 message: "A job must list between 1 and 50 skills",
             },
         },
+        requiredSkills: { type: [String], default: [] },
+        preferredSkills: { type: [String], default: [] },
+        workplaceMode: { type: String, enum: ["onsite", "hybrid", "remote", "unspecified"], default: "unspecified" },
+        compensation: {
+            min: { type: Number, min: 0 }, max: { type: Number, min: 0 },
+            currency: { type: String, default: "INR", maxlength: 3 },
+            period: { type: String, enum: ["hour", "month", "year"], default: "year" },
+        },
+        source: { type: String, default: "direct", maxlength: 50 },
+        hiringTeam: [{ type: mongoose.Schema.Types.ObjectId, ref: "Membership" }],
+        version: { type: Number, default: 1, min: 1 },
+        publishedAt: { type: Date, default: null },
         status: {
             type: String,
             enum: jobStatuses,

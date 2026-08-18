@@ -1,9 +1,7 @@
 const mongoose = require("mongoose");
-const dns = require("node:dns");
 const { config } = require("./env");
 const logger = require("../utils/logger");
 
-dns.setServers(["8.8.8.8", "1.1.1.1"]);
 
 const connectDB = async (uriOverride) => {
     try {
@@ -16,7 +14,7 @@ const connectDB = async (uriOverride) => {
         logger.info("MongoDB connected successfully");
     } catch (error) {
         logger.error(`MongoDB Connection Failed: ${error.message}`);
-        process.exit(1);
+        throw error;
     }
 };
 

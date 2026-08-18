@@ -35,6 +35,9 @@ const getCurrentProvider = () => {
 const saveFile = async ({ buffer, originalName }) => {
     const provider = getCurrentProvider();
     const extension = path.extname(originalName).toLowerCase();
+    const contentType = extension === ".pdf"
+        ? "application/pdf"
+        : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
     const storageKey = `${Date.now()}-${crypto.randomUUID()}${extension}`;
 
     if (provider === "s3") {
@@ -44,6 +47,8 @@ const saveFile = async ({ buffer, originalName }) => {
                 Bucket: config.s3Bucket,
                 Key: storageKey,
                 Body: buffer,
+                ContentType: contentType,
+                ServerSideEncryption: "AES256",
             })
         );
         return { storageKey, provider };
@@ -51,7 +56,7 @@ const saveFile = async ({ buffer, originalName }) => {
 
     ensureResumeDirectory();
     const filePath = getLocalPath(storageKey);
-    await fs.promises.writeFile(filePath, buffer);
+    await fs.promises.writeFile(filePath, buffer, { mode: 0o600 });
     return { storageKey, provider };
 };
 
