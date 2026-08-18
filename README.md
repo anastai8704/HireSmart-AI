@@ -65,6 +65,10 @@ They always work, and they unit-test in milliseconds.
 ---
 
 
+## Production frontend
+
+The React client now runs entirely on the versioned `/api/v1` contract. It uses an in-memory access token with rotating refresh/CSRF cookies, organization-aware workspaces, TanStack Query caching, accessible responsive navigation, versioned resume processing, explainable hybrid matching, structured AI copilots, application/interview workflows, notifications, analytics, and platform administration. Frontend checks are `cd client && npm run lint && npm test && npm run build`.
+
 ## Production API v1
 
 The backend now exposes a versioned `/api/v1` contract with rotating sessions, organizations and memberships, versioned resume processing, structured jobs/applications, hybrid explainable matching, interviews, notifications, analytics, audit/security events, configurable AI providers, and a separate background worker. The original `/api` contract remains available for the current frontend. See [docs/backend-api.md](docs/backend-api.md).

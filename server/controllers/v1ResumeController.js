@@ -1,6 +1,8 @@
 const { Resume, ResumeVersion, ParsedResume } = require("../models/Resume");
 const { Application } = require("../models/Application");
 const JobRun = require("../models/JobRun");
+const Job = require("../models/Job");
+const { calculateHybridMatch } = require("../services/hybridMatchingService");
 const storageService = require("../services/storageService");
 const { createVersion } = require("../services/resumeProcessingService");
 const { enqueue } = require("../services/jobQueueService");
@@ -46,4 +48,5 @@ exports.analysis = asyncHandler(async (req, res) => {
     const version = await ResumeVersion.findOne({ _id: req.params.versionId, candidate: req.user._id, processingStatus: "ready" }).select("+text"); if (!version) throw new AppError("Ready resume version not found", 404, "RESOURCE_NOT_FOUND");
     const allowExternal = Boolean(await Consent.exists({ user: req.user._id, purpose: "ai_processing", revokedAt: null })); const result = await run({ feature: "resume_improvement", input: { resumeText: version.text }, user: req.user._id, subjectType: "resume_version", subjectId: version._id, allowExternal }); res.json({ data: result });
 });
+exports.tailor = asyncHandler(async (req, res) => { const [version, job] = await Promise.all([ResumeVersion.findOne({ _id: req.params.versionId, candidate: req.user._id, processingStatus: "ready" }).select("+text"), Job.findOne({ _id: req.body.jobId, status: "published" })]); if (!version || !job) throw new AppError("Ready resume version or job not found", 404, "RESOURCE_NOT_FOUND"); const consent = Boolean(await Consent.exists({ user: req.user._id, purpose: "ai_processing", revokedAt: null })); const fit = await calculateHybridMatch({ resumeText: version.text, candidateSkills: req.user.skills || [], job, allowExternalEmbeddings: consent }); const improvement = await run({ feature: "resume_improvement", input: { resumeText: version.text, targetJob: { id: job._id, title: job.title, description: job.description, requiredSkills: job.requiredSkills?.length ? job.requiredSkills : job.skills, preferredSkills: job.preferredSkills }, missingRequiredSkills: fit.missingRequiredSkills, missingPreferredSkills: fit.missingPreferredSkills, instruction: "Suggest evidence-based tailoring only. Never invent experience or credentials." }, user: req.user._id, subjectType: "resume_job_tailoring", subjectId: `${version._id}:${job._id}`, allowExternal: consent }); res.json({ data: { resumeVersionId: version._id, job: { id: job._id, title: job.title, company: job.company }, fit, improvement } }); });
 exports.jobRun = asyncHandler(async (req, res) => { const job = await JobRun.findOne({ _id: req.params.jobRunId, owner: req.user._id }); if (!job) throw new AppError("Job run not found", 404, "RESOURCE_NOT_FOUND"); res.json({ data: { id: job._id, type: job.type, status: job.status, progress: job.progress, result: job.result, error: job.error, createdAt: job.createdAt, updatedAt: job.updatedAt } }); });

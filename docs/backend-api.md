@@ -61,6 +61,7 @@ Roles: `owner`, `admin`, `recruiter`, `hiring_manager`, `interviewer`, `viewer`.
 | DELETE | `/candidates/me/resumes/versions/:versionId` | Owner; referenced artifacts retained privately |
 | POST | `/candidates/me/resumes/versions/:versionId/retry` | Owner, failed state only |
 | POST | `/candidates/me/resumes/versions/:versionId/analysis` | Owner, AI-limited |
+| POST | `/candidates/me/resumes/versions/:versionId/tailor` | Owner, AI-limited; body contains published `jobId` |
 | GET | `/job-runs/:jobRunId` | Job owner |
 
 Uploads accept actual PDF and DOCX content up to 10 MB. Filename, declared MIME, and magic/container content must agree. Files receive random private keys, SHA-256 duplicate detection, processing state, retries, parsing, structured extraction, AI/rule analysis, and immutable versions. Legacy DOC is deliberately rejected because it cannot be parsed safely by the current worker.
@@ -73,6 +74,7 @@ Public:
 - `POST /jobs/:jobId/fit` (candidate; exact ready resume version)
 - `POST /jobs/:jobId/applications` (candidate)
 - `GET /candidates/me/recommendations`
+- `GET/POST/DELETE /candidates/me/saved-jobs[/:jobId]`
 - `GET /candidates/me/applications[/:applicationId]`
 - `POST /candidates/me/applications/:applicationId/withdraw`
 
@@ -83,6 +85,8 @@ Organization:
 | GET/POST | `/organizations/:organizationId/jobs` | `job.read` / `job.manage` |
 | GET/PATCH | `/organizations/:organizationId/jobs/:jobId` | `job.read` / `job.manage` |
 | POST | `.../jobs/:jobId/publish` or `/close` | `job.manage` |
+| GET | `/organizations/:organizationId/assigned-jobs` | active member with `job.read` |
+| PUT | `.../jobs/:jobId/hiring-team` | `job.manage` |
 | GET | `.../jobs/:jobId/applications` | `application.review` |
 | GET | `.../applications/:applicationId` | `application.review` |
 | POST | `.../applications/:applicationId/transitions` | `application.manage` |
@@ -103,6 +107,7 @@ The application state machine prevents arbitrary jumps. Withdrawal changes state
 - `GET/POST /organizations/:organizationId/interviews`
 - `PATCH /organizations/:organizationId/interviews/:interviewId`
 - `POST .../:interviewId/cancel`, `/complete`, `/feedback`, `/questions`
+- `GET /candidates/me/interviews`
 - `POST /interviews/:interviewId/confirm`, `/reschedule`, `/preparation` for the application candidate
 
 Lifecycle: draft → invited → confirmed/reschedule requested → completed/cancelled. Feedback is one immutable submission per evaluator and uses criterion ratings plus evidence.
@@ -114,7 +119,9 @@ Lifecycle: draft → invited → confirmed/reschedule requested → completed/ca
 Features:
 
 - `resume_extraction`
+- `resume_rewrite`
 - `resume_improvement`
+- `jd_generation`
 - `jd_parse`
 - `jd_improvement`
 - `interview_questions`

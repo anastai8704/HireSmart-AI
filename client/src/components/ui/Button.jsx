@@ -66,6 +66,7 @@ const Button = ({
                 fullWidth && "w-full justify-center",
                 className
             )}
+            type={Component === "button" ? (props.type || "button") : undefined}
             disabled={Component === "button" ? isDisabled : undefined}
             aria-busy={isLoading || undefined}
             aria-disabled={isDisabled || undefined}

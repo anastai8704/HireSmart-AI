@@ -34,15 +34,23 @@ const Modal = ({
     closeOnBackdrop = true,
 }) => {
     const titleId = useId();
+    const descriptionId = useId();
     const panelRef = useRef(null);
+    const returnFocusRef = useRef(null);
 
     // Close on Escape, and prevent the page behind from scrolling.
     useEffect(() => {
         if (!isOpen) return undefined;
 
+        returnFocusRef.current = document.activeElement;
         const handleKeyDown = (event) => {
-            if (event.key === "Escape") {
-                onClose?.();
+            if (event.key === "Escape") onClose?.();
+            if (event.key === "Tab" && panelRef.current) {
+                const items = [...panelRef.current.querySelectorAll('button:not([disabled]),a[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])')];
+                if (!items.length) { event.preventDefault(); return; }
+                const first = items[0], last = items[items.length - 1];
+                if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+                else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
             }
         };
 
@@ -56,6 +64,7 @@ const Modal = ({
         return () => {
             document.body.style.overflow = previousOverflow;
             document.removeEventListener("keydown", handleKeyDown);
+            returnFocusRef.current?.focus?.();
         };
     }, [isOpen, onClose]);
 
@@ -67,6 +76,7 @@ const Modal = ({
             role="dialog"
             aria-modal="true"
             aria-labelledby={title ? titleId : undefined}
+            aria-describedby={description ? descriptionId : undefined}
         >
             {/* Backdrop */}
             <div
@@ -94,7 +104,7 @@ const Modal = ({
                                 </h2>
                             )}
                             {description && (
-                                <p className="text-sm text-ink-500">{description}</p>
+                                <p id={descriptionId} className="text-sm text-ink-500">{description}</p>
                             )}
                         </div>
 

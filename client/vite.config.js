@@ -7,6 +7,11 @@ import process from 'node:process'
 export default defineConfig({
   plugins: [react(), tailwindcss()],
 
+  test: {
+    environment: 'jsdom',
+    setupFiles: './src/test/setup.js',
+  },
+
   server: {
     // Bind to every interface so the dev server is reachable from outside the
     // container / VM this runs in.

@@ -126,7 +126,7 @@ services:
       args:
         # Relative URL: the browser calls the same origin it loaded from, and
         # Nginx forwards /api to the api service.
-        VITE_API_URL: /api
+        VITE_API_URL: /api/v1
     restart: unless-stopped
 
     ports:

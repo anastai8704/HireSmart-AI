@@ -70,20 +70,20 @@ exports.login = asyncHandler(async (req, res) => {
     if (user.accountStatus === "pending_verification") user.accountStatus = "active";
     const issued = await createSession(user, req);
     res.cookie(config.refreshCookieName, issued.refreshToken, cookieOptions());
-    res.cookie("hiresmart_csrf", issued.csrfToken, { ...cookieOptions(), httpOnly: false });
+    res.cookie("hiresmart_csrf", issued.csrfToken, { ...cookieOptions(), httpOnly: false, path: "/" });
     await audit({ req, action: "session.created", resourceType: "session", resourceId: issued.session._id });
     res.json({ data: { accessToken: issued.accessToken, expiresIn: config.accessTokenExpiresIn, user: dto(user) } });
 });
 exports.refresh = asyncHandler(async (req, res) => {
     const issued = await rotateSession(req.cookies?.[config.refreshCookieName], req);
     res.cookie(config.refreshCookieName, issued.refreshToken, cookieOptions());
-    res.cookie("hiresmart_csrf", issued.csrfToken, { ...cookieOptions(), httpOnly: false });
+    res.cookie("hiresmart_csrf", issued.csrfToken, { ...cookieOptions(), httpOnly: false, path: "/" });
     res.json({ data: { accessToken: issued.accessToken, expiresIn: config.accessTokenExpiresIn, user: dto(issued.user) } });
 });
 exports.logout = asyncHandler(async (req, res) => {
     if (req.auth.sessionId) await revoke({ _id: req.auth.sessionId, user: req.user._id }, "logout");
     res.clearCookie(config.refreshCookieName, cookieOptions());
-    res.clearCookie("hiresmart_csrf", { ...cookieOptions(), httpOnly: false });
+    res.clearCookie("hiresmart_csrf", { ...cookieOptions(), httpOnly: false, path: "/" });
     res.status(204).end();
 });
 exports.sessions = asyncHandler(async (req, res) => {

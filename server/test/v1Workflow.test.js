@@ -40,8 +40,13 @@ test("recruiter creates and publishes a tenant-owned structured job", async () =
     assert.equal(created.status, 201, JSON.stringify(created.body)); jobId = created.body.data.id;
     const published = await request(app).post(`/api/v1/organizations/${organizationId}/jobs/${jobId}/publish`).set(auth(recruiterToken)); assert.equal(published.status, 200); assert.equal(published.body.data.status, "published");
 });
+test("candidate can save the published job", async () => {
+    const saved = await request(app).post(`/api/v1/candidates/me/saved-jobs/${jobId}`).set(auth(candidateToken)); assert.equal(saved.status, 201);
+    const list = await request(app).get("/api/v1/candidates/me/saved-jobs").set(auth(candidateToken)); assert.equal(list.status, 200); assert.equal(list.body.data.length, 1);
+});
 test("candidate gets explainable fit and submits immutable application", async () => {
     const fit = await request(app).post(`/api/v1/jobs/${jobId}/fit`).set(auth(candidateToken)).send({ resumeVersionId }); assert.equal(fit.status, 200, JSON.stringify(fit.body)); assert.ok(fit.body.data.componentScores.requiredSkills); assert.ok(Array.isArray(fit.body.data.missingRequiredSkills));
+    const tailored = await request(app).post(`/api/v1/candidates/me/resumes/versions/${resumeVersionId}/tailor`).set(auth(candidateToken)).send({ jobId }); assert.equal(tailored.status, 200); assert.ok(tailored.body.data.improvement.suggestions);
     const applied = await request(app).post(`/api/v1/jobs/${jobId}/applications`).set(auth(candidateToken)).send({ resumeVersionId, source: "direct" }); assert.equal(applied.status, 201, JSON.stringify(applied.body)); applicationId = applied.body.data._id; assert.equal(applied.body.data.status, "submitted");
     const duplicate = await request(app).post(`/api/v1/jobs/${jobId}/applications`).set(auth(candidateToken)).send({ resumeVersionId }); assert.equal(duplicate.status, 409);
 });
@@ -50,6 +55,8 @@ test("recruiter calculates match, shortlists, contacts and schedules interview",
     const shortlist = await request(app).post(`/api/v1/organizations/${organizationId}/applications/${applicationId}/shortlist`).set(auth(recruiterToken)).send({ note: "Evidence reviewed" }); assert.equal(shortlist.status, 200, JSON.stringify(shortlist.body)); assert.equal(shortlist.body.data.status, "shortlisted");
     const message = await request(app).post(`/api/v1/organizations/${organizationId}/applications/${applicationId}/messages`).set(auth(recruiterToken)).set("Idempotency-Key", "candidate-message-1").send({ subject: "Next steps", message: "We would like to schedule an interview." }); assert.equal(message.status, 202);
     const scheduledStart = new Date(Date.now() + 86400000); const interviewResponse = await request(app).post(`/api/v1/organizations/${organizationId}/interviews`).set(auth(recruiterToken)).send({ applicationId, title: "Technical interview", type: "technical", scheduledStart, scheduledEnd: new Date(scheduledStart.getTime() + 3600000), timezone: "Asia/Kolkata" }); assert.equal(interviewResponse.status, 201, JSON.stringify(interviewResponse.body)); const interviewId = interviewResponse.body.data._id;
+    const mine = await request(app).get("/api/v1/candidates/me/interviews").set(auth(candidateToken)); assert.equal(mine.status, 200); assert.equal(mine.body.data.length, 1);
+    const assigned = await request(app).get(`/api/v1/organizations/${organizationId}/assigned-jobs`).set(auth(recruiterToken)); assert.equal(assigned.status, 200); assert.equal(assigned.body.data.length, 1);
     const confirmed = await request(app).post(`/api/v1/interviews/${interviewId}/confirm`).set(auth(candidateToken)); assert.equal(confirmed.status, 200); assert.equal(confirmed.body.data.status, "confirmed");
     const feedback = await request(app).post(`/api/v1/organizations/${organizationId}/interviews/${interviewId}/feedback`).set(auth(recruiterToken)).send({ ratings: [{ criterion: "Backend design", score: 4, evidence: "Explained API trade-offs" }], recommendation: "yes", summary: "Proceed" }); assert.equal(feedback.status, 201, JSON.stringify(feedback.body));
 });
