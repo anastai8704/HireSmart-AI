@@ -15,6 +15,7 @@
  */
 
 import { useCallback, useMemo, useState } from "react";
+import { newId } from "../../lib/id";
 import { AlertCircle, CheckCircle2, Info, X, XCircle } from "lucide-react";
 
 import { ToastContext } from "./ToastContext";
@@ -52,9 +53,10 @@ export const ToastProvider = ({ children }) => {
 
     const push = useCallback(
         (type, message, duration = 4000) => {
-            // crypto.randomUUID avoids duplicate React keys when several toasts
-            // are triggered within the same millisecond.
-            const id = crypto.randomUUID();
+            // newId avoids duplicate React keys when several toasts are
+            // triggered within the same millisecond (and works on plain-HTTP
+            // origins where crypto.randomUUID is unavailable).
+            const id = newId();
 
             setToasts((current) => [...current, { id, type, message }]);
 
