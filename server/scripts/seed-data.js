@@ -46,7 +46,7 @@ const seedFreshData = async () => {
         {
             _id: adminId,
             name: process.env.ADMIN_NAME || "ANAS TAI",
-            email: process.env.ADMIN_EMAIL || "tanastai5018@gmail.com",
+            email: process.env.ADMIN_EMAIL || "admin@example.com",
             password: adminPasswordHash,
             role: "admin",
             isActive: true,
