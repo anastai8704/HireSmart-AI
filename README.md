@@ -140,6 +140,37 @@ with **no account at all** at `/resume-check`.
 > dependencies are not downloaded automatically. Skipping this produces
 > `Failed to resolve import "react-router-dom" ... Are they installed?`
 
+### Troubleshooting
+
+**`MongoDB Connection Failed: querySrv ECONNREFUSED _mongodb._tcp....`**
+
+`mongodb+srv://` URIs require a DNS SRV lookup on port 53, and some networks
+(corporate firewalls, restricted VMs) block it. `server/config/db.js`
+repairs this automatically:
+
+1. It first retries with public resolvers (`1.1.1.1`, `8.8.8.8`) in case the
+   local resolver configuration is simply broken.
+2. If DNS is blocked outright, it re-resolves the cluster over
+   DNS-over-HTTPS (Cloudflare, then Google — plain HTTPS, which such
+   networks almost always allow) and connects to the shard hosts directly,
+   with full TLS certificate verification.
+
+If you see `Falling back to DNS-over-HTTPS resolution...` in the log and the
+connection still fails, check that HTTPS to `cloudflare-dns.com` (or
+`dns.google`) works on your network and that the cluster's IP allow list
+includes your machine.
+
+To verify the recovery works on your own machine (it safely reproduces the
+DNS failure against your real cluster, then proves the connection):
+
+```bash
+cd server
+npm run probe               # stage 1: public-resolver retry
+SCENARIO=stage3 npm run probe   # stage 2: force the DNS-over-HTTPS path
+```
+
+Exit code 0 means the connection recovered.
+
 ## Documentation
 
 | Document | What's in it |

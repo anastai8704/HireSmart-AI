@@ -12,6 +12,7 @@
     "worker": "node worker.js",
     "verify": "npm run check && npm run lint && npm test",
     "bootstrap:admin": "node scripts/bootstrap-admin.js",
+    "probe": "node scripts/probe-srv-fallback.js",
     "migrate:applications": "node scripts/migrate-legacy-applications.js",
     "migrate:v1": "node scripts/migrate-v1-foundation.js",
     "indexes:create": "node scripts/create-indexes.js",
