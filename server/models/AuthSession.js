@@ -8,7 +8,9 @@ const authSessionSchema = new mongoose.Schema({
     userAgent: { type: String, maxlength: 500, default: "" },
     ipHash: { type: String, maxlength: 64, default: "" },
     lastUsedAt: { type: Date, default: Date.now },
-    expiresAt: { type: Date, required: true, index: true },
+    // The TTL index below also serves as the regular index - declaring both
+    // triggers a mongoose "Duplicate schema index" warning.
+    expiresAt: { type: Date, required: true },
     revokedAt: { type: Date, default: null, index: true },
     revokeReason: { type: String, maxlength: 100, default: "" },
 }, { timestamps: true });
