@@ -18,6 +18,7 @@ const analytics = require("../controllers/v1AnalyticsController");
 const admin = require("../controllers/v1AdminController");
 const health = require("../controllers/v1HealthController");
 const users = require("../controllers/v1UserController");
+const invites = require("../controllers/v1InviteController");
 
 const router = express.Router();
 const strict = (shape) => z.object(shape).strict();
@@ -38,6 +39,9 @@ router.post("/auth/password/forgot", authLimit, validate(strict({ email: z.strin
 router.post("/auth/password/reset", authLimit, validate(strict({ token: z.string().min(32), newPassword: password })), auth.resetPassword);
 router.post("/auth/logout", authenticate, auth.logout); router.get("/auth/sessions", authenticate, auth.sessions); router.delete("/auth/sessions/:sessionId", authenticate, auth.revokeSession);
 router.patch("/auth/password", authenticate, validate(strict({ currentPassword: z.string().min(1).max(128), newPassword: password })), auth.changePassword);
+router.get("/invitations/:token", authLimit, invites.info);
+router.post("/invitations/:token/accept", authLimit, validate(strict({ name: z.string().trim().min(2).max(100), password })), invites.accept);
+router.post("/invitations/:token/accept-existing", authLimit, authenticate, invites.acceptExisting);
 router.get("/users/me", authenticate, users.me); router.get("/users/me/export", authenticate, users.exportData); router.delete("/users/me", authenticate, validate(strict({ reason: z.string().max(1000).optional() })), users.requestDeletion); router.get("/users/me/consents", authenticate, users.consents); router.put("/users/me/consents/:purpose", authenticate, validate(strict({ granted: z.boolean(), policyVersion: z.string().min(1).max(50) })), users.setConsent);
 
 const orgSchema = strict({ name: z.string().trim().min(2).max(150), slug: z.string().regex(/^[a-z0-9-]+$/).optional(), industry: z.string().max(100).optional(), size: z.enum(["1-10", "11-50", "51-200", "201-500", "501-1000", "1000+", "unknown"]).optional(), website: z.string().url().max(2048).optional(), timezone: z.string().max(100).optional() });
@@ -47,6 +51,9 @@ router.patch("/organizations/:organizationId", authenticate, requireOrganization
 router.get("/organizations/:organizationId/members", authenticate, requireOrganization("member.manage"), org.members);
 router.post("/organizations/:organizationId/members", authenticate, requireOrganization("member.manage"), validate(strict({ email: z.string().email(), role: z.enum(["owner", "admin", "recruiter", "hiring_manager", "interviewer", "viewer"]) })), org.addMember);
 router.patch("/organizations/:organizationId/members/:membershipId", authenticate, requireOrganization("member.manage"), validate(strict({ role: z.enum(["owner", "admin", "recruiter", "hiring_manager", "interviewer", "viewer"]).optional(), status: z.enum(["active", "suspended", "revoked"]).optional() })), org.updateMember);
+router.get("/organizations/:organizationId/invitations", authenticate, requireOrganization("member.manage"), org.invitations);
+router.post("/organizations/:organizationId/invitations", authenticate, requireOrganization("member.manage"), validate(strict({ email: z.string().email(), role: z.enum(["admin", "recruiter", "hiring_manager", "interviewer", "viewer"]) })), org.createInvitation);
+router.delete("/organizations/:organizationId/invitations/:invitationId", authenticate, requireOrganization("member.manage"), org.revokeInvitation);
 
 const educationItem = strict({ institution: z.string().trim().min(1).max(200), degree: z.string().trim().min(1).max(100), fieldOfStudy: z.string().trim().max(150).optional(), startYear: z.number().int().min(1950).max(2100).optional(), endYear: z.number().int().min(1950).max(2100).optional(), cgpa: z.number().min(0).max(10).optional() });
 const experienceItem = strict({ company: z.string().trim().min(1).max(200), position: z.string().trim().min(1).max(150), description: z.string().trim().max(2000).optional(), startDate: z.coerce.date().optional(), endDate: z.coerce.date().optional(), currentlyWorking: z.boolean().optional() });

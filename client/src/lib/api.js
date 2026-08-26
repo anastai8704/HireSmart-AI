@@ -31,6 +31,14 @@ export const organizationApi = {
   members: (orgId, params) => api.get(`/organizations/${orgId}/members${query(params)}`),
   addMember: (orgId, body) => api.post(`/organizations/${orgId}/members`, body),
   updateMember: (orgId, memberId, body) => api.patch(`/organizations/${orgId}/members/${memberId}`, body),
+  invitations: (orgId) => api.get(`/organizations/${orgId}/invitations`),
+  invite: (orgId, body) => api.post(`/organizations/${orgId}/invitations`, body),
+  revokeInvitation: (orgId, invitationId) => api.delete(`/organizations/${orgId}/invitations/${invitationId}`),
+};
+export const inviteApi = {
+  info: (token) => api.get(`/invitations/${token}`),
+  accept: (token, body) => api.post(`/invitations/${token}/accept`, body),
+  acceptExisting: (token) => api.post(`/invitations/${token}/accept-existing`),
 };
 export const candidateApi = {
   profile: () => api.get("/candidates/me/profile"), updateProfile: (body) => api.patch("/candidates/me/profile", body),

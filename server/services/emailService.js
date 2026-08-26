@@ -66,8 +66,19 @@ const sendPasswordResetEmail = async ({ email, token }) => {
     });
 };
 
+const sendInviteEmail = async ({ to, orgName, role, link }) => {
+    const roleLabel = String(role).replace(/_/g, " ");
+    return sendMail({
+        to,
+        subject: `You have been invited to join ${orgName}`,
+        text: `You have been invited to join ${orgName} as a ${roleLabel}.\n\nOpen this link to accept (it expires in 7 days):\n${link}\n\nIf you did not expect this invitation, you can ignore this email.`,
+        html: `<p>You have been invited to join <strong>${orgName}</strong> as a <strong>${roleLabel}</strong>.</p><p><a href="${link}">Open your invitation</a></p><p>The link expires in 7 days. If you did not expect this invitation, you can ignore this email.</p>`,
+    });
+};
+
 module.exports = {
     sendMail,
     sendVerificationEmail,
     sendPasswordResetEmail,
+    sendInviteEmail,
 };
