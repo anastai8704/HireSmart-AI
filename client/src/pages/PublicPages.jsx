@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { ArrowRight, Bot, Building2, CheckCircle2, Clock, GraduationCap, MapPin, Search, ShieldCheck, Target, UsersRound } from "lucide-react";
-import Navbar from "../components/layout/Navbar"; import Footer from "../components/layout/Footer"; import Button from "../components/ui/Button"; import Input, { Select } from "../components/ui/Input"; import { EmptyState, ErrorState, LoadingState, SkeletonList } from "../components/ui/States"; import { jobsApi, companiesApi } from "../lib/api"; import { formatRelativeTime, formatSalary } from "../lib/utils"; import { useAuth } from "../context/useAuth"; import { usePageMeta } from "../lib/usePageMeta"; import { useDebouncedValue } from "../hooks/useApi";
+import { ArrowRight, Bot, Building2, CheckCircle2, Clock, GraduationCap, MapPin, Search, ShieldCheck, Sparkles, Target, UsersRound } from "lucide-react";
+import Navbar from "../components/layout/Navbar"; import Footer from "../components/layout/Footer"; import Button from "../components/ui/Button"; import Input, { Select } from "../components/ui/Input"; import { EmptyState, ErrorState, LoadingState, SkeletonList } from "../components/ui/States"; import { jobsApi, companiesApi, alertsApi, aiApi } from "../lib/api"; import { formatRelativeTime, formatSalary } from "../lib/utils"; import { useAuth } from "../context/useAuth"; import { usePageMeta } from "../lib/usePageMeta"; import { useDebouncedValue } from "../hooks/useApi"; import { useToast } from "../components/ui/useToast";
 
 /* ----------------------------- shared bits ----------------------------- */
 
@@ -187,6 +187,55 @@ export const PublicJobsPage = () => {
         getNextPageParam: (lastPage) => lastPage.meta?.hasMore ? lastPage.meta.nextCursor : undefined,
     });
     const items = (q.data?.pages || []).flatMap((page) => page.data);
+    const auth = useAuth();
+    const toast = useToast();
+    const isCandidate = auth?.role === "candidate";
+    const navigate = useNavigate();
+    const [nlText, setNlText] = useState("");
+    const [nlPending, setNlPending] = useState(false);
+    const [nlError, setNlError] = useState("");
+    const [showAlertForm, setShowAlertForm] = useState(false);
+    const [alertName, setAlertName] = useState("");
+    const [alertCadence, setAlertCadence] = useState("weekly");
+    const [alertPending, setAlertPending] = useState(false);
+    const runNlSearch = async (event) => {
+        event.preventDefault();
+        if (!nlText.trim()) return;
+        setNlPending(true);
+        setNlError("");
+        try {
+            const response = await aiApi.nlSearch(nlText.trim());
+            const filters = response.data?.filters || {};
+            const p = new URLSearchParams();
+            for (const [key, value] of Object.entries(filters)) {
+                if (value === undefined || value === null || value === "") continue;
+                p.set(key, Array.isArray(value) ? value.join(",") : String(value));
+            }
+            navigate(`/jobs${p.toString() ? `?${p.toString()}` : ""}`);
+        } catch (error) {
+            setNlError(error.message || "AI search failed, try different wording");
+        } finally {
+            setNlPending(false);
+        }
+    };
+    const createAlert = async (event) => {
+        event.preventDefault();
+        setAlertPending(true);
+        try {
+            const body = { name: alertName.trim() || "My job alert", cadence: alertCadence, query: get("query"), location: get("location"), workplaceMode: get("workplaceMode"), jobType: get("jobType"), industry: get("industry") };
+            if (get("minSalary")) body.minSalary = Number(get("minSalary"));
+            if (get("maxExp")) body.maxExp = Number(get("maxExp"));
+            if (get("skills")) body.skills = get("skills").split(",").map((s) => s.trim()).filter(Boolean).slice(0, 10);
+            await alertsApi.create(body);
+            toast.success("Alert created — we'll email you when new jobs match");
+            setShowAlertForm(false);
+            setAlertName("");
+        } catch (error) {
+            toast.error(error.message || "Could not create the alert");
+        } finally {
+            setAlertPending(false);
+        }
+    };
     usePageMeta({ title: "Browse jobs — HireSmart AI", description: "Search Indian jobs by keyword, location, salary, experience, work mode and skills. Shareable, filterable job search." });
     const activeCount = FILTER_KEYS.filter((k) => get(k) && k !== "sort").length;
     return (
@@ -201,6 +250,15 @@ export const PublicJobsPage = () => {
                         <Input aria-label="Location" placeholder="City or location" icon={<MapPin className="h-4 w-4" />} value={location} onChange={(e) => setLocation(e.target.value)} className="!border-white/10 !bg-white/6 !text-white" />
                         <Button type="submit">Search</Button>
                     </form>
+                    {auth?.isAuthenticated && (
+                        <div className="mx-auto mt-3">
+                            <form onSubmit={runNlSearch} className="flex gap-2">
+                                <Input aria-label="AI natural-language search" placeholder='Ask AI: "remote react job 15 lpa in pune"' icon={<Sparkles className="h-4 w-4" />} value={nlText} onChange={(e) => setNlText(e.target.value)} className="!border-white/10 !bg-white/6 !text-white" />
+                                <Button type="submit" variant="secondary" isLoading={nlPending}>Ask AI</Button>
+                            </form>
+                            {nlError && <p className="mt-2 text-left text-xs text-red-300">{nlError}</p>}
+                        </div>
+                    )}
                 </div>
                 <div className="mt-8 grid gap-6 lg:grid-cols-[16rem_1fr]">
                     <aside className="h-fit rounded-2xl border border-ink-100 bg-white p-5 lg:sticky lg:top-24">
@@ -261,8 +319,18 @@ export const PublicJobsPage = () => {
                                 <p className="eyebrow">Results</p>
                                 <h2 className="mt-1 text-xl font-bold">{items.length || "…"} opportunity{items.length === 1 ? "" : "ies"}</h2>
                             </div>
-                            <Select aria-label="Sort by" value={get("sort") || "date"} onChange={(e) => setParam("sort", e.target.value === "date" ? "" : e.target.value)} options={[{ value: "date", label: "Newest first" }, { value: "salary", label: "Salary: high to low" }, { value: "relevance", label: "Relevance" }]} className="w-44" />
+                            <div className="flex items-center gap-2">
+                                {isCandidate && <Button size="sm" variant="ghost" onClick={() => setShowAlertForm((v) => !v)}>{showAlertForm ? "Cancel" : "Create alert"}</Button>}
+                                <Select aria-label="Sort by" value={get("sort") || "date"} onChange={(e) => setParam("sort", e.target.value === "date" ? "" : e.target.value)} options={[{ value: "date", label: "Newest first" }, { value: "salary", label: "Salary: high to low" }, { value: "relevance", label: "Relevance" }]} className="w-44" />
+                            </div>
                         </div>
+                        {isCandidate && showAlertForm && (
+                            <form onSubmit={createAlert} className="panel mt-3 flex flex-wrap items-end gap-3 p-4">
+                                <div className="min-w-48 flex-1"><Input label="Alert name" placeholder="e.g. React roles in Pune" value={alertName} onChange={(e) => setAlertName(e.target.value)} /></div>
+                                <div><Select label="Frequency" value={alertCadence} onChange={(e) => setAlertCadence(e.target.value)} options={[{ value: "weekly", label: "Weekly" }, { value: "daily", label: "Daily" }]} /></div>
+                                <Button type="submit" isLoading={alertPending}>Create alert</Button>
+                            </form>
+                        )}
                         <div className="mt-4 grid gap-4">
                             {q.isLoading && items.length === 0 ? <div className="grid gap-4 sm:grid-cols-2"><SkeletonList count={6} /></div> : q.error ? <ErrorState error={q.error} /> : items.length ? items.map((job) => <PublicJobCard key={job.id} job={job} />) : !q.isLoading ? <EmptyState title="No matching jobs" description="Try removing a filter or broadening your location." /> : null}
                         </div>

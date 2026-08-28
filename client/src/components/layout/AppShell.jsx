@@ -5,7 +5,7 @@ import { useAuth } from "../../context/useAuth";
 import { cn, initials } from "../../lib/utils";
 
 const candidateLinks = [
-  ["/app/candidate", "Home", LayoutDashboard], ["/app/candidate/jobs", "Discover", Search], ["/app/candidate/applications", "Applications", BriefcaseBusiness], ["/app/candidate/resumes", "Resumes", FileText], ["/app/candidate/copilot", "Career copilot", Sparkles],
+  ["/app/candidate", "Home", LayoutDashboard], ["/app/candidate/jobs", "Discover", Search], ["/app/candidate/applications", "Applications", BriefcaseBusiness], ["/app/candidate/resumes", "Resumes", FileText], ["/app/candidate/alerts", "Alerts", Bell], ["/app/candidate/copilot", "Career copilot", Sparkles],
 ];
 const recruiterLinks = (org) => [[`/app/o/${org}`, "Overview", LayoutDashboard], [`/app/o/${org}/jobs`, "Jobs", BriefcaseBusiness], [`/app/o/${org}/candidates`, "Candidates", UsersRound], [`/app/o/${org}/interviews`, "Interviews", Video], [`/app/o/${org}/analytics`, "Analytics", ChartNoAxesCombined], [`/app/o/${org}/copilot`, "Recruiter copilot", Sparkles], [`/app/o/${org}/team`, "Team", Building2]];
 const managerLinks = (org) => [[`/app/o/${org}/assigned`, "Assigned jobs", HeartHandshake], [`/app/o/${org}/candidates`, "Candidate review", UsersRound], [`/app/o/${org}/interviews`, "Interviews", Video]];

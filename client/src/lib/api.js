@@ -70,6 +70,13 @@ export const jobsApi = {
 export const companiesApi = {
   list: () => api.get("/companies"), get: (slug) => api.get(`/companies/${slug}`), jobs: (slug, params = {}) => api.get(`/companies/${slug}/jobs${query(params)}`),
 };
+export const alertsApi = {
+  list: () => api.get("/candidates/me/alerts"), create: (body) => api.post("/candidates/me/alerts", body),
+  update: (id, body) => api.patch(`/candidates/me/alerts/${id}`, body), remove: (id) => api.delete(`/candidates/me/alerts/${id}`),
+};
+export const historyApi = {
+  list: (params = {}) => api.get(`/candidates/me/search-history${query(params)}`), clear: () => api.delete("/candidates/me/search-history"),
+};
 export const recruitmentApi = {
   applications: (orgId, jobId, params) => api.get(`/organizations/${orgId}/jobs/${jobId}/applications${query(params)}`),
   detail: (orgId, appId) => api.get(`/organizations/${orgId}/applications/${appId}`), transition: (orgId, appId, body) => api.post(`/organizations/${orgId}/applications/${appId}/transitions`, body),
@@ -88,7 +95,7 @@ export const interviewApi = {
   feedback: (orgId, id, body) => api.post(`/organizations/${orgId}/interviews/${id}/feedback`, body), questions: (orgId, id) => api.post(`/organizations/${orgId}/interviews/${id}/questions`),
 };
 export const notificationApi = { list: (params) => api.get(`/notifications${query(params)}`), read: (id) => api.post(`/notifications/${id}/read`), readAll: () => api.post("/notifications/read-all") };
-export const aiApi = { run: (feature, input, subject = {}) => api.post(`/ai/${feature}`, { input, ...subject }), runOrg: (orgId, feature, input, subject = {}) => api.post(`/organizations/${orgId}/ai/${feature}`, { input, ...subject }) };
+export const aiApi = { run: (feature, input, subject = {}) => api.post(`/ai/${feature}`, { input, ...subject }), runOrg: (orgId, feature, input, subject = {}) => api.post(`/organizations/${orgId}/ai/${feature}`, { input, ...subject }), nlSearch: (text) => api.post("/ai/nl_job_search", { input: { text } }) };
 export const analyticsApi = { recruitment: (orgId, params) => api.get(`/organizations/${orgId}/analytics/recruitment${query(params)}`), ai: (orgId) => api.get(`/organizations/${orgId}/analytics/ai-usage`) };
 export const adminApi = { users: (params) => api.get(`/admin/users${query(params)}`), organizations: (params) => api.get(`/admin/organizations${query(params)}`), audit: (params) => api.get(`/admin/audit-logs${query(params)}`), security: (params) => api.get(`/admin/security-events${query(params)}`), suspend: (id, reason) => api.post(`/admin/users/${id}/suspend`, { reason }), reactivate: (id, reason) => api.post(`/admin/users/${id}/reactivate`, { reason }), aiUsage: () => api.get("/admin/ai-usage"), live: () => api.get("/health/live"), ready: () => api.get("/health/ready") };
 export const downloadBlob = (blob, name) => { const url = URL.createObjectURL(blob); const anchor = document.createElement("a"); anchor.href = url; anchor.download = name; anchor.click(); URL.revokeObjectURL(url); };
