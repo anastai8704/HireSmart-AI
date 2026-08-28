@@ -59,12 +59,16 @@ export const resumeApi = {
 };
 export const jobsApi = {
   list: (params, config = {}) => api.get(`/jobs${query(params)}`, config), get: (jobId) => api.get(`/jobs/${jobId}`),
+  related: (jobId) => api.get(`/jobs/${jobId}/related`),
   fit: (jobId, resumeVersionId, preferences) => api.post(`/jobs/${jobId}/fit`, { resumeVersionId, preferences }),
   apply: (jobId, body, key) => api.post(`/jobs/${jobId}/applications`, body, { headers: key ? { "Idempotency-Key": key } : {} }),
   saved: () => api.get("/candidates/me/saved-jobs"), save: (jobId) => api.post(`/candidates/me/saved-jobs/${jobId}`), unsave: (jobId) => api.delete(`/candidates/me/saved-jobs/${jobId}`),
   orgList: (orgId, params) => api.get(`/organizations/${orgId}/jobs${query(params)}`), create: (orgId, body) => api.post(`/organizations/${orgId}/jobs`, body),
   update: (orgId, jobId, body) => api.patch(`/organizations/${orgId}/jobs/${jobId}`, body), publish: (orgId, jobId) => api.post(`/organizations/${orgId}/jobs/${jobId}/publish`), close: (orgId, jobId) => api.post(`/organizations/${orgId}/jobs/${jobId}/close`),
   assigned: (orgId) => api.get(`/organizations/${orgId}/assigned-jobs`), setHiringTeam: (orgId, jobId, memberIds) => api.put(`/organizations/${orgId}/jobs/${jobId}/hiring-team`, { memberIds }),
+};
+export const companiesApi = {
+  list: () => api.get("/companies"), get: (slug) => api.get(`/companies/${slug}`), jobs: (slug, params = {}) => api.get(`/companies/${slug}/jobs${query(params)}`),
 };
 export const recruitmentApi = {
   applications: (orgId, jobId, params) => api.get(`/organizations/${orgId}/jobs/${jobId}/applications${query(params)}`),
