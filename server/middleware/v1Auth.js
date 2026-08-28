@@ -21,6 +21,22 @@ const authenticate = async (req, res, next) => {
     }
 };
 
+/** Attaches the user when a valid token is present, never rejects — for public endpoints that behave better signed in (personalized search, history). */
+const optionalAuthenticate = async (req, res, next) => {
+    try {
+        const header = req.get("authorization") || "";
+        if (header.startsWith("Bearer ")) {
+            const decoded = jwt.verify(header.slice(7), config.jwtSecret, { issuer: "hiresmart-api", audience: "hiresmart-web" });
+            const user = await User.findById(decoded.sub);
+            if (user && user.isActive && !["suspended", "deleted"].includes(user.accountStatus) && !(user.tokenInvalidBefore && decoded.iat * 1000 < user.tokenInvalidBefore.getTime())) {
+                req.user = user;
+                req.auth = { userId: String(user._id), sessionId: decoded.sid || null, platformRole: user.role === "admin" ? "platform_admin" : null };
+            }
+        }
+    } catch { /* anonymous request */ }
+    next();
+};
+
 const requireOrganization = (permission) => async (req, res, next) => {
     const organizationId = req.params.organizationId || req.params.orgId || req.get("x-organization-id");
     if (!organizationId) return next(new AppError("Organization context is required", 400, "ORGANIZATION_REQUIRED"));
@@ -39,4 +55,4 @@ const requireAccountRole = (...roles) => (req, res, next) => {
     if (!roles.includes(req.user.role)) return next(new AppError("You are not permitted to perform this action", 403, "FORBIDDEN"));
     next();
 };
-module.exports = { authenticate, requireOrganization, requireAccountRole };
+module.exports = { authenticate, optionalAuthenticate, requireOrganization, requireAccountRole };

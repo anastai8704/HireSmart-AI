@@ -21,6 +21,23 @@ const deterministic = (feature, input) => {
     if (feature === "interview_questions") return { ...common, questions: (skills.slice(0, 6).length ? skills.slice(0, 6) : ["role requirements"]).map((skill) => ({ competency: skill, question: `Describe a specific situation where you applied ${skill}. What was your contribution and measurable outcome?`, followUps: ["What trade-offs did you consider?", "What would you change now?"], rubric: ["Provides verifiable context", "Explains individual contribution", "Discusses outcome and learning"] })), limitations: ["Questions require recruiter review against the job scorecard"] };
     if (feature === "interview_preparation") return { ...common, focusAreas: skills.slice(0, 10), practiceQuestions: skills.slice(0, 8).map((s) => `Explain a production example demonstrating ${s}.`), skillGaps: input.missingSkills || [], limitations: ["Preparation is based only on supplied resume and job evidence"] };
     if (feature === "recruiter_copilot") return { ...common, answer: "I can summarize authorized candidate and job evidence, but no hiring action is performed automatically.", citations: input.citations || [], proposedActions: [], limitations: ["Deterministic fallback cannot perform open-ended reasoning"] };
+    if (feature === "nl_job_search") {
+        const raw = String(input.text || ""); const lower = raw.toLowerCase(); const filters = {};
+        const cities = { mumbai: "Mumbai", pune: "Pune", delhi: "Delhi", "new delhi": "Delhi", bengaluru: "Bengaluru", bangalore: "Bengaluru", hyderabad: "Hyderabad", chennai: "Chennai", kolkata: "Kolkata", ahmedabad: "Ahmedabad", jaipur: "Jaipur", indore: "Indore", nagpur: "Nagpur", coimbatore: "Coimbatore", surat: "Surat" };
+        const city = Object.keys(cities).find((c) => lower.includes(c));
+        if (city) filters.location = cities[city];
+        if (/\bremote\b/.test(lower)) filters.workplaceMode = "remote"; else if (/\bhybrid\b/.test(lower)) filters.workplaceMode = "hybrid"; else if (/\b(onsite|on-site|in office|office based)\b/.test(lower)) filters.workplaceMode = "onsite";
+        const lpa = lower.match(/(\d+(?:\.\d+)?)\s*(?:lpa|lacs?|lakhs?)/);
+        if (lpa) filters.minSalary = Math.round(parseFloat(lpa[1]) * 100000);
+        else { const amount = lower.match(/₹\s?(\d[\d,]*)/); if (amount) filters.minSalary = parseInt(amount[1].replace(/,/g, ""), 10); }
+        const knownSkills = ["react", "node.js", "node", "python", "java", "javascript", "typescript", "aws", "devops", "kubernetes", "docker", "mongodb", "sql", "machine learning", "data science", "frontend", "backend", "full stack", "full-stack", "product manager", "ui/ux", "design"];
+        const skills = knownSkills.filter((s) => lower.includes(s));
+        if (skills.length) filters.skills = skills.slice(0, 10);
+        const typeMatch = lower.match(/\b(intern(?:ship)?|full[- ]time|part[- ]time|contract)\b/);
+        if (typeMatch) filters.jobType = typeMatch[1].startsWith("intern") ? "Internship" : typeMatch[1] === "full-time" ? "Full-Time" : typeMatch[1] === "part-time" ? "Part-Time" : "Contract";
+        if (!filters.location && !filters.workplaceMode && !filters.skills?.length && !filters.minSalary && !filters.jobType) filters.query = raw.slice(0, 100);
+        return { ...common, filters, explanation: "Simple rule-based parsing (deterministic fallback); structure the search by city, mode, skills and salary." };
+    }
     return { ...common, answer: "Focus on evidence-backed skills, measurable outcomes, and role-specific gaps.", recommendations: report.suggestions.slice(0, 8).map((s) => s.detail), citations: input.citations || [], limitations: ["Deterministic fallback provides heuristic guidance"] };
 };
 

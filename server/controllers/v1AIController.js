@@ -6,7 +6,7 @@ const User = require("../models/User");
 const Job = require("../models/Job");
 const { Application } = require("../models/Application");
 const { ParsedResume, ResumeVersion } = require("../models/Resume");
-const features = new Set(["resume_extraction", "resume_rewrite", "resume_improvement", "jd_generation", "jd_parse", "jd_improvement", "interview_questions", "interview_preparation", "recruiter_copilot", "career_copilot"]);
+const features = new Set(["resume_extraction", "resume_rewrite", "resume_improvement", "jd_generation", "jd_parse", "jd_improvement", "interview_questions", "interview_preparation", "recruiter_copilot", "career_copilot", "nl_job_search"]);
 const recruiterOnly = new Set(["jd_generation", "jd_parse", "jd_improvement", "interview_questions", "recruiter_copilot"]);
 const candidateContext = async (userId) => {
     const user = await User.findById(userId).select("headline skills").lean();

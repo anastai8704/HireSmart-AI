@@ -97,4 +97,13 @@ app.use((req, res, next) => {
 
 app.use(errorHandler);
 
+// Job-alert scans run from the API process too, so deployments without a
+// separate worker still deliver alerts. The service throttles to one scan
+// per 60s and claims each alert atomically, so overlapping runs are safe.
+if (config.nodeEnv !== "test") {
+    const { tickAlertScan } = require("./services/alertScanService");
+    const interval = setInterval(() => { tickAlertScan().catch(() => {}); }, 5 * 60 * 1000);
+    if (typeof interval.unref === "function") interval.unref();
+}
+
 module.exports = app;
