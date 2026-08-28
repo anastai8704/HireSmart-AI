@@ -1,16 +1,33 @@
+const mongoose = require("mongoose");
+const Organization = require("../models/Organization");
 const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const num = (v) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? n : null; };
 
 const openRolesCondition = () => ({ status: "published", $or: [{ closesAt: null }, { closesAt: { $gte: new Date() } }] });
 
 /**
+ * Moderation gate for every public surface:
+ * - orgs with settings.requireJobApproval expose only approved jobs
+ * - platform-rejected jobs are hidden everywhere
+ */
+const moderationGate = async () => {
+    const approvalOrgIds = await Organization.distinct("_id", { "settings.requireJobApproval": true, status: "active" });
+    return {
+        $or: [
+            { organization: { $in: approvalOrgIds }, "moderation.status": "approved" },
+            { organization: { $nin: approvalOrgIds }, "moderation.status": { $ne: "rejected" } },
+        ],
+    };
+};
+
+/**
  * Shared filter builder for every public job surface (search, alerts,
  * company pages) so behaviour stays identical. Accepts a plain object of
  * query params and returns a { filter, sort } pair for Mongoose.
  */
-const buildPublicJobFilter = (query = {}) => {
+const buildPublicJobFilter = async (query = {}) => {
     const filter = { ...openRolesCondition() };
-    const and = [];
+    const and = [await moderationGate()];
     if (query.location) filter.location = new RegExp(escapeRegex(query.location), "i");
     if (query.workplaceMode) filter.workplaceMode = String(query.workplaceMode).slice(0, 20);
     if (query.jobType) filter.jobType = String(query.jobType).slice(0, 50);
@@ -34,4 +51,4 @@ const buildPublicJobFilter = (query = {}) => {
     return { filter, sort };
 };
 
-module.exports = { escapeRegex, num, buildPublicJobFilter, openRolesCondition };
+module.exports = { escapeRegex, num, buildPublicJobFilter, openRolesCondition, moderationGate };

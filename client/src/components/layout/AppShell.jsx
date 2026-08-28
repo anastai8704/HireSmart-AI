@@ -9,7 +9,7 @@ const candidateLinks = [
 ];
 const recruiterLinks = (org) => [[`/app/o/${org}`, "Overview", LayoutDashboard], [`/app/o/${org}/jobs`, "Jobs", BriefcaseBusiness], [`/app/o/${org}/candidates`, "Candidates", UsersRound], [`/app/o/${org}/interviews`, "Interviews", Video], [`/app/o/${org}/analytics`, "Analytics", ChartNoAxesCombined], [`/app/o/${org}/copilot`, "Recruiter copilot", Sparkles], [`/app/o/${org}/team`, "Team", Building2]];
 const managerLinks = (org) => [[`/app/o/${org}/assigned`, "Assigned jobs", HeartHandshake], [`/app/o/${org}/candidates`, "Candidate review", UsersRound], [`/app/o/${org}/interviews`, "Interviews", Video]];
-const adminLinks = [["/app/admin", "System", LayoutDashboard], ["/app/admin/users", "Users", UserRound], ["/app/admin/organizations", "Organizations", Building2], ["/app/admin/ai-usage", "AI usage", Sparkles], ["/app/admin/security", "Security & audit", ShieldCheck]];
+const adminLinks = [["/app/admin", "System", LayoutDashboard], ["/app/admin/moderation", "Moderation", BriefcaseBusiness], ["/app/admin/users", "Users", UserRound], ["/app/admin/organizations", "Organizations", Building2], ["/app/admin/ai-usage", "AI usage", Sparkles], ["/app/admin/security", "Security & audit", ShieldCheck]];
 
 const AppShell = () => {
   const auth = useAuth(); const navigate = useNavigate(); const [open, setOpen] = useState(false);

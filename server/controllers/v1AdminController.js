@@ -1,5 +1,8 @@
 const User = require("../models/User");
 const Organization = require("../models/Organization");
+const Job = require("../models/Job");
+const Membership = require("../models/Membership");
+const { notify } = require("../services/notificationService");
 const AuditLog = require("../models/AuditLog");
 const SecurityEvent = require("../models/SecurityEvent");
 const AuthSession = require("../models/AuthSession");
@@ -9,6 +12,37 @@ const AppError = require("../utils/AppError");
 const { audit } = require("../services/auditService");
 const { parse, applyCursor, meta } = require("../utils/pagination");
 const requireAdmin = (req) => { if (req.auth.platformRole !== "platform_admin") throw new AppError("Resource not found", 404, "RESOURCE_NOT_FOUND"); };
+const moderationDto = (job) => ({ id: job._id, title: job.title, company: job.company, location: job.location, workplaceMode: job.workplaceMode, organization: job.organization ? { id: job.organization._id || job.organization, name: job.organization?.name, slug: job.organization?.slug } : null, status: job.status, version: job.version, requiredSkills: job.requiredSkills, moderation: job.moderation, createdAt: job.createdAt });
+exports.moderationJobs = asyncHandler(async (req, res) => {
+    requireAdmin(req);
+    const page = parse(req.query);
+    const filter = { "moderation.status": req.query.status || "pending" };
+    const items = await Job.find(filter).populate("organization", "name slug").sort({ _id: -1 }).limit(page.limit);
+    res.json({ data: items.map(moderationDto), meta: meta(items, page.limit) });
+});
+exports.moderateJob = asyncHandler(async (req, res) => {
+    requireAdmin(req);
+    const approve = req.params.action === "approve";
+    const job = await Job.findById(req.params.jobId);
+    if (!job) throw new AppError("Resource not found", 404, "RESOURCE_NOT_FOUND");
+    job.moderation.status = approve ? "approved" : "rejected";
+    job.moderation.reviewedBy = req.user._id;
+    job.moderation.reviewedAt = new Date();
+    job.moderation.reason = approve ? "" : String(req.body.reason || "").slice(0, 500);
+    await job.save();
+    const owner = await Membership.findOne({ organization: job.organization, role: "owner", status: "active" });
+    if (owner) {
+        await notify({
+            user: owner.user, organization: job.organization, type: "job_moderation",
+            title: approve ? `Job approved: ${job.title}` : `Job rejected: ${job.title}`,
+            message: approve ? "Your job is now live on the public marketplace." : `Your job was rejected${job.moderation.reason ? `: ${job.moderation.reason}` : ""}. You can edit and republish it.`,
+            resourceType: "job", resourceId: job._id, email: null,
+            idempotencyKey: `moderation:${job._id}:${job.moderation.status}:v${job.version}`,
+        });
+    }
+    await audit({ req, organization: job.organization, action: approve ? "job.moderation.approved" : "job.moderation.rejected", resourceType: "job", resourceId: job._id });
+    res.json({ data: moderationDto(job) });
+});
 const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 exports.users = asyncHandler(async (req, res) => {
     requireAdmin(req); const page = parse(req.query); const filter = {};
