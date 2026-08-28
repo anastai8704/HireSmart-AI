@@ -34,7 +34,7 @@ test("unknown API routes use the standard JSON error format", async () => {
 
 test("malformed JSON is rejected without leaking an internal error", async () => {
     const response = await request(app)
-        .post("/api/auth/login")
+        .post("/api/v1/auth/login")
         .set("Content-Type", "application/json")
         .send("not valid json");
 

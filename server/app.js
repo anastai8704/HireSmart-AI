@@ -12,11 +12,6 @@ const requestLogger = require("./middleware/requestLogger");
 const errorHandler = require("./middleware/errorHandler");
 const AppError = require("./utils/AppError");
 
-const authRoutes = require("./routes/authRoutes");
-const userRoutes = require("./routes/userRoutes");
-const jobRoutes = require("./routes/jobRoutes");
-const candidateProfileRoutes = require("./routes/candidateProfileRoutes");
-const matchingRoutes = require("./routes/matchingRoutes");
 const v1Routes = require("./routes/v1Routes");
 const requestContext = require("./middleware/requestContext");
 
@@ -77,13 +72,6 @@ app.use(requestLogger);
 app.use("/api", apiLimiter);
 
 app.use("/api/v1", v1Routes);
-if (config.enableLegacyApi) {
-    app.use("/api/auth", authRoutes);
-    app.use("/api/user", userRoutes);
-    app.use("/api/jobs", jobRoutes);
-    app.use("/api/candidate", candidateProfileRoutes);
-    app.use("/api/matching", matchingRoutes);
-}
 
 app.get("/", (req, res) => {
     res.send("Welcome to HireSmart AI");

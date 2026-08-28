@@ -33,7 +33,6 @@ const config = Object.freeze({
     nodeEnv,
     isProduction: nodeEnv === "production",
     isTest: nodeEnv === "test",
-    enableLegacyApi: process.env.ENABLE_LEGACY_API !== undefined ? String(process.env.ENABLE_LEGACY_API).toLowerCase() === "true" : nodeEnv !== "production",
     port: Number(process.env.PORT) || 5000,
     mongoUri: process.env.MONGO_URI,
     jwtSecret: process.env.JWT_SECRET,
