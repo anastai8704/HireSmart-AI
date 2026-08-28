@@ -68,6 +68,17 @@ const jobSchema = new mongoose.Schema(
             currency: { type: String, default: "INR", maxlength: 3 },
             period: { type: String, enum: ["hour", "month", "year"], default: "year" },
         },
+        minExpYears: { type: Number, min: 0, default: 0 },
+        maxExpYears: { type: Number, min: 0, default: 0 },
+        educationRequired: { type: String, trim: true, maxlength: 200, default: "" },
+        benefits: { type: [String], default: [] },
+        industry: { type: String, trim: true, maxlength: 100, default: "" },
+        moderation: {
+            status: { type: String, enum: ["none", "pending", "approved", "rejected"], default: "none" },
+            reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+            reviewedAt: { type: Date, default: null },
+            reason: { type: String, maxlength: 500, default: "" },
+        },
         source: { type: String, default: "direct", maxlength: 50 },
         hiringTeam: [{ type: mongoose.Schema.Types.ObjectId, ref: "Membership" }],
         version: { type: Number, default: 1, min: 1 },
@@ -95,6 +106,9 @@ const jobSchema = new mongoose.Schema(
 );
 
 jobSchema.index({ status: 1, createdAt: -1 });
+jobSchema.index({ status: 1, createdAt: -1, workplaceMode: 1 });
+jobSchema.index({ status: 1, "compensation.min": -1 });
+jobSchema.index({ industry: 1, status: 1 });
 jobSchema.index({ recruiter: 1, status: 1, createdAt: -1 });
 jobSchema.index({
     title: "text",
