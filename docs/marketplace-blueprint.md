@@ -265,3 +265,24 @@ Strictly additive phases; v0 removal is isolated in Phase 0 and reversible by on
 2. **Employer branding**: can employers customize their public company page (logo/about/benefits)? (Blueprint: yes, owner/admin-editable.)
 3. **Alert email cadence**: daily vs weekly default? (Blueprint: weekly default, user-selectable.)
 4. **v0 removal timing**: immediately in Phase 0 (recommended) or after Phase 1 for safety? (Recommendation: Phase 0 — it's fully gated and redundant.)
+
+---
+
+## Status (updated as phases ship)
+
+| Phase | Scope | Status |
+|---|---|---|
+| 0 | Remove legacy v0 API + dead code (Company model, 3 unused deps, ENABLE_LEGACY_API, v0 tests) | ✅ Shipped — no public behavior change beyond v0 endpoints going away; 66/66 non-DB tests unchanged |
+| 1 | Public marketplace: richer Job model (exp years/education/benefits/industry), full search filters (salary/exp/type/skills/industry/date/sort, URL-shareable), job detail with SEO + JobPosting JSON-LD, related jobs, public company pages + top companies, employer company-profile editor | ✅ Shipped |
+| 2 | Candidate growth: job alerts (daily/weekly, queue scan, email + notification, dedupe), search history (180d), natural-language AI search (validated filters + deterministic fallback), personalized recommendations (saved-job/search-term signals, applied excluded) | ✅ Shipped |
+| 3 | Employer trust: per-org `requireJobApproval` moderation (opt-in + platform override), re-review on versioned edits, admin review queue with approve/reject + owner notification, org settings endpoint | ✅ Shipped |
+| 4 | AI hardening & scale: precomputed recommendation snapshots via queue (<24h served from cache), prompt-injection delimiters, alert-scan N+1 fix, rate limits (global + auth + AI) verified | ✅ Shipped |
+| 5 | Production config (SMTP/S3/deploy) | ⏳ Owner-driven — run on the deployment machine, see `.env.example` |
+
+**Locked decisions** (owner sign-off): moderation = per-org opt-in + platform override; employers customize public company page (logo/about); job alerts default **weekly** (user-selectable); v0 removed in Phase 0.
+
+**Deliberate deviations**
+- Legacy client redirects (`/login`, `/dashboard`, `/my-resume`, `/my-applications`, `/recommendations`, `/recruiter/*`) are **kept** beyond end-of-P1 to protect existing bookmarks; removal is a one-line-per-route change when the owner is ready.
+- Recommendations stay on-demand-capable: the snapshot is a cache (≤24h), live scoring remains the source of truth — queue precompute keeps first-paint fast without blocking correctness.
+
+**Test status**: 100 server tests — 67 pass without a database; 33 are Mongo-backed integration suites (marketplace, alerts, moderation, snapshots, v1 workflow, production core) that run in CI on `mongo:7`. Client: 8/8 vitest + production build + lint green.
