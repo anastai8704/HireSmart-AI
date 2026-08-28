@@ -28,7 +28,7 @@ const runAlert = async (alert) => {
     const delivered = new Set(alert.deliveredJobIds || []);
     const fresh = jobs.filter((job) => !delivered.has(String(job._id))).slice(0, 20);
     if (!fresh.length) return 0;
-    const user = await User.findById(alert.user).select("email").lean();
+    const user = alert._userByEmail || await User.findById(alert.user).select("email").lean();
     for (const job of fresh) {
         try {
             await notify({
@@ -57,10 +57,13 @@ const runAlertScan = async () => {
     try {
         const now = new Date();
         const due = await JobAlert.find(DUE(now)).limit(500);
+        const users = await User.find({ _id: { $in: due.map((a) => a.user) } }).select("_id email").lean();
+        const usersById = new Map(users.map((u) => [String(u._id), u]));
         for (const alert of due) {
             const claimed = await JobAlert.findOneAndUpdate({ _id: alert._id, ...DUE(now) }, { $set: { lastRunAt: now } }, { new: true });
             if (!claimed) continue;
             scanned += 1;
+            claimed._userByEmail = usersById.get(String(alert.user)) || null;
             delivered += await runAlert(claimed);
         }
     } finally {

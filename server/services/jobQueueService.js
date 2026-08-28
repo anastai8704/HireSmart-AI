@@ -4,6 +4,7 @@ const logger = require("../utils/logger");
 
 const handlers = {
     "resume.process": async (payload) => { const { processVersion } = require("./resumeProcessingService"); const version = await processVersion(payload.resumeVersionId); return { resumeVersionId: version._id, status: version.processingStatus }; },
+    "recommendations.refresh": async (payload) => { const { refreshSnapshot } = require("./recommendationSnapshotService"); return refreshSnapshot(payload.userId); },
     "notification.email": async (payload) => {
         const Notification = require("../models/Notification"); const { sendMail } = require("./emailService");
         const notification = await Notification.findById(payload.notificationId); if (!notification || notification.delivery.email === "sent") return { skipped: true };

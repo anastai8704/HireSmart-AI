@@ -102,7 +102,8 @@ app.use(errorHandler);
 // per 60s and claims each alert atomically, so overlapping runs are safe.
 if (config.nodeEnv !== "test") {
     const { tickAlertScan } = require("./services/alertScanService");
-    const interval = setInterval(() => { tickAlertScan().catch(() => {}); }, 5 * 60 * 1000);
+    const { tickRecommendationRefresh } = require("./services/recommendationSnapshotService");
+    const interval = setInterval(() => { tickAlertScan().catch(() => {}); tickRecommendationRefresh().catch(() => {}); }, 5 * 60 * 1000);
     if (typeof interval.unref === "function") interval.unref();
 }
 

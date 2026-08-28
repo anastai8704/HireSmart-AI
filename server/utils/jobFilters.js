@@ -1,4 +1,3 @@
-const mongoose = require("mongoose");
 const Organization = require("../models/Organization");
 const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const num = (v) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? n : null; };
