@@ -3,18 +3,19 @@ const { spawn } = require("node:child_process");
 // Runs the real test suite (`node --test --test-concurrency=1`) and relays
 // its output. On failure, mirrors the tail of the output into GitHub Actions
 // check-run annotations because raw step logs are not always retrievable from
-// outside the runner.
+// outside the runner. NOTE: keep this filename free of "test" so the Node
+// test runner does not discover it as a test file itself.
 const args = ["--test", "--test-concurrency=1"];
 const child = spawn(process.execPath, args, { stdio: ["ignore", "pipe", "pipe"] });
 
 let buffer = "";
-const tail = (stream) => (chunk) => {
+const relay = (chunk) => {
     const text = chunk.toString();
     process.stdout.write(text);
     buffer += text;
 };
-child.stdout.on("data", tail());
-child.stderr.on("data", tail());
+child.stdout.on("data", relay);
+child.stderr.on("data", relay);
 
 const annotate = (level, message) => {
     if (process.env.CI !== "true") return;
