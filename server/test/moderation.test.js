@@ -89,7 +89,7 @@ test("phase 3: rejection hides the job and notifies the org owner", async () => 
     assert.equal(rejected.status, 200, JSON.stringify(rejected.body));
     const publicList = await request(app).get("/api/v1/jobs");
     assert.ok(!publicList.body.data.map((j) => j.id).includes(job2.id), "rejected job must stay hidden");
-    const note = await Notification.findOne({ user: ownerA._id, type: "job_moderation" });
+    const note = await Notification.findOne({ user: ownerA._id, type: "job_moderation", resourceId: job2.id });
     assert.ok(note, "org owner must be notified about the rejection");
     assert.match(note.message, /Salary band contradicts/);
     const companyJobs = await request(app).get("/api/v1/companies/approved-co/jobs");
