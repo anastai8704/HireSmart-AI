@@ -63,8 +63,11 @@ test("marketplace: public search filters by salary, experience, type, skills and
     assert.ok(!res.body.data.map((j) => j.id).includes(jobIds.devops));
 
     res = await request(app).get("/api/v1/jobs?minExp=5");
+    // minExp = the candidate's years: jobs must accept 5+ years.
+    // devops (5-10y) matches, react (4-8y) matches (5 is in range),
+    // node (2+, no upper bound) matches via the unbounded branch.
     assert.ok(res.body.data.map((j) => j.id).includes(jobIds.devops));
-    assert.ok(!res.body.data.map((j) => j.id).includes(jobIds.react));
+    assert.ok(res.body.data.map((j) => j.id).includes(jobIds.react));
 
     res = await request(app).get("/api/v1/jobs?jobType=Contract");
     assert.deepEqual(res.body.data.map((j) => j.id), [jobIds.devops]);

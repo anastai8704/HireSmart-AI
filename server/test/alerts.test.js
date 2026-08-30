@@ -6,6 +6,7 @@ const request = require("supertest");
 const app = require("../app");
 const { startDatabase, stopDatabase, clearDatabase } = require("./setup");
 const { runAlertScan } = require("../services/alertScanService");
+const JobAlert = require("../models/JobAlert");
 const Notification = require("../models/Notification");
 const SearchHistory = require("../models/SearchHistory");
 const auth = (token) => ({ Authorization: `Bearer ${token}` });
@@ -43,7 +44,7 @@ test("phase 2: seed candidate, owner and two published jobs", async () => {
 });
 
 test("phase 2: creating an alert and running the scan delivers matching jobs once", async () => {
-    const created = await request(app).post("/api/v1/candidates/me/alerts").set(auth(candidateToken)).send({ name: "React roles", skills: ["React"], workplaceMode: "remote" });
+    const created = await request(app).post("/api/v1/candidates/me/alerts").set(auth(candidateToken)).send({ name: "React roles", skills: ["React"], workplaceMode: "remote", cadence: "daily" });
     assert.equal(created.status, 201, JSON.stringify(created.body));
     const alertId = created.body.data.id;
 
@@ -53,6 +54,9 @@ test("phase 2: creating an alert and running the scan delivers matching jobs onc
     assert.equal(notifications.length, 1);
     assert.match(notifications[0].title, /React Frontend Engineer/);
 
+    // Force the daily window to have elapsed so the scan actually re-runs this
+    // alert — the next scan must then dedupe via deliveredJobIds, not cadence.
+    await JobAlert.updateOne({ _id: alertId }, { $set: { lastRunAt: new Date(Date.now() - 25 * 3600 * 1000) } });
     const second = await runAlertScan();
     assert.equal(second.delivered, 0, "same job must not be delivered twice");
     const after = await Notification.countDocuments({ type: "job_alert" });
@@ -72,6 +76,8 @@ test("phase 2: creating an alert and running the scan delivers matching jobs onc
     const whileInactive = await runAlertScan();
     assert.equal(whileInactive.delivered, 0, "inactive alerts must not deliver");
     await request(app).patch(`/api/v1/candidates/me/alerts/${alertId}`).set(auth(candidateToken)).send({ active: true });
+    // Simulate the daily window having elapsed during the "inactive" period.
+    await JobAlert.updateOne({ _id: alertId }, { $set: { lastRunAt: new Date(Date.now() - 25 * 3600 * 1000) } });
     const reactivated = await runAlertScan();
     assert.equal(reactivated.delivered, 1, "reactivated alert must deliver the new matching job");
 });

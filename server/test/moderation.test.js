@@ -61,6 +61,7 @@ test("phase 3: approval-required org jobs stay hidden until the platform approve
     assert.ok(!companyJobs.body.data.map((j) => j.id).includes(jobAId), "pending job must not appear on the company page");
 
     const queue = await request(app).get("/api/v1/admin/moderation/jobs").set(auth(adminToken));
+    console.log("QUEUE-DBG", queue.status, JSON.stringify(queue.body).slice(0, 300));
     assert.equal(queue.status, 200, JSON.stringify(queue.body));
     assert.equal(queue.body.data.length, 1);
     assert.equal(queue.body.data[0].title, "Moderated Role");
@@ -74,6 +75,7 @@ test("phase 3: approval-required org jobs stay hidden until the platform approve
 
 test("phase 3: editing a published job at an approval org sends it back to review", async () => {
     const updated = await request(app).patch(`/api/v1/organizations/${orgAId}/jobs/${jobAId}`).set(auth(ownerAToken)).send({ description: "An updated description that changes the public-facing requirements of this moderated role." });
+    console.log("PATCH-DBG", updated.status, JSON.stringify(updated.body).slice(0, 300));
     assert.equal(updated.status, 200, JSON.stringify(updated.body));
     assert.equal(updated.body.data.moderation.status, "pending");
     const publicList = await request(app).get("/api/v1/jobs");
