@@ -24,7 +24,10 @@ const publishJob = async (token, orgId, payload) => {
     assert.equal(created.status, 201, JSON.stringify(created.body));
     const published = await request(app).post(`/api/v1/organizations/${orgId}/jobs/${created.body.data.id}/publish`).set(auth(token));
     assert.equal(published.status, 200, JSON.stringify(published.body));
-    return created.body.data;
+    // Return the POST-publish document: moderation status is set by publish
+    // (pending for approval-required orgs, none otherwise) — the create DTO
+    // still reflects the pre-publish state.
+    return published.body.data;
 };
 
 test.before(async () => { await startDatabase(); });

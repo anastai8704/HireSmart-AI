@@ -32,10 +32,14 @@ const buildRecommendations = async (userId) => {
         SearchHistory.find({ user: userId }).sort({ createdAt: -1 }).limit(10).lean(),
     ]);
     const appliedIds = appliedJobs.map((a) => a.job);
-    const savedJobs = (userDoc?.savedJobs || []).length ? await Job.find({ _id: { $in: userDoc.savedJobs } }).select("requiredSkills skills").limit(20).lean() : [];
+    const savedJobIds = userDoc?.savedJobs || [];
+    const savedJobs = savedJobIds.length ? await Job.find({ _id: { $in: savedJobIds } }).select("requiredSkills skills").limit(20).lean() : [];
     const savedSkillSet = [...new Set(savedJobs.flatMap((j) => [...(j.requiredSkills || []), ...(j.skills || [])]))].slice(0, 30);
     const terms = history.map((h) => h.query).filter(Boolean);
-    const jobs = await Job.find({ status: "published", _id: { $nin: appliedIds }, $or: [{ closesAt: null }, { closesAt: { $gte: new Date() } }] }).sort({ createdAt: -1 }).limit(100);
+    // Jobs the candidate already applied to or saved are excluded: recommendations
+    // should surface new roles, not re-pitch ones the candidate already engaged with.
+    const excludedIds = [...new Set([...appliedIds, ...savedJobIds])];
+    const jobs = await Job.find({ status: "published", _id: { $nin: excludedIds }, $or: [{ closesAt: null }, { closesAt: { $gte: new Date() } }] }).sort({ createdAt: -1 }).limit(100);
     const scored = await mapWithConcurrency(jobs, 4, async (job) => ({ job: { id: job._id, title: job.title, company: job.company, location: job.location, workplaceMode: job.workplaceMode, jobType: job.jobType, description: job.description, requiredSkills: job.requiredSkills?.length ? job.requiredSkills : job.skills, preferredSkills: job.preferredSkills, compensation: job.compensation, salary: job.salary, experience: job.experience, createdAt: job.createdAt }, match: await calculateHybridMatch({ resumeText: version.text, candidateSkills: versionSkills, job, allowExternalEmbeddings }) }));
     const signalBoostFor = (job) => {
         let boost = 0;

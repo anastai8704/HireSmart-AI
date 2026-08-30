@@ -51,9 +51,9 @@ const runFile = (file) =>
             }
             const tail = out
                 .split("\n")
-                .map((line) => line.slice(0, 400))
+                .map((line) => line.slice(0, 300))
                 .filter((line) => line.trim().length > 0)
-                .slice(-25)
+                .slice(-60)
                 .join("\n");
             resolve({ file: path.basename(file), failed: true, info: `exit code=${code} signal=${signal}\n--- output tail ---\n${tail}` });
         });

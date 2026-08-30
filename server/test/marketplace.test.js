@@ -137,17 +137,21 @@ test("marketplace: company pages are public and list only open roles", async () 
 });
 
 test("marketplace: organization updates are whitelisted (mass-assignment protection)", async () => {
-    const res = await request(app).patch(`/api/v1/organizations/${organizationId}`).set(auth(ownerToken)).send({ name: "Meridian Labs Pvt Ltd", logo: "https://example.com/logo.png", about: "We build hiring infrastructure.", status: "suspended", settings: { aiEnabled: false } });
+    const res = await request(app).patch(`/api/v1/organizations/${organizationId}`).set(auth(ownerToken)).send({ name: "Meridian Labs Pvt Ltd", logo: "https://example.com/logo.png", about: "We build hiring infrastructure." });
     assert.equal(res.status, 200, JSON.stringify(res.body));
     assert.equal(res.body.data.name, "Meridian Labs Pvt Ltd");
     assert.equal(res.body.data.logo, "https://example.com/logo.png");
     assert.equal(res.body.data.about, "We build hiring infrastructure.");
     assert.equal(res.body.data.status, "active", "status must not be assignable through the update endpoint");
-    assert.equal(res.body.data.settings.aiEnabled, true, "settings must not be assignable through the update endpoint");
+    // Restricted fields are rejected outright by the strict route schema (422),
+    // so they can never be mass-assigned through this endpoint.
     const invalid = await request(app).patch(`/api/v1/organizations/${organizationId}`).set(auth(ownerToken)).send({ status: "suspended" });
     assert.equal(invalid.status, 422);
+    const withSettings = await request(app).patch(`/api/v1/organizations/${organizationId}`).set(auth(ownerToken)).send({ name: "Meridian Labs Pvt Ltd", settings: { aiEnabled: false } });
+    assert.equal(withSettings.status, 422);
     const direct = await Organization.findById(organizationId);
     assert.equal(direct.status, "active");
+    assert.equal(direct.settings.aiEnabled, true);
 });
 
 test("marketplace: tenant isolation — another org cannot see these jobs in company listing", async () => {
