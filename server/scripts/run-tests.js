@@ -27,16 +27,17 @@ const annotate = (level, message) => {
     process.stdout.write(`::${level} file=server/test::${escaped}\n`);
 };
 
-child.on("close", (code) => {
+child.on("close", (code, signal) => {
     if (code === 0) {
         annotate("notice", "test suite passed");
         process.exit(0);
     }
+    annotate("error", `test runner exited code=${code} signal=${signal}`);
     const lines = buffer
         .split("\n")
         .map((line) => line.slice(0, 500))
         .filter((line) => line.trim().length > 0)
-        .slice(-30);
+        .slice(-60);
     for (const line of lines) annotate("error", line);
     process.exit(code ?? 1);
 });
