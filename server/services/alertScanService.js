@@ -17,7 +17,7 @@ const DUE = (now) => ({
 const trimDelivered = (ids) => ids.slice(-100);
 
 const runAlert = async (alert) => {
-    const { filter } = buildPublicJobFilter({
+    const { filter } = await buildPublicJobFilter({
         query: alert.query, location: alert.location, workplaceMode: alert.workplaceMode,
         jobType: alert.jobType, minSalary: alert.minSalary, maxExp: alert.maxExp,
         skills: (alert.skills || []).join(","), industry: alert.industry,
