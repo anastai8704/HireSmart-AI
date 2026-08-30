@@ -3,10 +3,13 @@ const path = require("node:path");
 const { spawn } = require("node:child_process");
 
 // Runs the test suite file by file (`node --test <file>`), relaying each
-// file's output. Per-file isolation makes failures diagnosable: each child
-// gets its own exit code/signal, and on failure the tail of that file's
-// output is mirrored into GitHub Actions check-run annotations (raw step
-// logs are not always retrievable from outside the runner).
+// file's output. Per-file isolation makes failures diagnosable.
+//
+// GitHub keeps only a small number of check-run annotations (older ones are
+// dropped), so on failure we emit ONE combined annotation per failing file:
+// the exit code/signal plus the tail of that file's output, in a single
+// multi-line message. Raw step logs are not always retrievable from outside
+// the runner, so this is the diagnostic channel.
 //
 // NOTE: keep this filename free of "test" so the Node test runner does not
 // discover it as a test file itself.
@@ -20,7 +23,7 @@ const files = fs
 const annotate = (level, file, message) => {
     if (process.env.CI !== "true") return;
     const escaped = String(message)
-        .slice(0, 4000)
+        .slice(0, 6000)
         .replace(/%/g, "%25")
         .replace(/\r/g, "%0D")
         .replace(/\n/g, "%0A");
@@ -39,22 +42,20 @@ const runFile = (file) =>
         child.stdout.on("data", relay);
         child.stderr.on("data", relay);
         child.on("error", (error) => {
-            annotate("error", path.basename(file), `runner failed to start: ${error.message}`);
-            resolve({ file: path.basename(file), failed: true });
+            resolve({ file: path.basename(file), failed: true, info: `runner failed to start: ${error.message}` });
         });
         child.on("close", (code, signal) => {
             if (code === 0) {
-                annotate("notice", path.basename(file), "passed");
                 resolve({ file: path.basename(file), failed: false });
                 return;
             }
-            const lines = out
+            const tail = out
                 .split("\n")
-                .map((line) => line.slice(0, 500))
+                .map((line) => line.slice(0, 400))
                 .filter((line) => line.trim().length > 0)
-                .slice(-40);
-            for (const line of lines) annotate("error", path.basename(file), line);
-            resolve({ file: path.basename(file), failed: true, code, signal });
+                .slice(-25)
+                .join("\n");
+            resolve({ file: path.basename(file), failed: true, info: `exit code=${code} signal=${signal}\n--- output tail ---\n${tail}` });
         });
     });
 
@@ -66,6 +67,9 @@ const main = async () => {
     }
     const failed = results.filter((result) => result.failed);
     if (failed.length > 0) {
+        for (const result of failed) {
+            annotate("error", result.file, result.info);
+        }
         annotate("error", "summary", `${failed.length}/${results.length} files failed: ${failed.map((r) => r.file).join(", ")}`);
         process.exit(1);
     }
