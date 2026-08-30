@@ -7,7 +7,10 @@ const searchHistorySchema = new mongoose.Schema({
     workplaceMode: { type: String, enum: ["", "onsite", "hybrid", "remote"], default: "" },
     jobType: { type: String, trim: true, maxlength: 50, default: "" },
     skills: { type: [String], default: [] },
-    createdAt: { type: Date, default: Date.now, expires: 180 * 24 * 3600 * 1000 },
+    // Mongoose `expires` (TTL) is expressed in SECONDS. 180 days of history
+    // before Mongo drops the document. (15552000 fits in a 32-bit int; the
+    // millisecond value 15552000000 exceeded it and broke createIndexes.)
+    createdAt: { type: Date, default: Date.now, expires: 180 * 24 * 3600 },
 });
 
 searchHistorySchema.index({ user: 1, createdAt: -1 });
