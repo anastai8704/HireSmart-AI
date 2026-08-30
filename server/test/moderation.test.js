@@ -79,7 +79,7 @@ test("phase 3: editing a published job at an approval org sends it back to revie
     const publicList = await request(app).get("/api/v1/jobs");
     assert.ok(!publicList.body.data.map((j) => j.id).includes(jobAId), "edited job must be hidden again until re-approved");
     const reapproved = await request(app).post(`/api/v1/admin/moderation/jobs/${jobAId}/approve`).set(auth(adminToken));
-    assert.equal(reapproved.status, 200);
+    assert.equal(reapproved.status, 200, JSON.stringify(reapproved.body));
 });
 
 test("phase 3: rejection hides the job and notifies the org owner", async () => {
@@ -106,7 +106,7 @@ test("phase 3: orgs without approval publish immediately (no behavior change)", 
 
 test("phase 3: platform override — admin can reject a job from any org", async () => {
     const rejected = await request(app).post(`/api/v1/admin/moderation/jobs/${jobIdB}/reject`).set(auth(adminToken)).send({ reason: "Duplicate listing." });
-    assert.equal(rejected.status, 200);
+    assert.equal(rejected.status, 200, JSON.stringify(rejected.body));
     const publicList = await request(app).get("/api/v1/jobs");
     assert.ok(!publicList.body.data.map((j) => j.id).includes(jobIdB), "platform-rejected job must be hidden even without org approval");
 });

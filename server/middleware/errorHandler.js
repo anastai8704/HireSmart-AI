@@ -46,6 +46,12 @@ const errorHandler = (err, req, res, _next) => {
         if (err.fieldErrors) body.fieldErrors = err.fieldErrors;
     }
 
+    // Test environment only: surface the underlying server error so test
+    // failures identify the actual bug. Production keeps the masked 500 body.
+    if (process.env.NODE_ENV === "test" && statusCode >= 500) {
+        body.serverError = { name: err.name, message: err.message, stack: err.stack };
+    }
+
     res.status(statusCode).json(body);
 };
 
