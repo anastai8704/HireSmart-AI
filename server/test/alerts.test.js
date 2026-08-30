@@ -95,7 +95,7 @@ test("phase 2: authenticated public search is recorded in search history", async
     assert.equal(list.body.data[0].location, "Pune");
     const cleared = await request(app).delete("/api/v1/candidates/me/search-history").set(auth(candidateToken));
     assert.equal(cleared.status, 204);
-    assert.equal(await SearchHistory.countDocuments({ user: "any" }), 0);
+    assert.equal(await SearchHistory.countDocuments({ user: candidateUserId }), 0);
 });
 
 test("phase 2: natural-language search produces structured filters (deterministic)", async () => {
