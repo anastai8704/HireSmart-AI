@@ -1,7 +1,7 @@
 const User = require("../models/User");
 const Organization = require("../models/Organization");
 const Job = require("../models/Job");
-const Membership = require("../models/Membership");
+const { Membership } = require("../models/Membership");
 const { notify } = require("../services/notificationService");
 const AuditLog = require("../models/AuditLog");
 const SecurityEvent = require("../models/SecurityEvent");

@@ -1,5 +1,5 @@
 const JobAlert = require("../models/JobAlert");
-const { Job } = require("../models/Job");
+const Job = require("../models/Job");
 const User = require("../models/User");
 const { buildPublicJobFilter } = require("../utils/jobFilters");
 const { notify } = require("./notificationService");
