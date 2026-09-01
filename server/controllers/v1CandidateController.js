@@ -5,6 +5,7 @@ const { ResumeVersion, ParsedResume } = require("../models/Resume");
 const Consent = require("../models/Consent");
 const SearchHistory = require("../models/SearchHistory");
 const RecommendationSnapshot = require("../models/RecommendationSnapshot");
+const { Application } = require("../models/Application");
 const { buildRecommendations } = require("../services/recommendationSnapshotService");
 const { calculateHybridMatch } = require("../services/hybridMatchingService");
 const asyncHandler = require("../middleware/asyncHandler");
@@ -19,9 +20,18 @@ exports.unsaveJob = asyncHandler(async (req, res) => { await User.updateOne({ _i
 exports.recommendations = asyncHandler(async (req, res) => {
     const version = await ResumeVersion.findOne({ candidate: req.user._id, processingStatus: "ready" }).sort({ createdAt: -1 }).select("_id");
     if (!version) throw new AppError("Upload and process a resume first", 422, "RESUME_REQUIRED");
+    // Applied/saved jobs are filtered at read time, even for cached results:
+    // a snapshot can be up to 24h old and predates the latest interactions,
+    // while the expensive per-job match scores are still safe to reuse.
+    const [appliedJobs, userDoc] = await Promise.all([
+        Application.find({ candidate: req.user._id }).select("job").limit(200).lean(),
+        User.findById(req.user._id).select("savedJobs").lean(),
+    ]);
+    const excludedIds = new Set([...appliedJobs.map((a) => String(a.job)), ...(userDoc?.savedJobs || []).map(String)]);
+    const excludeEngaged = (items) => (items || []).filter((item) => !excludedIds.has(String(item?.job?.id)));
     const snapshot = await RecommendationSnapshot.findOne({ user: req.user._id });
     if (snapshot && String(snapshot.resumeVersionId) === String(version._id) && Date.now() - snapshot.computedAt.getTime() < 24 * 3600 * 1000) {
-        return res.json({ data: snapshot.results, meta: { source: "snapshot", computedAt: snapshot.computedAt, evaluated: snapshot.evaluated, resumeVersionId: version._id, signals: snapshot.signals } });
+        return res.json({ data: excludeEngaged(snapshot.results), meta: { source: "snapshot", computedAt: snapshot.computedAt, evaluated: snapshot.evaluated, resumeVersionId: version._id, signals: snapshot.signals } });
     }
     const built = await buildRecommendations(req.user._id);
     await RecommendationSnapshot.findOneAndUpdate({ user: req.user._id }, { $set: { resumeVersionId: built.resumeVersionId, results: built.items, signals: built.signals, evaluated: built.evaluated, computedAt: new Date() } }, { upsert: true }).catch(() => {});
