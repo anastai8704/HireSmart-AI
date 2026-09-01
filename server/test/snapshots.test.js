@@ -71,7 +71,7 @@ test("phase 4: applied and saved jobs are excluded even from cached snapshot res
 
     const version = await request(app).get("/api/v1/candidates/me/resumes").set(auth(candidateToken));
     assert.equal(version.status, 200);
-    const readyId = version.body.data.find((v) => v.processingStatus === "ready").id;
+    const readyId = version.body.meta.versions.find((v) => v.processingStatus === "ready").id;
     const applied = await request(app).post(`/api/v1/jobs/${ids[0]}/applications`).set(auth(candidateToken)).send({ resumeVersionId: readyId, source: "test" });
     assert.equal(applied.status, 201, JSON.stringify(applied.body));
     const saved = await request(app).post(`/api/v1/candidates/me/saved-jobs/${ids[1]}`).set(auth(candidateToken));
