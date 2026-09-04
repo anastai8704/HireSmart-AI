@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 
-const jobAlertSchema = new mongoose.Schema({
+const jobAlertSchema = new mongoose.Schema(
+  {
     user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     name: { type: String, trim: true, maxlength: 100, default: "My job alert" },
     query: { type: String, trim: true, maxlength: 100, default: "" },
@@ -15,7 +16,9 @@ const jobAlertSchema = new mongoose.Schema({
     active: { type: Boolean, default: true },
     lastRunAt: { type: Date, default: null },
     deliveredJobIds: { type: [String], default: [] },
-}, { timestamps: true });
+  },
+  { timestamps: true },
+);
 
 jobAlertSchema.index({ user: 1, active: 1 });
 

@@ -34,37 +34,41 @@ const { isSrvUri } = require("../utils/srvFallback");
 const scenario = process.env.SCENARIO === "stage3" ? "stage3" : "stage1";
 
 if (!process.env.MONGO_URI) {
-    console.error("MONGO_URI is not set - copy .env.example to .env first.");
-    process.exit(2);
+  console.error("MONGO_URI is not set - copy .env.example to .env first.");
+  process.exit(2);
 }
 if (!isSrvUri(process.env.MONGO_URI)) {
-    console.error("This probe only works with mongodb+srv:// URIs.");
-    process.exit(2);
+  console.error("This probe only works with mongodb+srv:// URIs.");
+  process.exit(2);
 }
 
 if (scenario === "stage3") {
-    // Skip the public-resolver retry and go straight to DNS-over-HTTPS.
-    db.publicResolversApplied = true;
+  // Skip the public-resolver retry and go straight to DNS-over-HTTPS.
+  db.publicResolversApplied = true;
 }
 
 // Reproduce the broken-DNS situation: with a dead local resolver the SRV
 // lookup fails with ECONNREFUSED, exactly like on the reported network.
 dns.setServers(["127.0.0.1"]);
 
-console.log("scenario :", scenario, "(stage1 = public-resolver retry, stage3 = DNS-over-HTTPS fallback)");
+console.log(
+  "scenario :",
+  scenario,
+  "(stage1 = public-resolver retry, stage3 = DNS-over-HTTPS fallback)",
+);
 console.log("MONGO_URI:", process.env.MONGO_URI.replace(/:([^@/]+)@/, ":***@"));
 
 (async () => {
-    try {
-        await db.connectDB();
-        const ping = await mongoose.connection.db.admin().command({ ping: 1 });
-        console.log(`PASS: connected after the DNS failure (ping = ${JSON.stringify(ping)})`);
-        process.exitCode = 0;
-    } catch (error) {
-        console.log("FAIL:", error.message.split("\n")[0].slice(0, 200));
-        process.exitCode = 1;
-    } finally {
-        await db.disconnectDB();
-        process.exit(process.exitCode || 0);
-    }
+  try {
+    await db.connectDB();
+    const ping = await mongoose.connection.db.admin().command({ ping: 1 });
+    console.log(`PASS: connected after the DNS failure (ping = ${JSON.stringify(ping)})`);
+    process.exitCode = 0;
+  } catch (error) {
+    console.log("FAIL:", error.message.split("\n")[0].slice(0, 200));
+    process.exitCode = 1;
+  } finally {
+    await db.disconnectDB();
+    process.exit(process.exitCode || 0);
+  }
 })();

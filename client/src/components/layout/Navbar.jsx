@@ -2,5 +2,75 @@ import { Link } from "react-router-dom";
 import { ArrowRight, BriefcaseBusiness, Sparkles } from "lucide-react";
 import Button from "../ui/Button";
 import { useAuth } from "../../context/useAuth";
-const Navbar = () => { const auth = useAuth(); const home = auth.role === "admin" ? "/app/admin" : auth.organization ? `/app/o/${auth.organizationId}` : "/app/candidate"; return <header className="sticky top-0 z-40 border-b border-ink-200/80 bg-white/90 backdrop-blur-xl"><nav className="mx-auto flex h-17 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8" aria-label="Public navigation"><Link to="/" className="flex items-center gap-2 font-bold text-ink-950"><span className="grid h-9 w-9 place-items-center rounded-xl bg-ink-950 text-white"><Sparkles className="h-4.5 w-4.5" /></span>HireSmart <span className="text-brand-600">AI</span></Link><div className="hidden items-center gap-1 md:flex"><Link className="rounded-lg px-3 py-2 text-sm font-medium text-ink-600 hover:bg-ink-50" to="/jobs">Find jobs</Link><Link className="rounded-lg px-3 py-2 text-sm font-medium text-ink-600 hover:bg-ink-50" to="/companies">Companies</Link><Link className="rounded-lg px-3 py-2 text-sm font-medium text-ink-600 hover:bg-ink-50" to="/resume-check">Resume check</Link><Link className="rounded-lg px-3 py-2 text-sm font-medium text-ink-600 hover:bg-ink-50" to="/auth/register/recruiter">For employers</Link></div><div className="flex items-center gap-2">{auth.isAuthenticated ? <Button as={Link} to={home} size="sm" rightIcon={<ArrowRight className="h-4 w-4" />}>Open workspace</Button> : <><Button as={Link} to="/auth/login" variant="ghost" size="sm">Sign in</Button><Button as={Link} to="/auth/register/candidate" size="sm" leftIcon={<BriefcaseBusiness className="h-4 w-4" />}>Get started</Button></>}</div></nav></header>; };
+const Navbar = () => {
+  const auth = useAuth();
+  const home =
+    auth.role === "admin"
+      ? "/app/admin"
+      : auth.organization
+        ? `/app/o/${auth.organizationId}`
+        : "/app/candidate";
+  return (
+    <header className="sticky top-0 z-40 border-b border-ink-200/80 bg-white/90 backdrop-blur-xl">
+      <nav
+        className="mx-auto flex h-17 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8"
+        aria-label="Public navigation"
+      >
+        <Link to="/" className="flex items-center gap-2 font-bold text-ink-950">
+          <span className="grid h-9 w-9 place-items-center rounded-xl bg-ink-950 text-white">
+            <Sparkles className="h-4.5 w-4.5" />
+          </span>
+          HireSmart <span className="text-brand-600">AI</span>
+        </Link>
+        <div className="hidden items-center gap-1 md:flex">
+          <Link
+            className="rounded-lg px-3 py-2 text-sm font-medium text-ink-600 hover:bg-ink-50"
+            to="/jobs"
+          >
+            Find jobs
+          </Link>
+          <Link
+            className="rounded-lg px-3 py-2 text-sm font-medium text-ink-600 hover:bg-ink-50"
+            to="/companies"
+          >
+            Companies
+          </Link>
+          <Link
+            className="rounded-lg px-3 py-2 text-sm font-medium text-ink-600 hover:bg-ink-50"
+            to="/resume-check"
+          >
+            Resume check
+          </Link>
+          <Link
+            className="rounded-lg px-3 py-2 text-sm font-medium text-ink-600 hover:bg-ink-50"
+            to="/auth/register/recruiter"
+          >
+            For employers
+          </Link>
+        </div>
+        <div className="flex items-center gap-2">
+          {auth.isAuthenticated ? (
+            <Button as={Link} to={home} size="sm" rightIcon={<ArrowRight className="h-4 w-4" />}>
+              Open workspace
+            </Button>
+          ) : (
+            <>
+              <Button as={Link} to="/auth/login" variant="ghost" size="sm">
+                Sign in
+              </Button>
+              <Button
+                as={Link}
+                to="/auth/register/candidate"
+                size="sm"
+                leftIcon={<BriefcaseBusiness className="h-4 w-4" />}
+              >
+                Get started
+              </Button>
+            </>
+          )}
+        </div>
+      </nav>
+    </header>
+  );
+};
 export default Navbar;
