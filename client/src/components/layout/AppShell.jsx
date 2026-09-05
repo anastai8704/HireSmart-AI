@@ -35,7 +35,7 @@ const candidateGroups = [
       ["/app/candidate/alerts", "Alerts", Bell],
     ],
   ],
-  ["Assistant", ["/app/candidate/copilot", "Career Assistant", Sparkles]],
+  ["Assistant", [["/app/candidate/copilot", "Career Assistant", Sparkles]]],
 ];
 const recruiterGroups = (org) => [
   [
@@ -55,7 +55,7 @@ const recruiterGroups = (org) => [
       [`/app/o/${org}/copilot`, "AI Assistant", Sparkles],
     ],
   ],
-  ["Workspace", [`/app/o/${org}/team`, "Team", Building2]],
+  ["Workspace", [[`/app/o/${org}/team`, "Team", Building2]]],
 ];
 const managerGroups = (org) => [
   [
