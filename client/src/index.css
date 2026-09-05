@@ -1,44 +1,49 @@
 @import "tailwindcss";
 @theme {
-  --color-brand-50: #eef2ff;
-  --color-brand-100: #e0e7ff;
-  --color-brand-200: #c7d2fe;
-  --color-brand-300: #a5b4fc;
-  --color-brand-400: #818cf8;
-  --color-brand-500: #6366f1;
-  --color-brand-600: #4f46e5;
-  --color-brand-700: #4338ca;
-  --color-brand-800: #3730a3;
-  --color-brand-900: #312e81;
-  --color-ink-50: #f8fafc;
-  --color-ink-100: #f1f5f9;
-  --color-ink-200: #e2e8f0;
-  --color-ink-300: #cbd5e1;
-  --color-ink-400: #94a3b8;
-  --color-ink-500: #64748b;
-  --color-ink-600: #475569;
-  --color-ink-700: #334155;
-  --color-ink-800: #1e293b;
-  --color-ink-900: #0f172a;
-  --color-ink-950: #10131b;
+  --color-brand-50: #f0effe;
+  --color-brand-100: #e3e1fd;
+  --color-brand-200: #cbc8fb;
+  --color-brand-300: #a8a3f6;
+  --color-brand-400: #8a80ee;
+  --color-brand-500: #6f64e3;
+  --color-brand-600: #5c50d4;
+  --color-brand-700: #4d42b2;
+  --color-brand-800: #413993;
+  --color-brand-900: #38317a;
+  --color-ink-50: #f5f6fa;
+  --color-ink-100: #ecedf4;
+  --color-ink-200: #dde0ec;
+  --color-ink-300: #bfc5d9;
+  --color-ink-400: #939bb6;
+  --color-ink-500: #6c7492;
+  --color-ink-600: #535b7a;
+  --color-ink-700: #3e455f;
+  --color-ink-800: #272d45;
+  --color-ink-900: #171c30;
+  --color-ink-950: #0e1222;
   --color-success-50: #ecfdf5;
+  --color-success-100: #d1fae5;
   --color-success-500: #10b981;
   --color-success-700: #047857;
   --color-warning-50: #fffbeb;
+  --color-warning-100: #fef3c7;
   --color-warning-500: #f59e0b;
   --color-warning-700: #b45309;
   --color-danger-50: #fef2f2;
+  --color-danger-100: #fee2e2;
   --color-danger-500: #ef4444;
   --color-danger-700: #b91c1c;
-  --color-canvas: #f6f7fb;
+  --color-canvas: #f4f5fa;
   --color-cyan-300: #67e8f9;
   --color-cyan-600: #0891b2;
-  --color-ai-900: #171b26;
-  --color-ai-800: #202636;
+  --color-ai-900: #141833;
+  --color-ai-800: #1e2347;
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --radius-card: 0.875rem;
   --animate-fade-up: fade-up 0.35s ease-out both;
   --animate-fade-in: fade-in 0.25s ease-out both;
+  --shadow-card: 0 1px 2px rgb(14 18 34 / 0.05), 0 2px 10px -2px rgb(14 18 34 / 0.06);
+  --shadow-card-hover: 0 4px 16px -4px rgb(92 80 212 / 0.16), 0 2px 6px -2px rgb(14 18 34 / 0.08);
 }
 @keyframes fade-up {
   from {
@@ -63,6 +68,11 @@
     transform: translateX(100%);
   }
 }
+@keyframes ring-fill {
+  from {
+    stroke-dashoffset: var(--ring-c);
+  }
+}
 @layer base {
   * {
     border-color: var(--color-ink-200);
@@ -74,10 +84,18 @@
   body {
     margin: 0;
     min-width: 320px;
-    background: var(--color-canvas);
+    background:
+      radial-gradient(60rem 24rem at 85% -6rem, rgb(111 100 227 / 0.06), transparent 60%),
+      var(--color-canvas);
     color: var(--color-ink-900);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  h1,
+  h2,
+  h3 {
+    letter-spacing: -0.02em;
   }
   button,
   [role="button"] {
@@ -103,7 +121,7 @@
     padding: 0.75rem 1rem;
     font-weight: 600;
     color: var(--color-ink-900);
-    box-shadow: 0 8px 30px rgb(15 23 42/0.18);
+    box-shadow: 0 8px 30px rgb(14 18 34 / 0.18);
   }
   .skip-link:focus {
     top: 1rem;
@@ -115,9 +133,9 @@
     padding: 2rem 1rem 4rem;
   }
   .eyebrow {
-    font-size: 0.75rem;
+    font-size: 0.72rem;
     font-weight: 700;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
     color: var(--color-brand-600);
   }
@@ -125,12 +143,16 @@
     border: 1px solid var(--color-ink-200);
     border-radius: 1rem;
     background: white;
+    box-shadow: var(--shadow-card);
   }
   .ai-panel {
-    border: 1px solid rgb(255 255 255/0.1);
+    border: 1px solid rgb(255 255 255 / 0.1);
     border-radius: 1rem;
-    background: var(--color-ai-900);
+    background:
+      radial-gradient(30rem 14rem at 90% -4rem, rgb(111 100 227 / 0.35), transparent 60%),
+      linear-gradient(140deg, var(--color-ai-900) 0%, var(--color-ai-800) 100%);
     color: white;
+    box-shadow: 0 12px 32px -16px rgb(20 24 51 / 0.5);
   }
   .skeleton {
     position: relative;
@@ -141,7 +163,7 @@
     position: absolute;
     inset: 0;
     transform: translateX(-100%);
-    background: linear-gradient(90deg, transparent, rgb(255 255 255/0.6), transparent);
+    background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.65), transparent);
     animation: shimmer 1.6s infinite;
     content: "";
   }

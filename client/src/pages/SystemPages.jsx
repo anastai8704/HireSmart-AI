@@ -2,13 +2,16 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Bell,
+  BriefcaseBusiness,
   Building2,
   Download,
+  FileText,
   KeyRound,
   ShieldAlert,
   ShieldCheck,
   Sparkles,
   Trash2,
+  Video,
 } from "lucide-react";
 import Button from "../components/ui/Button";
 import Input, { Select } from "../components/ui/Input";
@@ -20,6 +23,14 @@ import { adminApi, authApi, downloadBlob, notificationApi, userApi } from "../li
 import { useAuth } from "../context/useAuth";
 import { useToast } from "../components/ui/useToast";
 import { formatDate, formatRelativeTime } from "../lib/utils";
+const notificationIcon = (title = "") => {
+  const t = title.toLowerCase();
+  if (t.includes("interview")) return Video;
+  if (t.includes("application") || t.includes("apply") || t.includes("resume")) return FileText;
+  if (t.includes("offer") || t.includes("hired") || t.includes("job")) return BriefcaseBusiness;
+  if (t.includes("security") || t.includes("password") || t.includes("suspend")) return ShieldCheck;
+  return Bell;
+};
 export const NotificationsPage = () => {
   const qc = useQueryClient(),
     q = useQuery({
@@ -38,8 +49,8 @@ export const NotificationsPage = () => {
     <div className="page-wrap max-w-4xl">
       <PageHeader
         eyebrow="Updates"
-        title="Notification center"
-        description="Application, interview and hiring workflow events from the backend."
+        title="Notifications"
+        description="Everything about your applications, interviews and account — in one place."
         action={
           <Button
             variant="secondary"
@@ -63,9 +74,18 @@ export const NotificationsPage = () => {
               onClick={() => !n.readAt && read.mutate(n._id)}
               className={`panel flex w-full items-start gap-4 p-5 text-left ${!n.readAt ? "border-brand-200 bg-brand-50/30" : ""}`}
             >
-              <span className="grid h-10 w-10 place-items-center rounded-xl bg-ink-100">
-                <Bell className="h-4 w-4" />
-              </span>
+              {(() => {
+                const Icon = notificationIcon(n.title);
+                return (
+                  <span
+                    className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${
+                      !n.readAt ? "bg-brand-100 text-brand-700" : "bg-ink-100 text-ink-500"
+                    }`}
+                  >
+                    <Icon className="h-4 w-4" />
+                  </span>
+                );
+              })()}
               <span className="flex-1">
                 <span className="font-semibold">{n.title}</span>
                 <span className="mt-1 block text-sm text-ink-600">{n.message}</span>
@@ -78,7 +98,10 @@ export const NotificationsPage = () => {
           ))}
         </div>
       ) : (
-        <EmptyState title="You’re all caught up" />
+        <EmptyState
+          title="You're all caught up"
+          description="New hiring updates will appear here."
+        />
       )}
     </div>
   );
@@ -118,7 +141,7 @@ export const SettingsPage = () => {
         <section className="panel p-6">
           <h2 className="flex items-center gap-2 font-bold">
             <KeyRound className="h-4 w-4 text-brand-600" />
-            Change password
+            Password & Login
           </h2>
           <div className="mt-4 space-y-3">
             <Input
@@ -140,7 +163,7 @@ export const SettingsPage = () => {
               isLoading={change.isPending}
               onClick={() => change.mutate()}
             >
-              Update password
+              Update Password
             </Button>
             {change.error && <ErrorCallout error={change.error} />}
           </div>
@@ -148,24 +171,45 @@ export const SettingsPage = () => {
         <section className="panel p-6">
           <h2 className="flex items-center gap-2 font-bold">
             <ShieldCheck className="h-4 w-4 text-brand-600" />
-            Consent controls
+            AI & Data Permissions
           </h2>
+          <p className="mt-2 text-sm text-ink-500">
+            Choose how your information is used. You can change this at any time.
+          </p>
           <div className="mt-4 space-y-3">
-            {["ai_processing", "talent_pool", "marketing"].map((p) => {
-              const active = consents.data?.data?.some((c) => c.purpose === p && !c.revokedAt);
+            {[
+              {
+                purpose: "ai_processing",
+                label: "AI Processing",
+                copy: "Let AI analyze your resume and profile to generate matches and suggestions.",
+              },
+              {
+                purpose: "talent_pool",
+                label: "Talent Pool",
+                copy: "Let companies you apply to see your profile in their talent pool.",
+              },
+              {
+                purpose: "marketing",
+                label: "Marketing",
+                copy: "Receive product updates and news from HireSmart.",
+              },
+            ].map(({ purpose, label, copy }) => {
+              const active = consents.data?.data?.some(
+                (c) => c.purpose === purpose && !c.revokedAt,
+              );
               return (
                 <div
                   className="flex items-center justify-between gap-3 rounded-xl bg-ink-50 p-4"
-                  key={p}
+                  key={purpose}
                 >
                   <div>
-                    <p className="text-sm font-semibold capitalize">{p.replace("_", " ")}</p>
-                    <p className="text-xs text-ink-500">Policy 2026-08</p>
+                    <p className="text-sm font-semibold">{label}</p>
+                    <p className="text-xs text-ink-500">{copy}</p>
                   </div>
                   <Button
                     size="sm"
                     variant={active ? "secondary" : "primary"}
-                    onClick={() => consent.mutate({ purpose: p, granted: !active })}
+                    onClick={() => consent.mutate({ purpose, granted: !active })}
                   >
                     {active ? "Revoke" : "Grant"}
                   </Button>
@@ -175,35 +219,40 @@ export const SettingsPage = () => {
           </div>
         </section>
         <section className="panel p-6 lg:col-span-2">
-          <h2 className="font-bold">Active sessions</h2>
+          <h2 className="font-bold">Active Sessions</h2>
           <div className="mt-4 space-y-3">
-            {sessions.data?.data?.map((s) => (
-              <div
-                className="flex flex-col gap-3 rounded-xl bg-ink-50 p-4 sm:flex-row sm:items-center"
-                key={s.id}
-              >
-                <div className="flex-1">
-                  <p className="text-sm font-semibold">
-                    {s.userAgent || "Unknown device"}{" "}
-                    {s.current && <Badge variant="success">current</Badge>}
-                  </p>
-                  <p className="text-xs text-ink-500">
-                    Last used {formatRelativeTime(s.lastUsedAt)} · expires {formatDate(s.expiresAt)}
-                  </p>
+            {sessions.data?.data?.length ? (
+              sessions.data.data.map((s) => (
+                <div
+                  className="flex flex-col gap-3 rounded-xl bg-ink-50 p-4 sm:flex-row sm:items-center"
+                  key={s.id}
+                >
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold">
+                      {s.userAgent || "Unknown device"}{" "}
+                      {s.current && <Badge variant="success">current</Badge>}
+                    </p>
+                    <p className="text-xs text-ink-500">
+                      Last used {formatRelativeTime(s.lastUsedAt)} · expires{" "}
+                      {formatDate(s.expiresAt)}
+                    </p>
+                  </div>
+                  {!s.current && (
+                    <Button size="sm" variant="danger" onClick={() => revoke.mutate(s.id)}>
+                      Revoke
+                    </Button>
+                  )}
                 </div>
-                {!s.current && (
-                  <Button size="sm" variant="danger" onClick={() => revoke.mutate(s.id)}>
-                    Revoke
-                  </Button>
-                )}
-              </div>
-            ))}
+              ))
+            ) : (
+              <p className="text-sm text-ink-500">No active sessions.</p>
+            )}
           </div>
         </section>
         <section className="panel p-6">
-          <h2 className="font-bold">Export your data</h2>
+          <h2 className="font-bold">Export Your Data</h2>
           <p className="mt-2 text-sm text-ink-500">
-            Download the safe account export provided by the API.
+            Download a JSON copy of your profile, resumes and applications.
           </p>
           <Button
             className="mt-4"
@@ -211,13 +260,13 @@ export const SettingsPage = () => {
             onClick={async () => downloadBlob(await userApi.exportData(), "hiresmart-export.json")}
             leftIcon={<Download className="h-4 w-4" />}
           >
-            Export data
+            Export My Data
           </Button>
         </section>
         <section className="rounded-2xl border border-danger-500/20 bg-danger-50 p-6">
-          <h2 className="font-bold text-danger-700">Delete account</h2>
+          <h2 className="font-bold text-danger-700">Delete Account</h2>
           <p className="mt-2 text-sm text-danger-700/80">
-            This revokes sessions and begins the deletion lifecycle.
+            This signs you out, revokes all sessions and starts the account deletion process.
           </p>
           <Button
             className="mt-4"
@@ -267,14 +316,14 @@ export const AdminHome = () => {
   return (
     <div className="page-wrap">
       <PageHeader
-        eyebrow="Platform operations"
-        title="System attention"
-        description="Live operational state, security signals and tenant growth without vanity metrics."
+        eyebrow="Platform"
+        title="Platform Overview"
+        description="Live platform health, security signals and growth at a glance."
       />
       <div className="panel grid gap-6 p-6 sm:grid-cols-2 lg:grid-cols-4">
-        <Metric label="Users loaded" value={users.data?.data?.length || 0} />
-        <Metric label="Organizations" value={orgs.data?.data?.length || 0} />
-        <Metric label="Security events" value={security.data?.data?.length || 0} />
+        <Metric label="Total Users" value={users.data?.data?.length || 0} />
+        <Metric label="Companies" value={orgs.data?.data?.length || 0} />
+        <Metric label="Security Events" value={security.data?.data?.length || 0} />
         <Metric
           label="Readiness"
           value={ready.data?.data?.status || "unknown"}
@@ -331,8 +380,8 @@ export const AdminUsers = () => {
   return (
     <div className="page-wrap">
       <PageHeader
-        eyebrow="Platform users"
-        title="Account operations"
+        eyebrow="Users"
+        title="Manage Users"
         description="Suspension revokes sessions; reactivation restores access without restoring old sessions."
       />
       <Select
@@ -403,8 +452,8 @@ export const AdminOrganizations = () => {
   return (
     <div className="page-wrap">
       <PageHeader
-        eyebrow="Tenants"
-        title="Organizations"
+        eyebrow="Companies"
+        title="Manage Companies"
         description="Inspect organization state without crossing tenant boundaries."
       />
       {q.isLoading ? (
@@ -434,8 +483,8 @@ export const AdminAIUsage = () => {
   return (
     <div className="page-wrap">
       <PageHeader
-        eyebrow="AI governance"
-        title="Platform AI usage"
+        eyebrow="AI"
+        title="AI Activity"
         description="Provider, model, fallback, token, latency and estimated cost telemetry across organizations."
       />
       {q.isLoading ? (
@@ -480,8 +529,8 @@ export const AdminSecurity = () => {
   return (
     <div className="page-wrap">
       <PageHeader
-        eyebrow="Trust operations"
-        title="Security & audit"
+        eyebrow="Security"
+        title="Security & Audit"
         description="Operational evidence from backend security and audit records."
       />
       <div className="mb-5 flex gap-2">
@@ -541,8 +590,8 @@ export const AdminModeration = () => {
   return (
     <div className="page-wrap max-w-5xl">
       <PageHeader
-        eyebrow="Marketplace moderation"
-        title="Job review queue"
+        eyebrow="Approvals"
+        title="Job Approval Queue"
         description="Approve or reject listings for organizations with approval enabled — or use the platform override on any job."
       />
       <div className="mb-4 flex gap-2">

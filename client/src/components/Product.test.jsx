@@ -27,7 +27,8 @@ describe("production AI result UI", () => {
   });
   it("exposes status text", () => {
     render(<StatusPill status="processing" />);
-    expect(screen.getByText("processing")).toBeInTheDocument();
+    // Labels are displayed human-first (capitalized) per the design system.
+    expect(screen.getByText("Processing")).toBeInTheDocument();
   });
   it("never presents an AI failure as success", () => {
     render(

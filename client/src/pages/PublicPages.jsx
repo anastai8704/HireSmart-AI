@@ -261,13 +261,13 @@ export const LandingPage = () => {
                 {[
                   [
                     Target,
-                    "Explainable fit",
+                    "Fit you can inspect",
                     "See matched evidence and missing requirements for every job.",
                   ],
                   [
                     Bot,
-                    "Real AI, validated",
-                    "Structured outputs, provenance and a deterministic fallback — never a guess.",
+                    "Real AI, accountable",
+                    "Every AI answer is labeled with how it was generated — never a guess.",
                   ],
                   [
                     UsersRound,
@@ -960,9 +960,9 @@ export const PublicJobDetailPage = () => {
               <div className="panel p-5">
                 {isCandidate ? (
                   <>
-                    <h2 className="font-bold">See your evidence-backed fit</h2>
+                    <h2 className="font-bold">See how you match</h2>
                     <p className="mt-2 text-sm text-ink-500">
-                      Sign in to choose a processed resume version, inspect skill gaps and apply.
+                      Choose a processed resume version, see your skill gaps and apply.
                     </p>
                     <Button
                       as={Link}
@@ -970,7 +970,7 @@ export const PublicJobDetailPage = () => {
                       fullWidth
                       className="mt-4"
                     >
-                      Check fit &amp; apply
+                      Check Match &amp; Apply
                     </Button>
                   </>
                 ) : auth?.isAuthenticated ? (
@@ -982,9 +982,9 @@ export const PublicJobDetailPage = () => {
                   </>
                 ) : (
                   <>
-                    <h2 className="font-bold">See your evidence-backed fit</h2>
+                    <h2 className="font-bold">See how you match</h2>
                     <p className="mt-2 text-sm text-ink-500">
-                      Sign in to choose a processed resume version, inspect skill gaps and apply.
+                      Sign in to choose a processed resume version, see your skill gaps and apply.
                     </p>
                     <Button
                       as={Link}
@@ -992,7 +992,7 @@ export const PublicJobDetailPage = () => {
                       fullWidth
                       className="mt-4"
                     >
-                      Sign in to apply
+                      Check Match &amp; Apply
                     </Button>
                   </>
                 )}

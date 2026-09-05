@@ -29,7 +29,7 @@ const Shell = ({ title, copy, children }) => (
           {[
             "Private, versioned resume processing",
             "Human-controlled AI recommendations",
-            "Organization-scoped recruitment workflows",
+            "Company-scoped hiring workflows",
           ].map((x) => (
             <p key={x} className="flex gap-2">
               <CheckCircle2 className="h-4 w-4 text-cyan-300" />
@@ -156,7 +156,7 @@ export const RegisterPage = () => {
   });
   const submit = async (v) => {
     if (recruiter && !v.organizationName) {
-      setError("organizationName", { message: "Organization name is required" });
+      setError("organizationName", { message: "Company name is required" });
       return;
     }
     setServerError(null);
@@ -187,7 +187,7 @@ export const RegisterPage = () => {
       title={recruiter ? "Create your hiring workspace" : "Build your candidate profile"}
       copy={
         recruiter
-          ? "Start with an organization you own. Add teammates after verification."
+          ? "Start with the company you own. Add teammates after verification."
           : "Your resume and AI results remain private and under your control."
       }
     >
@@ -216,7 +216,7 @@ export const RegisterPage = () => {
         />
         {recruiter && (
           <Input
-            label="Organization name"
+            label="Company name"
             error={errors.organizationName?.message}
             {...register("organizationName")}
           />
@@ -238,8 +238,8 @@ export const RegisterPage = () => {
         <label className="flex gap-3 text-sm text-ink-600">
           <input type="checkbox" className="mt-1" {...register("aiProcessingConsent")} />
           <span>
-            Allow external AI processing when configured. Without this, deterministic analysis
-            remains available.
+            Allow AI to help with resume analysis and job matching. Without this, built-in
+            rule-based analysis remains available.
           </span>
         </label>
         <Button type="submit" fullWidth isLoading={isSubmitting}>

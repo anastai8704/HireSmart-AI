@@ -43,6 +43,12 @@ import { formatDate, formatRelativeTime } from "../../lib/utils";
 import { useDebouncedValue } from "../../hooks/useApi";
 const getVersions = (response) => response?.meta?.versions || [];
 const useResumes = () => useQuery({ queryKey: ["resumes"], queryFn: resumeApi.list });
+const CANDIDATE_SUGGESTIONS = [
+  "How should I tailor my resume for a senior role?",
+  "Which skills should I highlight for my target jobs?",
+  "What should I prepare before my interview?",
+  "Summarize my strongest job matches.",
+];
 export const CandidateDashboard = () => {
   const profile = useQuery({ queryKey: ["candidate-profile"], queryFn: candidateApi.profile }),
     resumes = useResumes(),
@@ -160,7 +166,7 @@ export const CandidateDashboard = () => {
         <div className="flex items-end justify-between">
           <div>
             <p className="eyebrow">Recommended for you</p>
-            <h2 className="mt-1 text-xl font-bold">Evidence-backed opportunities</h2>
+            <h2 className="mt-1 text-xl font-bold">Opportunities matched to you</h2>
           </div>
           <Link
             className="text-sm font-semibold text-brand-600"
@@ -296,8 +302,8 @@ export const ResumeManager = () => {
   return (
     <div className="page-wrap">
       <PageHeader
-        eyebrow="Resume intelligence"
-        title="Your resume versions"
+        eyebrow="Resume"
+        title="Your resumes"
         description="Every application keeps the exact version you submitted."
         action={
           <Button onClick={() => input.current?.click()} leftIcon={<Upload className="h-4 w-4" />}>
@@ -483,7 +489,7 @@ export const ResumeDetail = () => {
         <>
           <div className="grid gap-6 lg:grid-cols-[1.1fr_.9fr]">
             <section className="panel p-6">
-              <h2 className="text-lg font-bold">Structured extraction</h2>
+              <h2 className="text-lg font-bold">Details we extracted</h2>
               <p className="mt-1 text-sm text-ink-500">
                 Confidence {Math.round((p?.confidence || 0) * 100)}%. Verify before relying on it.
               </p>
@@ -620,9 +626,8 @@ export const ResumeDetail = () => {
             {rewrite && (
               <div className="mt-5">
                 <p className="mb-3 text-xs text-ink-500">
-                  {rewrite.metadata?.provider} · {rewrite.metadata?.model}
-                  {rewrite.metadata?.fallbackUsed ? " · deterministic fallback" : ""} ·{" "}
-                  {Math.round((rewrite.confidence || 0) * 100)}% confidence
+                  AI Assistant suggestion · {Math.round((rewrite.confidence || 0) * 100)}%
+                  confidence
                 </p>
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="rounded-xl bg-ink-50 p-4">
@@ -747,12 +752,12 @@ export const CandidateJobs = ({ recommendations = false }) => {
   return (
     <div className="page-wrap">
       <PageHeader
-        eyebrow={recommendations ? "AI recommendations" : "Job discovery"}
-        title={recommendations ? "Roles ranked for your evidence" : "Find your next role"}
+        eyebrow={recommendations ? "AI recommendations" : "Job Discovery"}
+        title={recommendations ? "Roles ranked for you" : "Jobs matched to you"}
         description={
           recommendations
-            ? "Scores use your latest ready resume and show their limitations."
-            : "Search published roles, then run fit against the resume version you choose."
+            ? "Matches use your latest ready resume, with limitations shown for transparency."
+            : "Search open roles, then check how well you match with the resume version you choose."
         }
       />
       {!recommendations && (
@@ -864,7 +869,7 @@ export const CandidateJobDetail = () => {
         </article>
         <aside className="space-y-4">
           <div className="panel p-5">
-            <h2 className="font-bold">Check your fit</h2>
+            <h2 className="font-bold">See how you match</h2>
             {versions.length ? (
               <>
                 <label className="mt-4 block text-sm font-medium" htmlFor="resume-version">
@@ -888,7 +893,7 @@ export const CandidateJobDetail = () => {
                   onClick={() => fitMutation.mutate()}
                   isLoading={fitMutation.isPending}
                 >
-                  Analyze job fit
+                  Check My Match
                 </Button>
               </>
             ) : (
@@ -908,7 +913,7 @@ export const CandidateJobDetail = () => {
           {fit && (
             <>
               <Button fullWidth onClick={() => setApplyOpen(true)}>
-                Apply with this version
+                Apply for this Job
               </Button>
               <Button
                 fullWidth
@@ -916,7 +921,7 @@ export const CandidateJobDetail = () => {
                 isLoading={tailorMutation.isPending}
                 onClick={() => tailorMutation.mutate()}
               >
-                Build tailoring plan
+                Get Tailoring Suggestions
               </Button>
             </>
           )}
@@ -934,7 +939,7 @@ export const CandidateJobDetail = () => {
             confidence={tailorPlan.improvement?.confidence}
             limitations={tailorPlan.improvement?.uncertainties}
           />
-          <h2 className="mt-5 text-lg font-bold">Evidence-preserving tailoring suggestions</h2>
+          <h2 className="mt-5 text-lg font-bold">Tailoring suggestions for this job</h2>
           <div className="mt-3 space-y-3">
             {tailorPlan.improvement?.suggestions?.map((s) => (
               <div className="rounded-xl bg-white/6 p-4" key={s.title}>
@@ -956,7 +961,7 @@ export const CandidateJobDetail = () => {
               Cancel
             </Button>
             <Button onClick={() => apply.mutate()} isLoading={apply.isPending}>
-              Submit application
+              Submit Application
             </Button>
           </>
         }
@@ -990,9 +995,9 @@ export const ApplicationsPage = () => {
   return (
     <div className="page-wrap">
       <PageHeader
-        eyebrow="Your search"
-        title="Applications & saved roles"
-        description="Track every application against the exact resume and job version you submitted."
+        eyebrow="My Applications"
+        title="Track your applications"
+        description="Follow every application — each one is tied to the exact resume and job version you submitted."
       />
       <div className="mb-5 flex flex-wrap gap-2">
         {[
@@ -1024,17 +1029,19 @@ export const ApplicationsPage = () => {
             <Link
               key={a._id}
               to={`/app/candidate/applications/${a._id}`}
-              className="panel flex flex-col gap-3 p-5 sm:flex-row sm:items-center"
+              className="panel group flex flex-col gap-3 p-5 transition-all hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-sm sm:flex-row sm:items-center"
             >
-              <div className="flex-1">
-                <h2 className="font-bold">{a.job?.title || a.jobSnapshot?.title}</h2>
-                <p className="text-sm text-ink-500">
+              <div className="min-w-0 flex-1">
+                <h2 className="truncate font-bold transition-colors group-hover:text-brand-700">
+                  {a.job?.title || a.jobSnapshot?.title}
+                </h2>
+                <p className="truncate text-sm text-ink-500">
                   {a.job?.company || a.jobSnapshot?.company} · Applied{" "}
                   {formatRelativeTime(a.appliedAt)}
                 </p>
               </div>
               <StatusPill status={a.status} />
-              <ArrowRight className="h-4 w-4 text-ink-400" />
+              <ArrowRight className="h-4 w-4 text-ink-400 transition-transform group-hover:translate-x-0.5" />
             </Link>
           ))}
         </div>
@@ -1085,7 +1092,7 @@ export const ApplicationDetail = () => {
         action={<StatusPill status={a.status} />}
       />
       <section className="panel p-6">
-        <h2 className="font-bold">Application timeline</h2>
+        <h2 className="font-bold">Application History</h2>
         <ol className="mt-6 space-y-0">
           {(a.statusHistory || []).map((h, i) => (
             <li key={`${h.status}-${i}`} className="relative flex gap-4 pb-6 last:pb-0">
@@ -1137,8 +1144,8 @@ export const CandidateInterviews = () => {
     <div className="page-wrap">
       <PageHeader
         eyebrow="Interviews"
-        title="Prepare with context"
-        description="Confirm schedules and generate job-grounded preparation from the backend."
+        title="Your upcoming interviews"
+        description="See your schedule and build a focused prep plan for each interview."
       />
       {q.isLoading ? (
         <LoadingState />
@@ -1147,12 +1154,20 @@ export const CandidateInterviews = () => {
       ) : q.data?.data?.length ? (
         <div className="grid gap-4 lg:grid-cols-2">
           {q.data.data.map((i) => (
-            <Link className="panel p-5" key={i._id} to={`/app/candidate/interviews/${i._id}`}>
-              <div className="flex justify-between">
-                <Video className="h-5 w-5 text-brand-600" />
+            <Link
+              className="panel group p-5 transition-all hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-sm"
+              key={i._id}
+              to={`/app/candidate/interviews/${i._id}`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <span className="grid h-10 w-10 place-items-center rounded-xl bg-brand-50 text-brand-600">
+                  <Video className="h-5 w-5" />
+                </span>
                 <StatusPill status={i.status} />
               </div>
-              <h2 className="mt-4 font-bold">{i.title}</h2>
+              <h2 className="mt-4 font-bold transition-colors group-hover:text-brand-700">
+                {i.title}
+              </h2>
               <p className="mt-1 text-sm text-ink-500">
                 {i.application?.job?.title} ·{" "}
                 {i.scheduledStart ? formatDate(i.scheduledStart) : "Schedule pending"}
@@ -1178,21 +1193,21 @@ export const InterviewPrep = () => {
     <div className="page-wrap max-w-4xl">
       <PageHeader
         eyebrow="Interview preparation"
-        title="Practice against role evidence"
-        description="Generated questions are preparation aids, not a prediction of the actual interview."
+        title="Prepare for your interview"
+        description="Practice with questions grounded in the real job requirements. Prep aids only — never a prediction of the actual interview."
       />
       <div className="ai-panel p-6">
-        <h2 className="text-xl font-bold">Build my preparation plan</h2>
+        <h2 className="text-xl font-bold">Build My Preparation Plan</h2>
         <p className="mt-2 text-sm text-ink-300">
-          HireSmart uses the interview’s job requirements. It does not infer personality or
+          HireSmart uses the job requirements from your application. It never infers personality or
           protected traits.
         </p>
-        <div className="mt-5 flex gap-3">
+        <div className="mt-5 flex flex-wrap gap-3">
           <Button variant="secondary" onClick={() => prep.mutate()} isLoading={prep.isPending}>
-            Generate plan
+            Generate Prep Plan
           </Button>
           <Button variant="ghost" onClick={() => confirm.mutate()} isLoading={confirm.isPending}>
-            Confirm interview
+            Confirm Interview
           </Button>
         </div>
         {prep.error && (
@@ -1204,6 +1219,7 @@ export const InterviewPrep = () => {
       {result && (
         <div className="mt-6 grid gap-6">
           <AIProvenance
+            tone="light"
             metadata={result.metadata}
             confidence={result.confidence}
             limitations={result.limitations}
@@ -1240,9 +1256,9 @@ export const CareerCopilot = () => {
   return (
     <div className="page-wrap max-w-5xl">
       <PageHeader
-        eyebrow="Candidate career copilot"
-        title="Ask for evidence-led career guidance"
-        description="Responses come from the configured backend provider or a labeled deterministic fallback."
+        eyebrow="Career Assistant"
+        title="Ask your career assistant"
+        description="Get guidance grounded in your real profile and job matches. AI advice is a starting point, not a promise."
       />
       <div className="ai-panel p-6 sm:p-8">
         <Textarea
@@ -1252,15 +1268,26 @@ export const CareerCopilot = () => {
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
         />
-        <Button
-          className="mt-3"
-          variant="secondary"
-          disabled={question.length < 10}
-          isLoading={run.isPending}
-          onClick={() => run.mutate()}
-        >
-          Ask copilot
-        </Button>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <Button
+            variant="secondary"
+            disabled={question.length < 10}
+            isLoading={run.isPending}
+            onClick={() => run.mutate()}
+          >
+            Ask Assistant
+          </Button>
+          {CANDIDATE_SUGGESTIONS.map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => setQuestion(s)}
+              className="rounded-full border border-white/15 px-3 py-1.5 text-xs font-medium text-ink-300 transition-colors hover:border-brand-400 hover:text-white"
+            >
+              {s}
+            </button>
+          ))}
+        </div>
         {run.error && (
           <div className="mt-4">
             <ErrorCallout error={run.error} />

@@ -12,9 +12,12 @@ import { useForm } from "react-hook-form";
 import {
   ArrowRight,
   BriefcaseBusiness,
+  Check,
+  CheckCircle2,
   Download,
   Plus,
-  Sparkles,
+  RefreshCw,
+  Star,
   Video,
   WandSparkles,
 } from "lucide-react";
@@ -42,8 +45,19 @@ import {
 } from "../../lib/api";
 import { useAuth } from "../../context/useAuth";
 import { useToast } from "../../components/ui/useToast";
-import { formatDate, formatRelativeTime } from "../../lib/utils";
+import { formatDate, formatRelativeTime, initials } from "../../lib/utils";
 import { useDebouncedValue } from "../../hooks/useApi";
+const greeting = () => {
+  const hour = new Date().getHours();
+  return hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+};
+const STAGES = ["submitted", "under_review", "shortlisted", "interview", "hired"];
+const COPILOT_SUGGESTIONS = [
+  "Which candidates are strongest for my open roles?",
+  "Where is my hiring process slowing down?",
+  "What skills am I hiring for most?",
+  "Summarize my open positions.",
+];
 const useOrg = () => {
   const { organizationId } = useParams(),
     auth = useAuth();
@@ -51,6 +65,7 @@ const useOrg = () => {
 };
 export const RecruiterDashboard = () => {
   const orgId = useOrg(),
+    auth = useAuth(),
     jobs = useQuery({
       queryKey: ["jobs-org", orgId, {}],
       queryFn: () => jobsApi.orgList(orgId, { limit: 20 }),
@@ -64,12 +79,10 @@ export const RecruiterDashboard = () => {
       queryFn: () => interviewApi.list(orgId, { limit: 10 }),
     }),
     applicationQueries = useQueries({
-      queries: (jobs.data?.data || [])
-        .slice(0, 4)
-        .map((job) => ({
-          queryKey: ["applications-job", orgId, job.id, "recent"],
-          queryFn: () => recruitmentApi.applications(orgId, job.id, { limit: 5 }),
-        })),
+      queries: (jobs.data?.data || []).slice(0, 4).map((job) => ({
+        queryKey: ["applications-job", orgId, job.id, "recent"],
+        queryFn: () => recruitmentApi.applications(orgId, job.id, { limit: 5 }),
+      })),
     });
   if (jobs.isLoading || analytics.isLoading) return <LoadingState />;
   const data = analytics.data?.data || {},
@@ -85,11 +98,11 @@ export const RecruiterDashboard = () => {
     <div className="page-wrap">
       <PageHeader
         eyebrow="Hiring workspace"
-        title="What needs attention"
-        description="A practical view of open work, pipeline friction and upcoming conversations."
+        title={`${greeting()}, ${auth.user?.displayName?.split(" ")[0] || "there"}`}
+        description="Here's what needs your attention today."
         action={
           <Button as={Link} to={`/app/o/${orgId}/jobs/new`} leftIcon={<Plus className="h-4 w-4" />}>
-            Create job
+            Create Job
           </Button>
         }
       />
@@ -112,21 +125,24 @@ export const RecruiterDashboard = () => {
       )}
       <div className="grid gap-6 lg:grid-cols-[1.2fr_.8fr]">
         <section className="panel p-6">
-          <h2 className="text-lg font-bold">Jobs requiring attention</h2>
+          <h2 className="text-lg font-bold">Jobs needing attention</h2>
           <div className="mt-4 space-y-3">
             {jobRows.slice(0, 6).map((j) => (
               <Link
                 key={j.id}
                 to={`/app/o/${orgId}/jobs/${j.id}/applications`}
-                className="flex items-center gap-4 rounded-xl border border-ink-100 p-4 hover:border-brand-200"
+                className="group flex items-center gap-4 rounded-xl border border-ink-100 bg-white p-4 transition-all hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-sm"
               >
                 <span
-                  className={`h-2.5 w-2.5 rounded-full ${j.status === "published" ? "bg-success-500" : "bg-warning-500"}`}
+                  className={`h-2.5 w-2.5 shrink-0 rounded-full ${j.status === "published" ? "bg-success-500" : "bg-warning-500"}`}
                 />
-                <div className="flex-1">
-                  <p className="font-semibold">{j.title}</p>
-                  <p className="text-xs text-ink-500">
-                    {j.status} · updated {formatRelativeTime(j.updatedAt)}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-semibold transition-colors group-hover:text-brand-700">
+                    {j.title}
+                  </p>
+                  <p className="truncate text-xs text-ink-500">
+                    {j.location} · {j.status.replace("_", " ")} · updated{" "}
+                    {formatRelativeTime(j.updatedAt)}
                   </p>
                 </div>
                 <ArrowRight className="h-4 w-4 text-ink-400" />
@@ -137,19 +153,21 @@ export const RecruiterDashboard = () => {
         </section>
         <div className="space-y-6">
           <section className="panel p-6">
-            <h2 className="font-bold">Pipeline pulse</h2>
-            <div className="mt-5 grid grid-cols-2 gap-5">
-              <Metric label="Applications" value={data.applications || 0} />
+            <h2 className="font-bold">Hiring Overview</h2>
+            <div className="mt-5 grid grid-cols-2 gap-3">
               <Metric
-                label="Shortlist rate"
-                value={`${Math.round((data.rates?.shortlist || 0) * 100)}%`}
+                label="Applications"
+                value={data.applications || 0}
+                icon={BriefcaseBusiness}
+              />
+              <Metric
+                label="Shortlisted"
+                value={data.funnel?.shortlisted || 0}
                 tone="brand"
+                icon={CheckCircle2}
               />
-              <Metric
-                label="Interview rate"
-                value={`${Math.round((data.rates?.interview || 0) * 100)}%`}
-              />
-              <Metric label="Human hires" value={data.funnel?.hired || 0} tone="success" />
+              <Metric label="Interviews" value={data.funnel?.interview || 0} icon={Video} />
+              <Metric label="Hired" value={data.funnel?.hired || 0} tone="success" icon={Star} />
             </div>
             <Link
               className="mt-5 inline-block text-sm font-semibold text-brand-600"
@@ -182,8 +200,8 @@ export const RecruiterDashboard = () => {
       <section className="mt-8">
         <div className="flex items-end justify-between">
           <div>
-            <p className="eyebrow">Recent applications</p>
-            <h2 className="mt-1 text-xl font-bold">Candidates requiring review</h2>
+            <p className="eyebrow">Recent Applications</p>
+            <h2 className="mt-1 text-xl font-bold">Candidates to Review</h2>
           </div>
         </div>
         <div className="mt-4 grid gap-3 lg:grid-cols-2">
@@ -191,11 +209,16 @@ export const RecruiterDashboard = () => {
             <Link
               key={a._id}
               to={`/app/o/${orgId}/applications/${a._id}`}
-              className="panel flex items-center gap-4 p-4"
+              className="panel group flex items-center gap-4 p-4 transition-all hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-[var(--shadow-card-hover)]"
             >
-              <div className="flex-1">
-                <p className="font-semibold">{a.candidate?.name || "Candidate"}</p>
-                <p className="text-xs text-ink-500">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand-50 text-xs font-bold text-brand-700">
+                {initials(a.candidate?.name)}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-semibold transition-colors group-hover:text-brand-700">
+                  {a.candidate?.name || "Candidate"}
+                </p>
+                <p className="truncate text-xs text-ink-500">
                   {a.candidate?.headline || "New applicant"} · {formatRelativeTime(a.appliedAt)}
                 </p>
               </div>
@@ -213,16 +236,26 @@ export const JobsPage = ({ assigned = false }) => {
     q = useQuery({
       queryKey: [assigned ? "assigned-jobs" : "jobs-org", orgId],
       queryFn: () => (assigned ? jobsApi.assigned(orgId) : jobsApi.orgList(orgId, { limit: 100 })),
-    });
+    }),
+    [jobSearch, setJobSearch] = useState(""),
+    [jobStatus, setJobStatus] = useState("");
+  const allJobs = q.data?.data || [];
+  const jobs = allJobs.filter(
+    (j) =>
+      (!jobSearch ||
+        j.title?.toLowerCase().includes(jobSearch.toLowerCase()) ||
+        j.location?.toLowerCase().includes(jobSearch.toLowerCase())) &&
+      (!jobStatus || j.status === jobStatus),
+  );
   return (
     <div className="page-wrap">
       <PageHeader
         eyebrow={assigned ? "Hiring manager" : "Jobs"}
-        title={assigned ? "Your assigned jobs" : "Build roles candidates can trust"}
+        title={assigned ? "Your assigned jobs" : "Your Jobs"}
         description={
           assigned
             ? "Review candidates and evidence for jobs where you are on the hiring team."
-            : "Draft structured requirements, improve the description with AI, then publish deliberately."
+            : "Create and manage the roles you're hiring for."
         }
         action={
           !assigned && (
@@ -231,31 +264,57 @@ export const JobsPage = ({ assigned = false }) => {
               to={`/app/o/${orgId}/jobs/new`}
               leftIcon={<Plus className="h-4 w-4" />}
             >
-              Create job
+              Create Job
             </Button>
           )
         }
       />
+      {!assigned && (
+        <div className="panel mb-5 flex flex-col gap-3 p-4 sm:flex-row">
+          <Input
+            aria-label="Search jobs"
+            placeholder="Search by title or location"
+            value={jobSearch}
+            onChange={(e) => setJobSearch(e.target.value)}
+            className="sm:max-w-xs"
+          />
+          <Select
+            aria-label="Filter by status"
+            placeholder="All statuses"
+            value={jobStatus}
+            onChange={(e) => setJobStatus(e.target.value)}
+            className="sm:max-w-44"
+            options={[
+              { value: "draft", label: "Draft" },
+              { value: "published", label: "Published" },
+              { value: "closed", label: "Closed" },
+            ]}
+          />
+        </div>
+      )}
       {q.isLoading ? (
         <SkeletonList />
       ) : q.error ? (
         <ErrorState error={q.error} />
-      ) : q.data?.data?.length ? (
+      ) : jobs.length ? (
         <div className="grid gap-4 lg:grid-cols-2">
-          {q.data.data.map((job) => (
-            <article className="panel p-5" key={job.id}>
-              <div className="flex items-start justify-between">
-                <div>
+          {jobs.map((job) => (
+            <article
+              className="panel p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-[var(--shadow-card-hover)]"
+              key={job.id}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <StatusPill status={job.status} />
                     {job.moderation?.status === "pending" && (
                       <span className="rounded-full bg-warning-50 px-2 py-0.5 text-xs font-semibold text-warning-700">
-                        Pending platform review
+                        Awaiting approval
                       </span>
                     )}
                     {job.moderation?.status === "rejected" && (
-                      <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700">
-                        Rejected{job.moderation.reason ? ` — ${job.moderation.reason}` : ""}
+                      <span className="rounded-full bg-danger-50 px-2 py-0.5 text-xs font-semibold text-danger-700">
+                        Not approved{job.moderation.reason ? ` — ${job.moderation.reason}` : ""}
                       </span>
                     )}
                   </div>
@@ -264,14 +323,14 @@ export const JobsPage = ({ assigned = false }) => {
                     {job.location} · {job.workplaceMode}
                   </p>
                 </div>
-                <BriefcaseBusiness className="h-5 w-5 text-brand-600" />
+                <BriefcaseBusiness className="h-5 w-5 shrink-0 text-brand-600" />
               </div>
-              <div className="mt-4 flex flex-wrap gap-2">
+              <div className="mt-4 flex flex-wrap gap-1.5">
                 {job.requiredSkills?.slice(0, 5).map((s) => (
                   <Badge key={s}>{s}</Badge>
                 ))}
               </div>
-              <div className="mt-5 flex gap-2">
+              <div className="mt-5 flex items-center gap-2 border-t border-ink-100 pt-4">
                 {!assigned && (
                   <Button
                     as={Link}
@@ -283,19 +342,27 @@ export const JobsPage = ({ assigned = false }) => {
                   </Button>
                 )}
                 <Button as={Link} size="sm" to={`/app/o/${orgId}/jobs/${job.id}/applications`}>
-                  Review candidates
+                  View Candidates
                 </Button>
+                <span className="ml-auto whitespace-nowrap text-xs text-ink-400">
+                  {job.createdAt ? `Posted ${formatDate(job.createdAt)}` : ""}
+                </span>
               </div>
             </article>
           ))}
         </div>
+      ) : allJobs.length ? (
+        <EmptyState
+          title="No jobs match your filters"
+          description="Try a different search or status."
+        />
       ) : (
         <EmptyState
           title={assigned ? "No assigned jobs" : "No jobs yet"}
           description={
             assigned
               ? "An organization owner can add you to a hiring team."
-              : "Create a structured draft to begin."
+              : "Create your first job to start hiring."
           }
         />
       )}
@@ -414,9 +481,9 @@ export const JobEditor = () => {
   return (
     <div className="page-wrap">
       <PageHeader
-        eyebrow="Structured job workspace"
-        title={jobId ? "Edit job draft" : "Create a job"}
-        description="Separate requirements from preferences. AI proposes changes; you decide what becomes the job."
+        eyebrow="Job Details"
+        title={jobId ? "Edit Job" : "Create a Job"}
+        description="Fill in the role requirements. AI can draft the description for you — you decide what gets published."
       />
       <div className="grid gap-6 xl:grid-cols-[1.1fr_.9fr]">
         <form onSubmit={handleSubmit(save)} className="panel space-y-5 p-6" noValidate>
@@ -463,7 +530,7 @@ export const JobEditor = () => {
           <Input label="Preferred skills" hint="Comma-separated" {...register("preferredSkills")} />
           <div className="flex flex-wrap justify-end gap-2">
             <Button type="submit" variant="secondary" isLoading={isSubmitting}>
-              Save draft
+              Save Draft
             </Button>
             {jobId && (
               <Button type="button" onClick={() => publish.mutate()} isLoading={publish.isPending}>
@@ -507,15 +574,14 @@ export const JobEditor = () => {
           )}
         </form>
         <aside className="ai-panel h-fit p-6">
-          <p className="eyebrow !text-cyan-300">AI JD copilot</p>
-          <h2 className="mt-2 text-xl font-bold">Improve clarity without losing control.</h2>
+          <p className="eyebrow !text-cyan-300">AI Description Assist</p>
+          <h2 className="mt-2 text-xl font-bold">Draft the description for you.</h2>
           <p className="mt-2 text-sm leading-6 text-ink-300">
-            The backend validates every structured response. Review the full proposal before
-            applying it.
+            AI suggestions are decision support only — review every draft before applying it.
           </p>
           <Textarea
             className="mt-5 !border-white/10 !bg-white/6 !text-white"
-            label="Role brief for a new draft"
+            label="Describe the role"
             value={brief}
             onChange={(e) => setBrief(e.target.value)}
             placeholder="Team context, outcomes, responsibilities and must-have evidence…"
@@ -527,14 +593,12 @@ export const JobEditor = () => {
             isLoading={generate.isPending}
             onClick={() => generate.mutate()}
           >
-            Generate from brief
+            Generate with AI
           </Button>
           {generated && (
             <div className="mt-4 rounded-xl bg-white/6 p-4">
-              <p className="text-xs text-ink-400">
-                {generated.metadata?.provider} · {generated.metadata?.model}
-                {generated.metadata?.fallbackUsed ? " · deterministic fallback" : ""} ·{" "}
-                {Math.round((generated.confidence || 0) * 100)}% confidence
+              <p className="text-xs font-semibold text-cyan-300">
+                AI Assistant draft — review before applying
               </p>
               <p className="mt-2 font-semibold">{generated.title}</p>
               <p className="mt-2 max-h-40 overflow-y-auto text-sm text-ink-300">
@@ -551,7 +615,7 @@ export const JobEditor = () => {
                   setValue("preferredSkills", generated.preferredSkills.join(", "));
                 }}
               >
-                Use generated draft
+                Use This Draft
               </Button>
             </div>
           )}
@@ -562,7 +626,7 @@ export const JobEditor = () => {
             isLoading={improve.isPending}
             leftIcon={<WandSparkles className="h-4 w-4" />}
           >
-            Improve description
+            Improve Description
           </Button>
           {improve.error && (
             <div className="mt-4">
@@ -652,17 +716,17 @@ export const ApplicantsPage = () => {
   return (
     <div className="page-wrap">
       <PageHeader
-        eyebrow="Applicant pipeline"
-        title="Review evidence, then decide"
-        description="AI scores are decision support. Unscored and failed candidates remain visible."
+        eyebrow="Applications"
+        title="Review candidates for this job"
+        description="Check each match, then update their progress. AI scores are decision support, not decisions."
         action={
           <div className="flex gap-2">
             <Button
               variant="secondary"
               onClick={computeAll}
-              leftIcon={<Sparkles className="h-4 w-4" />}
+              leftIcon={<RefreshCw className="h-4 w-4" />}
             >
-              Refresh matches
+              Refresh Candidates
             </Button>
             {selected.length >= 2 && (
               <Button as={Link} to={`/app/o/${orgId}/compare?applicationIds=${selected.join(",")}`}>
@@ -675,7 +739,7 @@ export const ApplicantsPage = () => {
       <div className="panel mb-5 grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
         <Input
           aria-label="Search applicants"
-          placeholder="Name or skill"
+          placeholder="Search by name or skill"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -723,7 +787,7 @@ export const ApplicantsPage = () => {
             return (
               <article
                 key={a._id}
-                className="panel flex flex-col gap-4 p-5 lg:flex-row lg:items-center"
+                className="panel group flex flex-col gap-4 p-5 transition-all hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-[var(--shadow-card-hover)] lg:flex-row lg:items-center"
               >
                 <input
                   type="checkbox"
@@ -735,9 +799,14 @@ export const ApplicantsPage = () => {
                     )
                   }
                 />
+                <span className="hidden h-11 w-11 shrink-0 place-items-center rounded-full bg-brand-50 text-sm font-bold text-brand-700 lg:grid">
+                  {initials(candidate.name)}
+                </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="font-bold">{candidate.name}</h2>
+                    <h2 className="font-bold transition-colors group-hover:text-brand-700">
+                      {candidate.name}
+                    </h2>
                     <StatusPill status={a.status} />
                     {a.tags?.map((t) => (
                       <Badge key={t} variant="outline">
@@ -755,11 +824,11 @@ export const ApplicantsPage = () => {
                     ))}
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                   {match ? (
                     <div className="text-right">
                       <p className="text-2xl font-bold text-brand-700">{match.overallScore}</p>
-                      <p className="text-[10px] uppercase text-ink-400">
+                      <p className="text-[10px] uppercase tracking-wide text-ink-400">
                         {Math.round(match.confidence * 100)}% confidence
                       </p>
                     </div>
@@ -770,11 +839,11 @@ export const ApplicantsPage = () => {
                       onClick={() => matchQueries[index].refetch()}
                       isLoading={matchQueries[index].isFetching}
                     >
-                      Score candidate
+                      Get Match
                     </Button>
                   )}
                   <Button as={Link} size="sm" to={`/app/o/${orgId}/applications/${a._id}`}>
-                    Review
+                    View Candidate
                   </Button>
                 </div>
               </article>
@@ -838,6 +907,14 @@ export const CandidateDetail = () => {
         }),
       "Stage updated",
     ),
+    shortlist = useAction(
+      () =>
+        recruitmentApi.transition(orgId, applicationId, {
+          toStatus: "shortlisted",
+          note: "Shortlisted from candidate review",
+        }),
+      "Moved to shortlist",
+    ),
     addNote = useAction(
       () =>
         recruitmentApi.addNote(orgId, applicationId, {
@@ -872,6 +949,7 @@ export const CandidateDetail = () => {
     );
   const { application: a } = detail.data.data,
     c = a.candidate || {};
+  const historyStatuses = new Set((a.statusHistory || []).map((h) => h.status));
   return (
     <div className="page-wrap">
       <PageHeader
@@ -879,7 +957,7 @@ export const CandidateDetail = () => {
         title={c.name || "Candidate"}
         description={`${c.headline || "Applicant"} · ${c.location || "Location not specified"}`}
         action={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button
               variant="secondary"
               onClick={async () => {
@@ -887,7 +965,7 @@ export const CandidateDetail = () => {
                 setPreviewUrl(URL.createObjectURL(blob));
               }}
             >
-              Preview
+              Preview Resume
             </Button>
             <Button
               variant="secondary"
@@ -899,8 +977,25 @@ export const CandidateDetail = () => {
               }
               leftIcon={<Download className="h-4 w-4" />}
             >
-              Download
+              Download Resume
             </Button>
+            {![
+              "shortlisted",
+              "interview",
+              "offer",
+              "hired",
+              "rejected",
+              "withdrawn",
+              "closed",
+            ].includes(a.status) && (
+              <Button
+                onClick={() => shortlist.mutate()}
+                isLoading={shortlist.isPending}
+                leftIcon={<Star className="h-4 w-4" />}
+              >
+                Shortlist
+              </Button>
+            )}
             <StatusPill status={a.status} />
           </div>
         }
@@ -908,7 +1003,7 @@ export const CandidateDetail = () => {
       <div className="grid gap-6 xl:grid-cols-[1fr_22rem]">
         <main className="space-y-6">
           <section className="panel p-6">
-            <h2 className="text-lg font-bold">Explainable candidate fit</h2>
+            <h2 className="text-lg font-bold">Why this candidate matches</h2>
             {match.isLoading ? (
               <LoadingState />
             ) : match.error ? (
@@ -920,23 +1015,69 @@ export const CandidateDetail = () => {
             )}
           </section>
           <section className="panel p-6">
-            <h2 className="font-bold">Application timeline</h2>
-            <div className="mt-4 space-y-3">
-              {a.statusHistory?.map((h, i) => (
-                <div key={`${h.status}-${i}`} className="flex gap-3">
-                  <span className="mt-1.5 h-2.5 w-2.5 rounded-full bg-brand-500" />
-                  <div>
-                    <p className="text-sm font-semibold capitalize">
-                      {h.status.replaceAll("_", " ")}
+            <h2 className="font-bold">Application History</h2>
+            <ol className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-5">
+              {STAGES.map((stage, i) => {
+                const reached = historyStatuses.has(stage) || i === 0;
+                const current = a.status === stage;
+                return (
+                  <li key={stage} className="relative">
+                    {i > 0 && (
+                      <span
+                        aria-hidden="true"
+                        className={`absolute -left-3.5 top-3 hidden h-0.5 w-6 sm:block ${
+                          reached ? "bg-brand-300" : "bg-ink-200"
+                        }`}
+                      />
+                    )}
+                    <span
+                      className={`grid h-7 w-7 place-items-center rounded-full text-[11px] font-bold ${
+                        current
+                          ? "bg-brand-600 text-white ring-4 ring-brand-100"
+                          : reached
+                            ? "bg-brand-50 text-brand-700"
+                            : "bg-ink-100 text-ink-400"
+                      }`}
+                    >
+                      {reached ? <Check className="h-3.5 w-3.5" /> : i + 1}
+                    </span>
+                    <p
+                      className={`mt-1.5 text-xs font-semibold capitalize ${
+                        current ? "text-brand-700" : "text-ink-600"
+                      }`}
+                    >
+                      {stage.replaceAll("_", " ")}
                     </p>
-                    <p className="text-xs text-ink-400">{formatDate(h.changedAt)}</p>
+                  </li>
+                );
+              })}
+            </ol>
+            {["rejected", "withdrawn", "closed"].includes(a.status) && (
+              <p className="mt-4 rounded-lg bg-danger-50 px-3 py-2 text-xs font-semibold text-danger-700">
+                This application is {a.status.replaceAll("_", " ")} and no longer in progress.
+              </p>
+            )}
+            {(a.statusHistory || []).length > 0 && (
+              <div className="mt-5 space-y-3 border-t border-ink-100 pt-4">
+                {[...a.statusHistory].reverse().map((h, i) => (
+                  <div key={`${h.status}-${i}`} className="flex gap-3">
+                    <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-brand-500" />
+                    <div>
+                      <p className="text-sm font-semibold capitalize">
+                        {h.status.replaceAll("_", " ")}
+                        {h.note ? (
+                          <span className="font-normal text-ink-500"> — {h.note}</span>
+                        ) : null}
+                      </p>
+                      <p className="text-xs text-ink-400">{formatDate(h.changedAt)}</p>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </section>
           <section className="panel p-6">
-            <h2 className="font-bold">Hiring team notes</h2>
+            <h2 className="font-bold">Recruiter Notes</h2>
             <div className="mt-4 space-y-3">
               {notes.data?.data?.map((n) => (
                 <div key={n._id} className="rounded-xl bg-ink-50 p-4">
@@ -969,7 +1110,7 @@ export const CandidateDetail = () => {
         </main>
         <aside className="space-y-4">
           <section className="panel p-5">
-            <h2 className="font-bold">Progress candidate</h2>
+            <h2 className="font-bold">Update Application</h2>
             <Select
               className="mt-3"
               value={transition}
@@ -1010,7 +1151,7 @@ export const CandidateDetail = () => {
             </Button>
           </section>
           <section className="panel p-5">
-            <h2 className="font-bold">Contact candidate</h2>
+            <h2 className="font-bold">Contact Candidate</h2>
             <Input
               className="mt-3"
               placeholder="Subject"
@@ -1030,7 +1171,7 @@ export const CandidateDetail = () => {
               isLoading={send.isPending}
               onClick={() => send.mutate()}
             >
-              Queue email
+              Send Message
             </Button>
           </section>
           <Button
@@ -1039,7 +1180,7 @@ export const CandidateDetail = () => {
             to={`/app/o/${orgId}/interviews?applicationId=${applicationId}`}
             leftIcon={<Video className="h-4 w-4" />}
           >
-            Schedule interview
+            Schedule Interview
           </Button>
         </aside>
       </div>
@@ -1097,7 +1238,7 @@ export const ComparePage = () => {
                 </div>
               ) : (
                 <p className="mt-5 rounded-xl bg-warning-50 p-4 text-sm text-warning-700">
-                  No completed match. Return to the pipeline and score this candidate.
+                  No match score yet. Open the candidate and generate their match.
                 </p>
               )}
             </article>
@@ -1135,13 +1276,13 @@ export const CandidateSearch = () => {
   return (
     <div className="page-wrap">
       <PageHeader
-        eyebrow="Talent search"
-        title="Search candidates already in your pipeline"
-        description="Filters use application relationships and evidence available to this organization."
+        eyebrow="Find Candidates"
+        title="Find the right candidates"
+        description="Search and review candidates who match your open roles."
       />
       <div className="panel mb-6 grid gap-3 p-4 sm:grid-cols-3">
         <Input
-          placeholder="Skill"
+          placeholder="Search by name or skill"
           value={filters.skill}
           onChange={(e) => set((f) => ({ ...f, skill: e.target.value }))}
         />
@@ -1164,13 +1305,19 @@ export const CandidateSearch = () => {
       ) : (
         <div className="grid gap-3">
           {q.data?.data?.map((x) => (
-            <div className="panel flex items-center gap-4 p-5" key={x.candidate._id}>
-              <div className="flex-1">
-                <h2 className="font-bold">{x.candidate.name}</h2>
-                <p className="text-sm text-ink-500">
+            <div
+              className="panel flex flex-col gap-4 p-5 transition-all hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-sm sm:flex-row sm:items-center"
+              key={x.candidate._id}
+            >
+              <span className="hidden h-11 w-11 shrink-0 place-items-center rounded-full bg-brand-50 text-sm font-bold text-brand-700 sm:grid">
+                {initials(x.candidate.name)}
+              </span>
+              <div className="min-w-0 flex-1">
+                <h2 className="truncate font-bold">{x.candidate.name}</h2>
+                <p className="truncate text-sm text-ink-500">
                   {x.candidate.headline} · {x.candidate.location}
                 </p>
-                <div className="mt-2 flex gap-1">
+                <div className="mt-2 flex flex-wrap gap-1">
                   {x.candidate.skills?.slice(0, 6).map((s) => (
                     <Badge key={s}>{s}</Badge>
                   ))}
@@ -1183,7 +1330,7 @@ export const CandidateSearch = () => {
                   size="sm"
                   to={`/app/o/${orgId}/applications/${x.applicationIds[0]}`}
                 >
-                  Review
+                  View Candidate
                 </Button>
               )}
             </div>
@@ -1230,9 +1377,9 @@ export const InterviewsPage = () => {
   return (
     <div className="page-wrap">
       <PageHeader
-        eyebrow="Structured interviews"
-        title="Schedule, prepare and evaluate"
-        description="Calendar-neutral scheduling with evidence-backed scorecards."
+        eyebrow="Interviews"
+        title="Schedule and manage interviews"
+        description="Plan interviews, send invitations and keep evaluation organized."
       />
       <div className="grid gap-6 lg:grid-cols-[.72fr_1.28fr]">
         <form
@@ -1242,15 +1389,16 @@ export const InterviewsPage = () => {
             create.mutate();
           }}
         >
-          <h2 className="font-bold">Schedule interview</h2>
+          <h2 className="font-bold">Schedule Interview</h2>
           <Input
-            label="Application ID"
+            label="Candidate application ID"
+            hint="Found on the candidate review page."
             required
             value={form.applicationId}
             onChange={(e) => setForm((f) => ({ ...f, applicationId: e.target.value }))}
           />
           <Input
-            label="Title"
+            label="Interview title"
             required
             value={form.title}
             onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
@@ -1285,13 +1433,22 @@ export const InterviewsPage = () => {
                 <Link
                   key={i._id}
                   to={`/app/o/${orgId}/interviews/${i._id}`}
-                  className="panel flex items-center gap-4 p-5"
+                  className="panel group flex items-center gap-4 p-5 transition-all hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-sm"
                 >
-                  <Video className="h-5 w-5 text-brand-600" />
-                  <div className="flex-1">
-                    <h2 className="font-bold">{i.title}</h2>
-                    <p className="text-sm text-ink-500">
-                      {i.scheduledStart ? formatDate(i.scheduledStart) : "Unscheduled"}
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600">
+                    <Video className="h-5 w-5" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <h2 className="truncate font-bold transition-colors group-hover:text-brand-700">
+                      {i.title}
+                    </h2>
+                    <p className="truncate text-sm text-ink-500">
+                      {i.application?.job?.title || i.candidate?.name || "Candidate"} ·{" "}
+                      {i.scheduledStart
+                        ? `${formatDate(i.scheduledStart)} · ${new Date(
+                            i.scheduledStart,
+                          ).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+                        : "Unscheduled"}
                     </p>
                   </div>
                   <StatusPill status={i.status} />
@@ -1329,7 +1486,7 @@ export const InterviewDetail = () => {
       <PageHeader
         eyebrow="Interview workspace"
         title={interview?.title || "Interview"}
-        description="Generate a grounded kit, then submit human evidence."
+        description="Generate a grounded question kit, then submit your evaluation."
         action={interview && <StatusPill status={interview.status} />}
       />
       <div className="grid gap-6 lg:grid-cols-2">
@@ -1371,7 +1528,7 @@ export const InterviewDetail = () => {
             feedback.mutate();
           }}
         >
-          <h2 className="text-xl font-bold">Structured feedback</h2>
+          <h2 className="text-xl font-bold">Interview Feedback</h2>
           <p className="mt-1 text-sm text-ink-500">
             Use observable evidence. Do not include protected attributes.
           </p>
@@ -1448,19 +1605,24 @@ export const AnalyticsPage = () => {
   return (
     <div className="page-wrap">
       <PageHeader
-        eyebrow="Recruitment analytics"
-        title="Find pipeline friction, not vanity metrics"
-        description="AI score generation is reported separately from human outcomes."
+        eyebrow="Hiring Insights"
+        title="Understand your hiring activity"
+        description="See where candidates are moving through the hiring process. AI recommendations are shown separately from final hiring decisions."
       />
-      <div className="panel grid gap-6 p-6 sm:grid-cols-2 lg:grid-cols-4">
-        <Metric label="Applications" value={d.applications} />
-        <Metric label="Shortlist rate" value={`${Math.round(d.rates.shortlist * 100)}%`} />
-        <Metric label="Interview rate" value={`${Math.round(d.rates.interview * 100)}%`} />
-        <Metric label="Hire rate" value={`${Math.round(d.rates.hired * 100)}%`} tone="success" />
+      <div className="panel grid gap-4 p-6 sm:grid-cols-2 lg:grid-cols-4">
+        <Metric label="Applications" value={d.applications || 0} icon={BriefcaseBusiness} />
+        <Metric
+          label="Shortlisted"
+          value={d.funnel?.shortlisted || 0}
+          tone="brand"
+          icon={CheckCircle2}
+        />
+        <Metric label="Interviews" value={d.funnel?.interview || 0} icon={Video} />
+        <Metric label="Hired" value={d.funnel?.hired || 0} tone="success" icon={Star} />
       </div>
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <section className="panel p-6">
-          <h2 className="font-bold">Funnel</h2>
+          <h2 className="font-bold">Hiring Progress</h2>
           <div className="mt-5 space-y-4">
             {stages.map(([stage, count]) => (
               <div key={stage}>
@@ -1479,7 +1641,7 @@ export const AnalyticsPage = () => {
           </div>
         </section>
         <section className="panel p-6">
-          <h2 className="font-bold">Source performance</h2>
+          <h2 className="font-bold">Application Sources</h2>
           <div className="mt-4 space-y-3">
             {d.sourcePerformance?.map((s) => (
               <div className="flex justify-between rounded-xl bg-ink-50 p-4" key={s._id}>
@@ -1493,7 +1655,11 @@ export const AnalyticsPage = () => {
         </section>
       </div>
       <section className="ai-panel mt-6 p-6">
-        <h2 className="font-bold">AI activity — not hiring outcomes</h2>
+        <h2 className="font-bold">AI Activity</h2>
+        <p className="mt-1 text-sm text-ink-400">
+          How often the AI Assistant used each feature. These runs are decision support, never
+          hiring outcomes.
+        </p>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {ai.data?.data?.map((x) => (
             <div key={JSON.stringify(x._id)} className="rounded-xl bg-white/6 p-4">
@@ -1519,9 +1685,9 @@ export const RecruiterCopilot = () => {
   return (
     <div className="page-wrap max-w-5xl">
       <PageHeader
-        eyebrow="Recruiter copilot"
-        title="Reason over authorized hiring context"
-        description="No proposed action executes without explicit confirmation."
+        eyebrow="AI Assistant"
+        title="Ask your AI hiring assistant"
+        description="Get quick insights from your jobs and candidates. AI suggestions never perform hiring actions on their own."
       />
       <div className="ai-panel p-7">
         <Textarea
@@ -1529,17 +1695,28 @@ export const RecruiterCopilot = () => {
           className="!border-white/10 !bg-white/6 !text-white"
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
-          placeholder="What pipeline bottlenecks should I inspect this week?"
+          placeholder="Ask about your jobs, candidates or hiring progress..."
         />
-        <Button
-          className="mt-3"
-          variant="secondary"
-          disabled={question.length < 10}
-          isLoading={run.isPending}
-          onClick={() => run.mutate()}
-        >
-          Ask copilot
-        </Button>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <Button
+            variant="secondary"
+            disabled={question.length < 10}
+            isLoading={run.isPending}
+            onClick={() => run.mutate()}
+          >
+            Ask Assistant
+          </Button>
+          {COPILOT_SUGGESTIONS.map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => setQuestion(s)}
+              className="rounded-full border border-white/15 px-3 py-1.5 text-xs font-medium text-ink-300 transition-colors hover:border-brand-400 hover:text-white"
+            >
+              {s}
+            </button>
+          ))}
+        </div>
         {run.error && (
           <div className="mt-4">
             <ErrorCallout error={run.error} />
@@ -1557,7 +1734,7 @@ export const RecruiterCopilot = () => {
               <div key={a.description} className="mt-3 rounded-xl border border-white/10 p-4">
                 <p className="text-sm">{a.description}</p>
                 <p className="mt-3 text-xs text-warning-500">
-                  Proposal only — no supported mutation endpoint exists for this action.
+                  Suggestion only — HireSmart never performs hiring actions automatically.
                 </p>
               </div>
             ))}
@@ -1582,6 +1759,7 @@ export const TeamPage = () => {
       enabled: canManage,
     }),
     [form, setForm] = useState({ email: "", role: "recruiter" }),
+    [inviteOpen, setInviteOpen] = useState(false),
     [confirmId, setConfirmId] = useState(null),
     [lastLink, setLastLink] = useState(""),
     toast = useToast(),
@@ -1590,6 +1768,7 @@ export const TeamPage = () => {
       mutationFn: () => organizationApi.invite(orgId, form),
       onSuccess: (r) => {
         setForm({ email: "", role: "recruiter" });
+        setInviteOpen(false);
         setLastLink(`${window.location.origin}/accept-invite?token=${r.data.invitation.token}`);
         qc.invalidateQueries({ queryKey: ["organization-invitations", orgId] });
         toast.success(`Invitation sent to ${form.email}`);
@@ -1636,39 +1815,61 @@ export const TeamPage = () => {
   return (
     <div className="page-wrap">
       <PageHeader
-        eyebrow="Organization"
-        title="Team & access"
-        description="Invite teammates by email. They open the link, create or sign in to their account, and join the company with the role you choose."
+        eyebrow="Team"
+        title="Manage your team"
+        description="Invite teammates and control their roles. They open the link, create or sign in to their account, and join the company."
+        action={
+          <Button onClick={() => setInviteOpen(true)} leftIcon={<Plus className="h-4 w-4" />}>
+            Invite Member
+          </Button>
+        }
       />
       <JobApprovalToggle />
-      <form
-        className="panel mb-4 grid gap-3 p-4 sm:grid-cols-[1fr_14rem_auto]"
-        onSubmit={(e) => {
-          e.preventDefault();
-          invite.mutate();
-        }}
+      <Modal
+        isOpen={inviteOpen}
+        onClose={() => setInviteOpen(false)}
+        title="Invite a teammate"
+        description="They'll get a secure link to join the company with the role you choose."
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setInviteOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" form="invite-form" isLoading={invite.isPending}>
+              Send Invite
+            </Button>
+          </>
+        }
       >
-        <Input
-          aria-label="Teammate email"
-          type="email"
-          placeholder="Teammate email"
-          value={form.email}
-          onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-        />
-        <Select
-          aria-label="Role"
-          value={form.role}
-          onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}
-          options={["recruiter", "hiring_manager", "interviewer", "viewer", "admin"].map((x) => ({
-            value: x,
-            label: x.replace("_", " "),
-          }))}
-        />
-        <Button type="submit" isLoading={invite.isPending}>
-          Invite
-        </Button>
-      </form>
-      {invite.error && <ErrorCallout error={invite.error} />}
+        <form
+          id="invite-form"
+          className="space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            invite.mutate();
+          }}
+        >
+          <Input
+            aria-label="Teammate email"
+            label="Email"
+            type="email"
+            placeholder="Teammate email"
+            value={form.email}
+            onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+          />
+          <Select
+            aria-label="Role"
+            label="Role"
+            value={form.role}
+            onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}
+            options={["recruiter", "hiring_manager", "interviewer", "viewer", "admin"].map((x) => ({
+              value: x,
+              label: x.replace("_", " "),
+            }))}
+          />
+          {invite.error && <ErrorCallout error={invite.error} />}
+        </form>
+      </Modal>
       {lastLink && (
         <div className="panel mb-4 flex flex-wrap items-center gap-3 p-4">
           <p className="flex-1 text-sm">
@@ -1730,10 +1931,16 @@ export const TeamPage = () => {
         {q.data?.data?.map((m) => {
           const removable = m.role !== "owner" && m.status !== "revoked";
           return (
-            <div className="panel flex flex-wrap items-center gap-4 p-5" key={m._id}>
-              <div className="flex-1">
-                <p className="font-semibold">{m.user?.name}</p>
-                <p className="text-sm text-ink-500">{m.user?.email}</p>
+            <div
+              className="panel flex flex-wrap items-center gap-4 p-5 transition-colors hover:border-brand-200"
+              key={m._id}
+            >
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand-50 text-xs font-bold text-brand-700">
+                {initials(m.user?.name)}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-semibold">{m.user?.name}</p>
+                <p className="truncate text-sm text-ink-500">{m.user?.email}</p>
               </div>
               <Badge>{m.role.replace("_", " ")}</Badge>
               <StatusPill status={m.status} />
@@ -1865,9 +2072,9 @@ const JobApprovalToggle = () => {
   return (
     <section className="panel mb-4 flex flex-wrap items-center gap-4 p-4">
       <div className="min-w-56 flex-1">
-        <p className="font-bold">Job review</p>
+        <p className="font-bold">Job Approval</p>
         <p className="mt-0.5 text-sm text-ink-500">
-          Require platform approval before new jobs appear on public search and company pages.
+          New jobs need platform approval before they appear in public search and on company pages.
           Already approved jobs stay live.
         </p>
       </div>
