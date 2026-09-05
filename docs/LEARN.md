@@ -932,10 +932,11 @@ Open <http://localhost:5173>.
 
 | Role | Email | Password |
 |---|---|---|
-| Candidate | `anastai.candidate@hiresmart.ai` | `Password@123` |
-| Recruiter | `alexander.recruiter@hiresmart.ai` | `Password@123` |
+| Candidate | `candidate.demo@hiresmart.dev` | `Candidate@123` |
+| Recruiter | `recruiter.demo@hiresmart.dev` | `Recruiter@123` |
 
-The login page has one-click buttons for both.
+Created by `npm run demo`. For an admin, set `ADMIN_NAME`/`ADMIN_EMAIL`/`ADMIN_PASSWORD`
+in `server/.env` and run `npm run bootstrap:admin`.
 
 ### Useful commands
 

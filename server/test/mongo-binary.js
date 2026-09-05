@@ -20,35 +20,35 @@ const path = require("node:path");
 const CACHE_ROOT = path.join(os.homedir(), ".cache", "mongodb-binaries");
 
 const candidatePaths = () => {
-    const paths = [];
+  const paths = [];
 
-    // 1. Explicit opt-in always wins.
-    if (process.env.MONGOMS_SYSTEM_BINARY) {
-        paths.push(process.env.MONGOMS_SYSTEM_BINARY);
+  // 1. Explicit opt-in always wins.
+  if (process.env.MONGOMS_SYSTEM_BINARY) {
+    paths.push(process.env.MONGOMS_SYSTEM_BINARY);
+  }
+
+  // 2. Anything previously downloaded/placed in the shared cache directory.
+  try {
+    for (const entry of fs.readdirSync(CACHE_ROOT)) {
+      paths.push(path.join(CACHE_ROOT, entry, "mongod"));
+      paths.push(path.join(CACHE_ROOT, entry));
     }
+  } catch {
+    // The cache directory simply does not exist yet - not an error.
+  }
 
-    // 2. Anything previously downloaded/placed in the shared cache directory.
-    try {
-        for (const entry of fs.readdirSync(CACHE_ROOT)) {
-            paths.push(path.join(CACHE_ROOT, entry, "mongod"));
-            paths.push(path.join(CACHE_ROOT, entry));
-        }
-    } catch {
-        // The cache directory simply does not exist yet - not an error.
-    }
+  // 3. A mongod installed system-wide.
+  paths.push("/usr/bin/mongod", "/usr/local/bin/mongod", "/opt/homebrew/bin/mongod");
 
-    // 3. A mongod installed system-wide.
-    paths.push("/usr/bin/mongod", "/usr/local/bin/mongod", "/opt/homebrew/bin/mongod");
-
-    return paths;
+  return paths;
 };
 
 const isExecutableFile = (candidate) => {
-    try {
-        return fs.statSync(candidate).isFile();
-    } catch {
-        return false;
-    }
+  try {
+    return fs.statSync(candidate).isFile();
+  } catch {
+    return false;
+  }
 };
 
 /**
@@ -56,25 +56,25 @@ const isExecutableFile = (candidate) => {
  * Returns the resolved path, or null when we should let the library download.
  */
 const useLocalMongodIfAvailable = () => {
-    const found = candidatePaths().find(isExecutableFile);
+  const found = candidatePaths().find(isExecutableFile);
 
-    if (!found) {
-        return null;
-    }
+  if (!found) {
+    return null;
+  }
 
-    process.env.MONGOMS_SYSTEM_BINARY = found;
+  process.env.MONGOMS_SYSTEM_BINARY = found;
 
-    // Older mongod builds link against OpenSSL 1.1. If matching libraries were
-    // vendored next to the binary, put them on the loader path.
-    const vendoredLibs = path.join(os.homedir(), ".local", "lib", "mongo");
+  // Older mongod builds link against OpenSSL 1.1. If matching libraries were
+  // vendored next to the binary, put them on the loader path.
+  const vendoredLibs = path.join(os.homedir(), ".local", "lib", "mongo");
 
-    if (fs.existsSync(vendoredLibs)) {
-        process.env.LD_LIBRARY_PATH = [process.env.LD_LIBRARY_PATH, vendoredLibs]
-            .filter(Boolean)
-            .join(":");
-    }
+  if (fs.existsSync(vendoredLibs)) {
+    process.env.LD_LIBRARY_PATH = [process.env.LD_LIBRARY_PATH, vendoredLibs]
+      .filter(Boolean)
+      .join(":");
+  }
 
-    return found;
+  return found;
 };
 
 module.exports = { useLocalMongodIfAvailable };
