@@ -27,6 +27,7 @@ const candidateLinks = [
   ["/app/candidate", "Home", LayoutDashboard],
   ["/app/candidate/jobs", "Discover", Search],
   ["/app/candidate/applications", "Applications", BriefcaseBusiness],
+  ["/app/candidate/interviews", "Interviews", Video],
   ["/app/candidate/resumes", "Resumes", FileText],
   ["/app/candidate/alerts", "Alerts", Bell],
   ["/app/candidate/copilot", "Career copilot", Sparkles],

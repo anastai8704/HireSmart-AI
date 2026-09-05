@@ -32,7 +32,7 @@ const seedFreshData = async () => {
   console.log("✓ Cleared all previous data from database.");
 
   const defaultPasswordHash = await bcrypt.hash("Password@123", 8);
-  const adminPasswordHash = await bcrypt.hash(process.env.ADMIN_PASSWORD || "$@Ima8704", 8);
+  const adminPasswordHash = await bcrypt.hash(process.env.ADMIN_PASSWORD || "Password@123", 8);
 
   // 2. Generate New User IDs
   const adminId = new mongoose.Types.ObjectId();
@@ -45,7 +45,7 @@ const seedFreshData = async () => {
   const users = [
     {
       _id: adminId,
-      name: process.env.ADMIN_NAME || "ANAS TAI",
+      name: process.env.ADMIN_NAME || "Platform Admin",
       email: process.env.ADMIN_EMAIL || "admin@example.com",
       password: adminPasswordHash,
       role: "admin",
