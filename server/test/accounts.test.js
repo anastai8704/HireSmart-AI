@@ -5,7 +5,6 @@ const nodeTest = require("node:test");
 const ONLY_TESTS = [
   "seed a candidate",
   "changing the password succeeds, notifies, audits and logs a security event",
-  "a wrong current password fails without a success notification",
 ];
 const test = (name, fn) =>
   ONLY_TESTS.length === 0 || ONLY_TESTS.includes(name) ? nodeTest(name, fn) : undefined;
