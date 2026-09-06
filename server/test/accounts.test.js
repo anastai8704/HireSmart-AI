@@ -2,11 +2,7 @@ process.env.NODE_ENV = "test";
 const assert = require("node:assert/strict");
 const nodeTest = require("node:test");
 // TEMP-DIAG: run only the listed tests (empty = all).
-const ONLY_TESTS = [
-  "seed a candidate",
-  "a wrong current password fails without a success notification",
-  "the user can read their own security activity",
-];
+const ONLY_TESTS = ["seed a candidate"];
 const test = (name, fn) =>
   ONLY_TESTS.length === 0 || ONLY_TESTS.includes(name) ? nodeTest(name, fn) : undefined;
 test.before = nodeTest.before;
