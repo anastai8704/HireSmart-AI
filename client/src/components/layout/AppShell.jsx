@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   Bell,
   BriefcaseBusiness,
@@ -20,8 +20,10 @@ import {
   Video,
   X,
 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../../context/useAuth";
-import { cn, initials } from "../../lib/utils";
+import { notificationApi } from "../../lib/api";
+import { cn, formatRelativeTime, initials } from "../../lib/utils";
 
 const candidateGroups = [
   [
@@ -84,13 +86,42 @@ const adminGroups = [
       ["/app/admin/security", "Security & Audit", ShieldCheck],
     ],
   ],
+  [
+    "Account",
+    [
+      ["/app/notifications", "Notifications", Bell],
+      ["/app/settings", "Settings", Settings],
+    ],
+  ],
 ];
+
+const SECTION_TITLES = [
+  ["/app/admin/moderation", "Approvals"],
+  ["/app/admin/users", "Users"],
+  ["/app/admin/organizations", "Companies"],
+  ["/app/admin/ai-usage", "AI Activity"],
+  ["/app/admin/security", "Security & Audit"],
+  ["/app/notifications", "Notifications"],
+  ["/app/settings", "Settings"],
+];
+const sectionTitle = (path) =>
+  path === "/app/admin" ? "Overview" : SECTION_TITLES.find(([p]) => path.startsWith(p))?.[1] || "";
 
 const AppShell = () => {
   const auth = useAuth();
   const navigate = useNavigate();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(false),
+    [bellOpen, setBellOpen] = useState(false),
+    [menuOpen, setMenuOpen] = useState(false),
+    location = useLocation();
   const isAdmin = auth.role === "admin";
+  const notifications = useQuery({
+    queryKey: ["notifications", {}],
+    queryFn: () => notificationApi.list({ limit: 100 }),
+    enabled: isAdmin,
+    staleTime: 30_000,
+  });
+  const unread = (notifications.data?.data || []).filter((n) => !n.readAt);
   const groups = isAdmin
     ? adminGroups
     : auth.organization
@@ -209,7 +240,7 @@ const AppShell = () => {
             <span className="min-w-0 flex-1">
               <span className="block truncate text-sm font-semibold">{auth.user?.displayName}</span>
               <span className="block truncate text-xs text-ink-400">
-                {auth.workspaceRole?.replace("_", " ")}
+                {isAdmin ? "Platform Admin" : auth.workspaceRole?.replace("_", " ")}
               </span>
             </span>
             <NavLink
@@ -241,21 +272,138 @@ const AppShell = () => {
           <div className="hidden min-w-0 items-center gap-2 text-sm font-medium text-ink-500 sm:flex">
             <span className="h-1.5 w-1.5 rounded-full bg-success-500" aria-hidden="true" />
             <span className="truncate">
-              {auth.organization?.name ||
-                (isAdmin ? "Platform administration" : "Candidate workspace")}
+              {isAdmin
+                ? sectionTitle(location.pathname) || "Platform administration"
+                : auth.organization?.name || "Candidate workspace"}
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <NavLink
-              to="/app/notifications"
-              className="relative rounded-xl border border-ink-200 bg-white p-2.5 text-ink-600 shadow-sm transition-all hover:border-brand-300 hover:text-brand-600"
-              aria-label="Notifications"
-            >
-              <Bell className="h-4.5 w-4.5" />
-            </NavLink>
-            <span className="hidden h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-brand-400 to-brand-600 text-xs font-bold text-white sm:grid">
-              {initials(auth.user?.displayName)}
-            </span>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setBellOpen((v) => !v)}
+                aria-label={`Notifications${unread.length ? ` (${unread.length} unread)` : ""}`}
+                aria-expanded={bellOpen}
+                className="relative rounded-xl border border-ink-200 bg-white p-2.5 text-ink-600 shadow-sm transition-all hover:border-brand-300 hover:text-brand-600"
+              >
+                <Bell className="h-4.5 w-4.5" />
+                {unread.length > 0 && (
+                  <span className="absolute -right-1.5 -top-1.5 grid min-w-5 place-items-center rounded-full bg-danger-500 px-1 py-0.5 text-[10px] font-bold leading-none text-white">
+                    {unread.length > 99 ? "99+" : unread.length}
+                  </span>
+                )}
+              </button>
+              {bellOpen && (
+                <>
+                  <button
+                    type="button"
+                    aria-label="Close notifications"
+                    className="fixed inset-0 z-40 cursor-default"
+                    onClick={() => setBellOpen(false)}
+                  />
+                  <div className="absolute right-0 z-50 mt-2 w-80 overflow-hidden rounded-2xl border border-ink-200 bg-white shadow-xl">
+                    <div className="flex items-center justify-between border-b border-ink-100 px-4 py-3">
+                      <p className="text-sm font-bold">Notifications</p>
+                      <span className="text-xs text-ink-400">
+                        {unread.length ? `${unread.length} unread` : "All read"}
+                      </span>
+                    </div>
+                    <div className="max-h-80 overflow-y-auto">
+                      {(notifications.data?.data || []).slice(0, 6).map((n) => (
+                        <button
+                          key={n._id}
+                          type="button"
+                          onClick={() => {
+                            setBellOpen(false);
+                            navigate("/app/notifications");
+                          }}
+                          className="flex w-full items-start gap-3 border-b border-ink-50 px-4 py-3 text-left transition-colors hover:bg-ink-50"
+                        >
+                          <span
+                            className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${
+                              n.readAt ? "bg-ink-200" : "bg-brand-500"
+                            }`}
+                          />
+                          <span className="min-w-0">
+                            <span
+                              className={`block truncate text-sm ${n.readAt ? "text-ink-600" : "font-semibold"}`}
+                            >
+                              {n.title}
+                            </span>
+                            <span className="block text-xs text-ink-400">
+                              {formatRelativeTime(n.createdAt)}
+                            </span>
+                          </span>
+                        </button>
+                      ))}
+                      {notifications.data?.data?.length === 0 && (
+                        <p className="px-4 py-6 text-center text-sm text-ink-500">
+                          You're all caught up.
+                        </p>
+                      )}
+                    </div>
+                    <NavLink
+                      to="/app/notifications"
+                      onClick={() => setBellOpen(false)}
+                      className="block border-t border-ink-100 bg-ink-50/60 px-4 py-2.5 text-center text-sm font-semibold text-brand-600 hover:text-brand-700"
+                    >
+                      View all notifications
+                    </NavLink>
+                  </div>
+                </>
+              )}
+            </div>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setMenuOpen((v) => !v)}
+                aria-label="Account menu"
+                aria-expanded={menuOpen}
+                className="hidden h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-brand-400 to-brand-600 text-xs font-bold text-white transition-transform hover:scale-105 sm:grid"
+              >
+                {initials(auth.user?.displayName)}
+              </button>
+              {menuOpen && (
+                <>
+                  <button
+                    type="button"
+                    aria-label="Close account menu"
+                    className="fixed inset-0 z-40 cursor-default"
+                    onClick={() => setMenuOpen(false)}
+                  />
+                  <div className="absolute right-0 z-50 mt-2 w-64 overflow-hidden rounded-2xl border border-ink-200 bg-white shadow-xl">
+                    <div className="border-b border-ink-100 px-4 py-3">
+                      <p className="truncate text-sm font-bold">{auth.user?.displayName}</p>
+                      <p className="truncate text-xs text-ink-500">{auth.user?.email}</p>
+                      <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-brand-600">
+                        {auth.workspaceRole?.replace("_", " ")}
+                      </p>
+                    </div>
+                    <div className="p-1.5">
+                      <NavLink
+                        to="/app/settings"
+                        onClick={() => setMenuOpen(false)}
+                        className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium text-ink-700 transition-colors hover:bg-ink-100"
+                      >
+                        <Settings className="h-4 w-4" />
+                        Settings
+                      </NavLink>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          setMenuOpen(false);
+                          await signOut();
+                        }}
+                        className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm font-medium text-danger-600 transition-colors hover:bg-danger-50"
+                      >
+                        <LogOut className="h-4 w-4" />
+                        Sign out
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </header>
         <main id="main-content" tabIndex={-1} className="min-h-[calc(100vh-4rem)]">

@@ -109,6 +109,20 @@ export const initials = (name = "") =>
     .map((part) => part[0]?.toUpperCase() ?? "")
     .join("") || "?";
 
+/** "job.moderation.approved" -> "Job Moderation Approved" */
+export const humanizeAction = (value) =>
+  String(value || "")
+    .split(/[._]/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+
+/** Compact identifier for object ids in tables and drawers. */
+export const shortId = (id) => {
+  const s = String(id || "");
+  return s.length > 12 ? `${s.slice(0, 8)}\u2026` : s || "\u2014";
+};
+
 /** Shortens long text for cards and list rows. */
 export const truncate = (text, max = 140) => {
   if (!text) return "";

@@ -48,12 +48,12 @@ const RDashboard = pick(() => import("./pages/recruiter/RecruiterPages"), "Recru
   Assigned = pick(() => import("./pages/recruiter/RecruiterPages"), "JobsPage");
 const Notifications = pick(() => import("./pages/SystemPages"), "NotificationsPage"),
   Settings = pick(() => import("./pages/SystemPages"), "SettingsPage"),
-  AdminHome = pick(() => import("./pages/SystemPages"), "AdminHome"),
-  AdminUsers = pick(() => import("./pages/SystemPages"), "AdminUsers"),
-  AdminOrgs = pick(() => import("./pages/SystemPages"), "AdminOrganizations"),
-  AdminAI = pick(() => import("./pages/SystemPages"), "AdminAIUsage"),
-  AdminSecurity = pick(() => import("./pages/SystemPages"), "AdminSecurity"),
-  AdminModeration = pick(() => import("./pages/SystemPages"), "AdminModeration");
+  AdminHome = pick(() => import("./pages/admin/AdminPages"), "AdminHome"),
+  AdminUsers = pick(() => import("./pages/admin/AdminPages"), "AdminUsers"),
+  AdminOrgs = pick(() => import("./pages/admin/AdminPages"), "AdminOrganizations"),
+  AdminAI = pick(() => import("./pages/admin/AdminPages"), "AdminAIUsage"),
+  AdminSecurity = pick(() => import("./pages/admin/AdminPages"), "AdminSecurity"),
+  AdminModeration = pick(() => import("./pages/admin/AdminPages"), "AdminModeration");
 const Forbidden = lazy(() => import("./pages/Forbidden")),
   NotFound = lazy(() => import("./pages/NotFound"));
 const LegacyWorkspaceRedirect = () => {

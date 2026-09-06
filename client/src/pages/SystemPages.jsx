@@ -1,28 +1,29 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Bell,
   BriefcaseBusiness,
-  Building2,
+  CheckCircle2,
   Download,
   FileText,
   KeyRound,
   ShieldAlert,
   ShieldCheck,
-  Sparkles,
   Trash2,
   Video,
 } from "lucide-react";
 import Button from "../components/ui/Button";
-import Input, { Select } from "../components/ui/Input";
+import Input from "../components/ui/Input";
 import Badge from "../components/ui/Badge";
 import Modal from "../components/ui/Modal";
-import { EmptyState, ErrorState, LoadingState, SkeletonList } from "../components/ui/States";
-import { ErrorCallout, Metric, PageHeader, StatusPill } from "../components/Product";
-import { adminApi, authApi, downloadBlob, notificationApi, userApi } from "../lib/api";
+import { EmptyState, ErrorState, SkeletonList } from "../components/ui/States";
+import { ErrorCallout, PageHeader } from "../components/Product";
+import { authApi, downloadBlob, notificationApi, userApi } from "../lib/api";
 import { useAuth } from "../context/useAuth";
 import { useToast } from "../components/ui/useToast";
-import { formatDate, formatRelativeTime } from "../lib/utils";
+import { formatDate, formatRelativeTime, initials } from "../lib/utils";
+
 const notificationIcon = (title = "") => {
   const t = title.toLowerCase();
   if (t.includes("interview")) return Video;
@@ -31,8 +32,41 @@ const notificationIcon = (title = "") => {
   if (t.includes("security") || t.includes("password") || t.includes("suspend")) return ShieldCheck;
   return Bell;
 };
+
+/* Classifies real notification types/titles into portal categories. */
+const CATEGORY_DEFS = [
+  ["all", "All"],
+  ["approvals", "Approvals"],
+  ["security", "Security"],
+  ["ai-system", "AI & System"],
+  ["account", "Account"],
+];
+const categoryOf = (n) => {
+  const t = `${n.type || ""} ${n.title || ""} ${n.message || ""}`.toLowerCase();
+  if (t.includes("moderation") || t.includes("approv") || t.includes("job")) return "approvals";
+  if (
+    t.includes("security") ||
+    t.includes("password") ||
+    t.includes("session") ||
+    t.includes("suspend") ||
+    t.includes("deletion")
+  )
+    return "security";
+  if (
+    t.includes("ai ") ||
+    t.includes("ai_") ||
+    t.includes("analysis") ||
+    t.includes("copilot") ||
+    t.includes("system")
+  )
+    return "ai-system";
+  return "account";
+};
+
 export const NotificationsPage = () => {
-  const qc = useQueryClient(),
+  const auth = useAuth(),
+    qc = useQueryClient(),
+    [category, setCategory] = useState("all"),
     q = useQuery({
       queryKey: ["notifications", {}],
       queryFn: () => notificationApi.list({ limit: 100 }),
@@ -45,77 +79,171 @@ export const NotificationsPage = () => {
       mutationFn: notificationApi.readAll,
       onSuccess: () => qc.invalidateQueries({ queryKey: ["notifications"] }),
     });
+  const items = q.data?.data || [];
+  const filtered = category === "all" ? items : items.filter((n) => categoryOf(n) === category);
+  const unread = items.filter((n) => !n.readAt).length;
   return (
     <div className="page-wrap max-w-4xl">
       <PageHeader
         eyebrow="Updates"
         title="Notifications"
-        description="Everything about your applications, interviews and account — in one place."
+        description="Everything about approvals, security, AI activity and your account — in one place."
         action={
           <Button
             variant="secondary"
             size="sm"
             onClick={() => all.mutate()}
             isLoading={all.isPending}
+            disabled={unread === 0}
           >
             Mark all read
           </Button>
         }
       />
+      <div
+        className="mb-4 flex flex-wrap gap-2"
+        role="tablist"
+        aria-label="Notification categories"
+      >
+        {CATEGORY_DEFS.map(([key, label]) => {
+          const count =
+            key === "all" ? items.length : items.filter((n) => categoryOf(n) === key).length;
+          return (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={category === key}
+              onClick={() => setCategory(key)}
+              className={`rounded-full px-3.5 py-1.5 text-sm font-semibold transition ${
+                category === key
+                  ? "bg-ink-950 text-white"
+                  : "bg-ink-50 text-ink-600 hover:bg-ink-100"
+              }`}
+            >
+              {label}
+              {count > 0 && (
+                <span
+                  className={`ml-1.5 text-xs ${category === key ? "text-ink-300" : "text-ink-400"}`}
+                >
+                  {count}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
       {q.isLoading ? (
         <SkeletonList />
       ) : q.error ? (
-        <ErrorState error={q.error} />
-      ) : q.data?.data?.length ? (
+        <ErrorState error={q.error} onRetry={() => q.refetch()} />
+      ) : filtered.length ? (
         <div className="space-y-3">
-          {q.data.data.map((n) => (
-            <button
-              key={n._id}
-              onClick={() => !n.readAt && read.mutate(n._id)}
-              className={`panel flex w-full items-start gap-4 p-5 text-left ${!n.readAt ? "border-brand-200 bg-brand-50/30" : ""}`}
-            >
-              {(() => {
-                const Icon = notificationIcon(n.title);
-                return (
-                  <span
-                    className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${
-                      !n.readAt ? "bg-brand-100 text-brand-700" : "bg-ink-100 text-ink-500"
-                    }`}
-                  >
-                    <Icon className="h-4 w-4" />
-                  </span>
-                );
-              })()}
-              <span className="flex-1">
-                <span className="font-semibold">{n.title}</span>
-                <span className="mt-1 block text-sm text-ink-600">{n.message}</span>
-                <span className="mt-2 block text-xs text-ink-400">
-                  {formatRelativeTime(n.createdAt)}
+          {filtered.map((n) => {
+            const Icon = notificationIcon(n.title);
+            const isUnread = !n.readAt;
+            const related =
+              auth.role === "admin" && n.type === "job_moderation"
+                ? { to: "/app/admin/moderation", label: "Review approvals" }
+                : null;
+            return (
+              <button
+                key={n._id}
+                onClick={() => isUnread && read.mutate(n._id)}
+                className={`panel flex w-full items-start gap-4 p-5 text-left transition-colors ${
+                  isUnread ? "border-brand-200 bg-brand-50/30" : "hover:bg-ink-50/60"
+                }`}
+              >
+                <span
+                  className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${
+                    isUnread ? "bg-brand-100 text-brand-700" : "bg-ink-100 text-ink-500"
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
                 </span>
-              </span>
-              {!n.readAt && <span className="mt-2 h-2.5 w-2.5 rounded-full bg-brand-500" />}
-            </button>
-          ))}
+                <span className="min-w-0 flex-1">
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span className="font-semibold">{n.title}</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-ink-400">
+                      {categoryOf(n) === "ai-system" ? "AI & System" : categoryOf(n)}
+                    </span>
+                  </span>
+                  <span className="mt-1 block text-sm text-ink-600">{n.message}</span>
+                  <span className="mt-2 flex items-center gap-3 text-xs text-ink-400">
+                    {formatRelativeTime(n.createdAt)}
+                    {related && (
+                      <Link
+                        to={related.to}
+                        onClick={(e) => e.stopPropagation()}
+                        className="font-semibold text-brand-600 hover:text-brand-700"
+                      >
+                        {related.label}
+                      </Link>
+                    )}
+                  </span>
+                </span>
+                {isUnread && (
+                  <span className="mt-2 h-2.5 w-2.5 shrink-0 rounded-full bg-brand-500" />
+                )}
+              </button>
+            );
+          })}
         </div>
       ) : (
-        <EmptyState
-          title="You're all caught up"
-          description="New hiring updates will appear here."
-        />
+        <div className="panel p-10">
+          <EmptyState
+            icon={category === "all" ? Bell : CheckCircle2}
+            title={
+              category === "all"
+                ? "You're all caught up"
+                : `No ${CATEGORY_DEFS.find(([k]) => k === category)?.[1].toLowerCase()} notifications`
+            }
+            description={
+              category === "all"
+                ? "New approvals, security alerts and account updates will appear here."
+                : "When something happens in this category it will show up here."
+            }
+            action={
+              category !== "all" ? (
+                <Button variant="secondary" size="sm" onClick={() => setCategory("all")}>
+                  View all notifications
+                </Button>
+              ) : undefined
+            }
+          />
+        </div>
       )}
     </div>
   );
 };
+
+const SectionLabel = ({ children }) => (
+  <p className="mb-3 mt-8 text-[11px] font-bold uppercase tracking-widest text-ink-400 first:mt-0">
+    {children}
+  </p>
+);
+
 export const SettingsPage = () => {
   const auth = useAuth(),
     toast = useToast(),
-    [password, setPassword] = useState({ currentPassword: "", newPassword: "" }),
+    [password, setPassword] = useState({
+      currentPassword: "",
+      newPassword: "",
+      confirmPassword: "",
+    }),
     [deleteOpen, setDeleteOpen] = useState(false),
     sessions = useQuery({ queryKey: ["sessions"], queryFn: authApi.sessions }),
     consents = useQuery({ queryKey: ["consents"], queryFn: userApi.consents }),
     change = useMutation({
-      mutationFn: () => authApi.changePassword(password),
-      onSuccess: () => toast.success("Password updated"),
+      mutationFn: () =>
+        authApi.changePassword({
+          currentPassword: password.currentPassword,
+          newPassword: password.newPassword,
+        }),
+      onSuccess: () => {
+        toast.success("Password updated");
+        setPassword({ currentPassword: "", newPassword: "", confirmPassword: "" });
+      },
     }),
     revoke = useMutation({
       mutationFn: authApi.revokeSession,
@@ -130,14 +258,39 @@ export const SettingsPage = () => {
       mutationFn: () => userApi.remove("Requested from account settings"),
       onSuccess: () => auth.logout(),
     });
+  const canSavePassword =
+    password.currentPassword.length > 0 &&
+    password.newPassword.length >= 12 &&
+    password.newPassword === password.confirmPassword;
   return (
     <div className="page-wrap max-w-5xl">
       <PageHeader
         eyebrow="Account"
-        title="Security & privacy"
-        description="Manage sessions, consent and your data lifecycle."
+        title="Settings"
+        description="Manage your account, security, AI data permissions and data lifecycle."
       />
+      <SectionLabel>Account</SectionLabel>
       <div className="grid gap-6 lg:grid-cols-2">
+        <section className="panel p-6">
+          <h2 className="font-bold">Profile</h2>
+          <div className="mt-4 space-y-3">
+            <div className="flex items-center gap-3 rounded-xl bg-ink-50 p-4">
+              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand-400 to-brand-600 text-sm font-bold text-white">
+                {initials(auth.user?.displayName)}
+              </span>
+              <div className="min-w-0">
+                <p className="truncate font-semibold">
+                  {auth.user?.displayName || auth.user?.name}
+                </p>
+                <p className="truncate text-sm text-ink-500">{auth.user?.email}</p>
+              </div>
+            </div>
+            <div className="flex items-center justify-between rounded-xl bg-ink-50 p-4">
+              <p className="text-sm font-semibold">Account role</p>
+              <Badge variant="brand">{(auth.workspaceRole || "").replace("_", " ") || "—"}</Badge>
+            </div>
+          </div>
+        </section>
         <section className="panel p-6">
           <h2 className="flex items-center gap-2 font-bold">
             <KeyRound className="h-4 w-4 text-brand-600" />
@@ -147,6 +300,7 @@ export const SettingsPage = () => {
             <Input
               label="Current password"
               type="password"
+              autoComplete="current-password"
               value={password.currentPassword}
               onChange={(e) => setPassword((p) => ({ ...p, currentPassword: e.target.value }))}
             />
@@ -155,100 +309,125 @@ export const SettingsPage = () => {
               type="password"
               minLength={12}
               hint="At least 12 characters"
+              autoComplete="new-password"
               value={password.newPassword}
               onChange={(e) => setPassword((p) => ({ ...p, newPassword: e.target.value }))}
             />
+            <Input
+              label="Confirm new password"
+              type="password"
+              autoComplete="new-password"
+              value={password.confirmPassword}
+              onChange={(e) => setPassword((p) => ({ ...p, confirmPassword: e.target.value }))}
+              hint={
+                password.confirmPassword.length > 0 &&
+                password.confirmPassword !== password.newPassword
+                  ? "Passwords do not match"
+                  : "Enter the new password again"
+              }
+            />
             <Button
-              disabled={!password.currentPassword || password.newPassword.length < 12}
+              disabled={!canSavePassword}
               isLoading={change.isPending}
               onClick={() => change.mutate()}
             >
               Update Password
             </Button>
             {change.error && <ErrorCallout error={change.error} />}
-          </div>
-        </section>
-        <section className="panel p-6">
-          <h2 className="flex items-center gap-2 font-bold">
-            <ShieldCheck className="h-4 w-4 text-brand-600" />
-            AI & Data Permissions
-          </h2>
-          <p className="mt-2 text-sm text-ink-500">
-            Choose how your information is used. You can change this at any time.
-          </p>
-          <div className="mt-4 space-y-3">
-            {[
-              {
-                purpose: "ai_processing",
-                label: "AI Processing",
-                copy: "Let AI analyze your resume and profile to generate matches and suggestions.",
-              },
-              {
-                purpose: "talent_pool",
-                label: "Talent Pool",
-                copy: "Let companies you apply to see your profile in their talent pool.",
-              },
-              {
-                purpose: "marketing",
-                label: "Marketing",
-                copy: "Receive product updates and news from HireSmart.",
-              },
-            ].map(({ purpose, label, copy }) => {
-              const active = consents.data?.data?.some(
-                (c) => c.purpose === purpose && !c.revokedAt,
-              );
-              return (
-                <div
-                  className="flex items-center justify-between gap-3 rounded-xl bg-ink-50 p-4"
-                  key={purpose}
-                >
-                  <div>
-                    <p className="text-sm font-semibold">{label}</p>
-                    <p className="text-xs text-ink-500">{copy}</p>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant={active ? "secondary" : "primary"}
-                    onClick={() => consent.mutate({ purpose, granted: !active })}
-                  >
-                    {active ? "Revoke" : "Grant"}
-                  </Button>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-        <section className="panel p-6 lg:col-span-2">
-          <h2 className="font-bold">Active Sessions</h2>
-          <div className="mt-4 space-y-3">
-            {sessions.data?.data?.length ? (
-              sessions.data.data.map((s) => (
-                <div
-                  className="flex flex-col gap-3 rounded-xl bg-ink-50 p-4 sm:flex-row sm:items-center"
-                  key={s.id}
-                >
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold">
-                      {s.userAgent || "Unknown device"}{" "}
-                      {s.current && <Badge variant="success">current</Badge>}
-                    </p>
-                    <p className="text-xs text-ink-500">
-                      Last used {formatRelativeTime(s.lastUsedAt)} · expires{" "}
-                      {formatDate(s.expiresAt)}
-                    </p>
-                  </div>
-                  {!s.current && (
-                    <Button size="sm" variant="danger" onClick={() => revoke.mutate(s.id)}>
-                      Revoke
-                    </Button>
-                  )}
-                </div>
-              ))
-            ) : (
-              <p className="text-sm text-ink-500">No active sessions.</p>
+            {change.isSuccess && (
+              <p className="flex items-center gap-1.5 text-sm font-medium text-success-600">
+                <CheckCircle2 className="h-4 w-4" />
+                Password updated successfully
+              </p>
             )}
           </div>
         </section>
+      </div>
+      <SectionLabel>Security</SectionLabel>
+      <section className="panel p-6">
+        <h2 className="font-bold">Active Sessions</h2>
+        <p className="mt-2 text-sm text-ink-500">
+          Devices currently signed in to your account. Revoke any session you do not recognize.
+        </p>
+        <div className="mt-4 space-y-3">
+          {sessions.data?.data?.length ? (
+            sessions.data.data.map((s) => (
+              <div
+                className="flex flex-col gap-3 rounded-xl bg-ink-50 p-4 sm:flex-row sm:items-center"
+                key={s.id}
+              >
+                <div className="flex-1">
+                  <p className="text-sm font-semibold">
+                    {s.userAgent || "Unknown device"}{" "}
+                    {s.current && <Badge variant="success">current</Badge>}
+                  </p>
+                  <p className="text-xs text-ink-500">
+                    Last used {formatRelativeTime(s.lastUsedAt)} · expires {formatDate(s.expiresAt)}
+                  </p>
+                </div>
+                {!s.current && (
+                  <Button size="sm" variant="danger" onClick={() => revoke.mutate(s.id)}>
+                    Revoke
+                  </Button>
+                )}
+              </div>
+            ))
+          ) : (
+            <p className="text-sm text-ink-500">No active sessions.</p>
+          )}
+        </div>
+      </section>
+      <SectionLabel>AI & Data</SectionLabel>
+      <section className="panel p-6">
+        <h2 className="flex items-center gap-2 font-bold">
+          <ShieldCheck className="h-4 w-4 text-brand-600" />
+          AI & Data Permissions
+        </h2>
+        <p className="mt-2 text-sm text-ink-500">
+          Choose how your information is used. You can change this at any time.
+        </p>
+        <div className="mt-4 space-y-3">
+          {[
+            {
+              purpose: "ai_processing",
+              label: "AI Processing",
+              copy: "Let AI analyze your resume and profile to generate matches and suggestions.",
+            },
+            {
+              purpose: "talent_pool",
+              label: "Talent Pool",
+              copy: "Let companies you apply to see your profile in their talent pool.",
+            },
+            {
+              purpose: "marketing",
+              label: "Marketing",
+              copy: "Receive product updates and news from HireSmart.",
+            },
+          ].map(({ purpose, label, copy }) => {
+            const active = consents.data?.data?.some((c) => c.purpose === purpose && !c.revokedAt);
+            return (
+              <div
+                className="flex items-center justify-between gap-3 rounded-xl bg-ink-50 p-4"
+                key={purpose}
+              >
+                <div>
+                  <p className="text-sm font-semibold">{label}</p>
+                  <p className="text-xs text-ink-500">{copy}</p>
+                </div>
+                <Button
+                  size="sm"
+                  variant={active ? "secondary" : "primary"}
+                  onClick={() => consent.mutate({ purpose, granted: !active })}
+                >
+                  {active ? "Revoke" : "Grant"}
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+      <SectionLabel>Data</SectionLabel>
+      <div className="grid gap-6 lg:grid-cols-2">
         <section className="panel p-6">
           <h2 className="font-bold">Export Your Data</h2>
           <p className="mt-2 text-sm text-ink-500">
@@ -264,9 +443,13 @@ export const SettingsPage = () => {
           </Button>
         </section>
         <section className="rounded-2xl border border-danger-500/20 bg-danger-50 p-6">
-          <h2 className="font-bold text-danger-700">Delete Account</h2>
+          <h2 className="flex items-center gap-2 font-bold text-danger-700">
+            <ShieldAlert className="h-4 w-4" />
+            Delete Account
+          </h2>
           <p className="mt-2 text-sm text-danger-700/80">
-            This signs you out, revokes all sessions and starts the account deletion process.
+            This signs you out, revokes all sessions and starts the account deletion process. It
+            cannot be undone.
           </p>
           <Button
             className="mt-4"
@@ -282,417 +465,20 @@ export const SettingsPage = () => {
         isOpen={deleteOpen}
         onClose={() => setDeleteOpen(false)}
         title="Request account deletion?"
+        description="This is permanent. You will be signed out immediately and all your data is scheduled for deletion."
         footer={
           <>
             <Button variant="secondary" onClick={() => setDeleteOpen(false)}>
               Cancel
             </Button>
             <Button variant="danger" onClick={() => remove.mutate()} isLoading={remove.isPending}>
-              Delete account
+              I understand — delete my account
             </Button>
           </>
         }
       >
-        You will be signed out immediately. Referenced hiring records may be retained according to
-        policy.
-      </Modal>
-    </div>
-  );
-};
-export const AdminHome = () => {
-  const users = useQuery({
-      queryKey: ["admin-users", {}],
-      queryFn: () => adminApi.users({ limit: 100 }),
-    }),
-    orgs = useQuery({
-      queryKey: ["admin-organizations", {}],
-      queryFn: () => adminApi.organizations({ limit: 100 }),
-    }),
-    security = useQuery({
-      queryKey: ["admin-security", {}],
-      queryFn: () => adminApi.security({ limit: 20 }),
-    }),
-    ready = useQuery({ queryKey: ["health-ready"], queryFn: adminApi.ready, retry: false });
-  return (
-    <div className="page-wrap">
-      <PageHeader
-        eyebrow="Platform"
-        title="Platform Overview"
-        description="Live platform health, security signals and growth at a glance."
-      />
-      <div className="panel grid gap-6 p-6 sm:grid-cols-2 lg:grid-cols-4">
-        <Metric label="Total Users" value={users.data?.data?.length || 0} />
-        <Metric label="Companies" value={orgs.data?.data?.length || 0} />
-        <Metric label="Security Events" value={security.data?.data?.length || 0} />
-        <Metric
-          label="Readiness"
-          value={ready.data?.data?.status || "unknown"}
-          tone={ready.data?.data?.status === "ready" ? "success" : "ink"}
-        />
-      </div>
-      <div className="mt-6 grid gap-6 lg:grid-cols-2">
-        <section className="panel p-6">
-          <h2 className="font-bold">Recent security events</h2>
-          <div className="mt-4 space-y-3">
-            {security.data?.data?.slice(0, 8).map((e) => (
-              <div className="flex gap-3 rounded-xl bg-ink-50 p-4" key={e._id}>
-                <ShieldAlert className="h-4 w-4 text-warning-700" />
-                <div>
-                  <p className="text-sm font-semibold">{e.type}</p>
-                  <p className="text-xs text-ink-500">
-                    {e.severity} · {formatRelativeTime(e.createdAt)}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-        <section className="rounded-2xl bg-ink-950 p-6 text-white">
-          <h2 className="font-bold">Health checks</h2>
-          {Object.entries(ready.data?.data?.checks || {}).map(([k, v]) => (
-            <div className="mt-3 flex justify-between rounded-xl bg-white/6 p-4" key={k}>
-              <span>{k}</span>
-              <StatusPill status={v} />
-            </div>
-          ))}
-        </section>
-      </div>
-    </div>
-  );
-};
-export const AdminUsers = () => {
-  const [status, setStatus] = useState(""),
-    q = useQuery({
-      queryKey: ["admin-users", status],
-      queryFn: () => adminApi.users({ status, limit: 100 }),
-    }),
-    [target, setTarget] = useState(null),
-    suspend = useMutation({
-      mutationFn: () =>
-        target.accountStatus === "suspended"
-          ? adminApi.reactivate(target._id, "Reactivated by platform administrator")
-          : adminApi.suspend(target._id, "Suspended by platform administrator"),
-      onSuccess: () => {
-        q.refetch();
-        setTarget(null);
-      },
-    });
-  return (
-    <div className="page-wrap">
-      <PageHeader
-        eyebrow="Users"
-        title="Manage Users"
-        description="Suspension revokes sessions; reactivation restores access without restoring old sessions."
-      />
-      <Select
-        className="mb-5 max-w-xs"
-        placeholder="All statuses"
-        value={status}
-        onChange={(e) => setStatus(e.target.value)}
-        options={["active", "pending_verification", "suspended", "deletion_pending"].map((x) => ({
-          value: x,
-          label: x.replace("_", " "),
-        }))}
-      />
-      {q.isLoading ? (
-        <SkeletonList />
-      ) : (
-        <div className="space-y-3">
-          {q.data?.data?.map((u) => (
-            <div className="panel flex flex-col gap-3 p-5 sm:flex-row sm:items-center" key={u._id}>
-              <div className="flex-1">
-                <p className="font-semibold">{u.name}</p>
-                <p className="text-sm text-ink-500">
-                  {u.email} · {u.role}
-                </p>
-              </div>
-              <StatusPill status={u.accountStatus} />
-              <Button
-                size="sm"
-                variant={u.accountStatus === "suspended" ? "secondary" : "danger"}
-                onClick={() => setTarget(u)}
-              >
-                {u.accountStatus === "suspended" ? "Reactivate" : "Suspend"}
-              </Button>
-            </div>
-          ))}
-        </div>
-      )}
-      <Modal
-        isOpen={Boolean(target)}
-        onClose={() => setTarget(null)}
-        title={target?.accountStatus === "suspended" ? "Reactivate account?" : "Suspend account?"}
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setTarget(null)}>
-              Cancel
-            </Button>
-            <Button
-              variant={target?.accountStatus === "suspended" ? "primary" : "danger"}
-              isLoading={suspend.isPending}
-              onClick={() => suspend.mutate()}
-            >
-              {target?.accountStatus === "suspended" ? "Reactivate" : "Suspend"}
-            </Button>
-          </>
-        }
-      >
-        {target?.accountStatus === "suspended"
-          ? "This restores sign-in access. The user must create a new session."
-          : "This immediately revokes active sessions."}
-      </Modal>
-    </div>
-  );
-};
-export const AdminOrganizations = () => {
-  const q = useQuery({
-    queryKey: ["admin-organizations", {}],
-    queryFn: () => adminApi.organizations({ limit: 100 }),
-  });
-  return (
-    <div className="page-wrap">
-      <PageHeader
-        eyebrow="Companies"
-        title="Manage Companies"
-        description="Inspect organization state without crossing tenant boundaries."
-      />
-      {q.isLoading ? (
-        <SkeletonList />
-      ) : (
-        <div className="grid gap-4 lg:grid-cols-2">
-          {q.data?.data?.map((o) => (
-            <article className="panel p-5" key={o._id}>
-              <div className="flex justify-between">
-                <Building2 className="h-5 w-5 text-brand-600" />
-                <StatusPill status={o.status} />
-              </div>
-              <h2 className="mt-4 text-lg font-bold">{o.name}</h2>
-              <p className="text-sm text-ink-500">
-                {o.industry || "Industry not set"} · {o.size}
-              </p>
-              <p className="mt-4 font-mono text-xs text-ink-400">{o._id}</p>
-            </article>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
-export const AdminAIUsage = () => {
-  const q = useQuery({ queryKey: ["admin-ai-usage"], queryFn: adminApi.aiUsage });
-  return (
-    <div className="page-wrap">
-      <PageHeader
-        eyebrow="AI"
-        title="AI Activity"
-        description="Provider, model, fallback, token, latency and estimated cost telemetry across organizations."
-      />
-      {q.isLoading ? (
-        <LoadingState />
-      ) : q.error ? (
-        <ErrorState error={q.error} />
-      ) : (
-        <div className="grid gap-4 lg:grid-cols-3">
-          {q.data?.data?.map((x) => (
-            <article className="panel p-5" key={JSON.stringify(x._id)}>
-              <Sparkles className="h-5 w-5 text-brand-600" />
-              <h2 className="mt-3 font-bold">{x._id.feature}</h2>
-              <p className="mt-1 text-sm text-ink-500">
-                {x._id.provider} · {x._id.model}
-              </p>
-              <p className="mt-1 truncate font-mono text-xs text-ink-400">
-                Org {x._id.organization || "none"}
-              </p>
-              <div className="mt-4 grid grid-cols-2 gap-3">
-                <Metric label="Runs" value={x.runs} />
-                <Metric label="Fallbacks" value={x.fallbacks} />
-                <Metric label="Input tokens" value={x.inputTokens || 0} />
-                <Metric
-                  label="Est. cost"
-                  value={`$${Number(x.estimatedCostUsd || 0).toFixed(4)}`}
-                />
-              </div>
-            </article>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
-export const AdminSecurity = () => {
-  const [tab, setTab] = useState("security"),
-    q = useQuery({
-      queryKey: [`admin-${tab}`, {}],
-      queryFn: () =>
-        tab === "security" ? adminApi.security({ limit: 100 }) : adminApi.audit({ limit: 100 }),
-    });
-  return (
-    <div className="page-wrap">
-      <PageHeader
-        eyebrow="Security"
-        title="Security & Audit"
-        description="Operational evidence from backend security and audit records."
-      />
-      <div className="mb-5 flex gap-2">
-        <Button
-          variant={tab === "security" ? "primary" : "secondary"}
-          onClick={() => setTab("security")}
-        >
-          Security events
-        </Button>
-        <Button variant={tab === "audit" ? "primary" : "secondary"} onClick={() => setTab("audit")}>
-          Audit log
-        </Button>
-      </div>
-      <div className="space-y-3">
-        {q.data?.data?.map((x) => (
-          <article
-            className="panel flex flex-col gap-2 p-5 sm:flex-row sm:items-center"
-            key={x._id}
-          >
-            <div className="flex-1">
-              <p className="font-semibold">{x.type || x.action}</p>
-              <p className="text-xs text-ink-500">
-                {x.resourceType} {x.resourceId} · {formatDate(x.createdAt)}
-              </p>
-            </div>
-            {x.severity && (
-              <Badge variant={x.severity === "critical" ? "danger" : "warning"}>{x.severity}</Badge>
-            )}
-            {x.outcome && <StatusPill status={x.outcome} />}
-          </article>
-        ))}
-      </div>
-    </div>
-  );
-};
-export const AdminModeration = () => {
-  const toast = useToast(),
-    qc = useQueryClient(),
-    [status, setStatus] = useState("pending"),
-    [target, setTarget] = useState(null),
-    [reason, setReason] = useState(""),
-    q = useQuery({
-      queryKey: ["moderation-jobs", status],
-      queryFn: () => adminApi.moderation({ status, limit: 50 }),
-    }),
-    act = useMutation({
-      mutationFn: ({ jobId, action }) =>
-        adminApi.moderate(jobId, action, action === "reject" ? reason : undefined),
-      onSuccess: () => {
-        qc.invalidateQueries({ queryKey: ["moderation-jobs"] });
-        toast.success(target?.action === "approve" ? "Job approved" : "Job rejected");
-        setTarget(null);
-        setReason("");
-      },
-      onError: (error) => toast.error(error.message),
-    });
-  return (
-    <div className="page-wrap max-w-5xl">
-      <PageHeader
-        eyebrow="Approvals"
-        title="Job Approval Queue"
-        description="Approve or reject listings for organizations with approval enabled — or use the platform override on any job."
-      />
-      <div className="mb-4 flex gap-2">
-        {["pending", "approved", "rejected"].map((s) => (
-          <button
-            key={s}
-            type="button"
-            onClick={() => setStatus(s)}
-            className={`rounded-full px-4 py-1.5 text-sm font-semibold capitalize transition ${status === s ? "bg-ink-950 text-white" : "bg-ink-50 text-ink-600 hover:bg-ink-100"}`}
-          >
-            {s}
-          </button>
-        ))}
-      </div>
-      {q.isLoading ? (
-        <LoadingState />
-      ) : q.error ? (
-        <ErrorState error={q.error} />
-      ) : (
-        <div className="space-y-3">
-          {q.data.data.map((job) => (
-            <div key={job.id} className="panel flex flex-wrap items-center gap-4 p-5">
-              <div className="min-w-56 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="font-bold">{job.title}</p>
-                  <StatusPill status={job.moderation.status} />
-                </div>
-                <p className="mt-1 text-sm text-ink-500">
-                  {job.company} · {job.location} · {job.workplaceMode} ·{" "}
-                  {job.organization?.name || "Unknown org"}
-                </p>
-                <p className="mt-1 text-xs text-ink-400">
-                  Skills: {job.requiredSkills?.join(", ") || "—"}
-                </p>
-                {job.moderation.reason && (
-                  <p className="mt-1 text-xs text-red-600">Reason: {job.moderation.reason}</p>
-                )}
-              </div>
-              {status === "pending" ? (
-                <div className="flex gap-2">
-                  <Button size="sm" onClick={() => setTarget({ jobId: job.id, action: "approve" })}>
-                    Approve
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="text-red-600"
-                    onClick={() => setTarget({ jobId: job.id, action: "reject" })}
-                  >
-                    Reject
-                  </Button>
-                </div>
-              ) : (
-                <span className="text-xs text-ink-400">
-                  Reviewed {formatRelativeTime(job.moderation.reviewedAt)}
-                </span>
-              )}
-            </div>
-          ))}
-          {!q.data.data.length && (
-            <EmptyState
-              title={`No ${status} jobs`}
-              description="New submissions will appear here."
-            />
-          )}
-        </div>
-      )}
-      <Modal
-        open={Boolean(target)}
-        onClose={() => setTarget(null)}
-        title={target?.action === "reject" ? "Reject job" : "Approve job"}
-      >
-        {target?.action === "reject" ? (
-          <div className="space-y-3">
-            <p className="text-sm text-ink-600">
-              The organization owner will be notified. A reason helps them fix the listing.
-            </p>
-            <Input
-              label="Reason (optional)"
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="e.g. Salary band contradicts the experience requirement"
-            />
-          </div>
-        ) : (
-          <p className="text-sm text-ink-600">
-            The job becomes visible on public search and the company page immediately.
-          </p>
-        )}
-        <div className="mt-5 flex justify-end gap-2">
-          <Button variant="ghost" onClick={() => setTarget(null)}>
-            Cancel
-          </Button>
-          <Button
-            variant={target?.action === "reject" ? "danger" : "primary"}
-            isLoading={act.isPending}
-            onClick={() => target && act.mutate(target)}
-          >
-            {target?.action === "approve" ? "Approve" : "Reject"}
-          </Button>
-        </div>
+        Referenced hiring records may be retained according to policy. If this is a mistake, cancel
+        now — there is no way to restore the account later.
       </Modal>
     </div>
   );

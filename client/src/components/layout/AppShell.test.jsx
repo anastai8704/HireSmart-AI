@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
@@ -20,6 +21,21 @@ vi.mock("../../context/useAuth", () => ({
   useAuth: () => state,
 }));
 
+vi.mock("../../lib/api", () => ({
+  notificationApi: { list: () => Promise.resolve({ data: [] }) },
+}));
+
+const renderShell = (path) => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter initialEntries={[path]}>
+        <AppShell />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+};
+
 import AppShell from "./AppShell";
 
 beforeEach(() => {
@@ -34,11 +50,7 @@ beforeEach(() => {
 
 describe("AppShell smoke", () => {
   it("renders candidate grouped nav", () => {
-    render(
-      <MemoryRouter initialEntries={["/app/candidate"]}>
-        <AppShell />
-      </MemoryRouter>,
-    );
+    renderShell("/app/candidate");
     expect(screen.getByText("Career Assistant")).toBeInTheDocument();
     expect(screen.getByText("Applications")).toBeInTheDocument();
   });
@@ -50,11 +62,7 @@ describe("AppShell smoke", () => {
     state.organization = { id: "org1", name: "Meridian", role: "owner" };
     state.membership = { role: "owner" };
     state.workspaceRole = "owner";
-    render(
-      <MemoryRouter initialEntries={["/app/o/org1"]}>
-        <AppShell />
-      </MemoryRouter>,
-    );
+    renderShell("/app/o/org1");
     expect(screen.getByText("AI Assistant")).toBeInTheDocument();
     expect(screen.getByText("Hiring")).toBeInTheDocument();
     expect(screen.getByText("Meridian · owner")).toBeInTheDocument();
@@ -63,11 +71,7 @@ describe("AppShell smoke", () => {
     state.role = "admin";
     state.user = { displayName: "Admin User" };
     state.workspaceRole = "platform_admin";
-    render(
-      <MemoryRouter initialEntries={["/app/admin"]}>
-        <AppShell />
-      </MemoryRouter>,
-    );
+    renderShell("/app/admin");
     expect(screen.getByText("Platform")).toBeInTheDocument();
     expect(screen.getByText("Security & Audit")).toBeInTheDocument();
   });
