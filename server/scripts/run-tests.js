@@ -14,9 +14,12 @@ const { spawn } = require("node:child_process");
 // NOTE: keep this filename free of "test" so the Node test runner does not
 // discover it as a test file itself.
 const testDir = path.join(__dirname, "..", "test");
+// TEMP-DIAG: run only the listed test files (empty list = all files).
+const ONLY = ["accounts.test.js", "aiProvider.test.js", "alerts.test.js", "matching.test.js", "marketplace.test.js"];
 const files = fs
   .readdirSync(testDir)
   .filter((name) => /\.test\.(js|cjs|mjs)$/.test(name))
+  .filter((name) => ONLY.length === 0 || ONLY.includes(name))
   .sort()
   .map((name) => path.join(testDir, name));
 
