@@ -28,6 +28,14 @@ const createTransporter = () => {
 
 const transporter = createTransporter();
 
+const escapeHtml = (value = "") =>
+  String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+
 const sendMail = async ({ to, subject, text, html }) => {
   const message = {
     from: config.emailFrom,
@@ -62,7 +70,7 @@ const sendEmailChangeEmail = async ({ email, token }) => {
     to: email,
     subject: "Confirm your new HireSmart AI email address",
     text: `You requested to change your HireSmart AI email address to ${email}. Visit the link to confirm the change: ${changeUrl}`,
-    html: `<p>You requested to use <strong>${email}</strong> for your HireSmart AI account.</p><p><a href="${changeUrl}">Confirm new email address</a></p><p>Your account keeps the old address active until you confirm. If you did not request this, you can ignore this message.</p>`,
+    html: `<p>You requested to use <strong>${escapeHtml(email)}</strong> for your HireSmart AI account.</p><p><a href="${changeUrl}">Confirm new email address</a></p><p>Your account keeps the old address active until you confirm. If you did not request this, you can ignore this message.</p>`,
   });
 };
 

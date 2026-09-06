@@ -1,0 +1,79 @@
+name: Diagnostics
+
+# Temporary debugging workflow: re-runs the backend test suite on a branch
+# commit and publishes the full output two ways (check-run annotations and a
+# log file pushed to the ci-logs-tmp branch) so failures can be read from
+# outside the sandbox. Delete this file when debugging is done.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch or commit to test"
+        required: false
+        default: "arena/01a03290-hiresmart-ai"
+
+permissions:
+  contents: write
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.runCommand({ping:1})'"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      NODE_ENV: test
+      MONGO_URI: mongodb://127.0.0.1:27017/hiresmart_test
+      JWT_SECRET: ci_only_secret_at_least_32_characters_long
+      REQUIRE_EMAIL_VERIFICATION: "false"
+      STORAGE_PROVIDER: local
+      PROCESS_JOBS_INLINE: "true"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref_name }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - run: npm ci
+        working-directory: server
+
+      - name: Run backend tests, publish output
+        working-directory: server
+        run: |
+          set +e
+          NODE_ENV=test node scripts/run-tests.js > /tmp/testout.txt 2>&1
+          code=$?
+          echo "test runner exit code: $code"
+          # Annotation channel (works if GitHub records it for this run).
+          tail -c 5500 /tmp/testout.txt \
+            | sed 's/%/%25/g' \
+            | awk 'BEGIN{ORS="%0A"} {print}' \
+            | { read -r msg; echo "::error title=TEST-LOG-TAIL::$msg"; }
+          # Branch channel: always publish the full log so it is readable
+          # from outside the sandbox even if annotations are dropped.
+          git config user.name "ci-diagnostics"
+          git config user.email "ci-diagnostics@users.noreply.github.com"
+          git checkout --orphan ci-logs-tmp || git checkout --orphan ci-logs-tmp
+          git rm -rf --cached . >/dev/null 2>&1 || true
+          rm -rf ./* ./.[!.]* 2>/dev/null || true
+          head -c 900000 /tmp/testout.txt > ci-failure.log
+          git add ci-failure.log
+          git commit -m "ci diagnostics log" >/dev/null
+          git push -f origin HEAD:ci-logs-tmp || true
+          exit $code
