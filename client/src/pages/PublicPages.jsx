@@ -3,17 +3,13 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import {
   ArrowRight,
-  Bot,
   Building2,
   CheckCircle2,
   Clock,
   GraduationCap,
   MapPin,
   Search,
-  ShieldCheck,
   Sparkles,
-  Target,
-  UsersRound,
 } from "lucide-react";
 import Navbar from "../components/layout/Navbar";
 import Footer from "../components/layout/Footer";
@@ -113,238 +109,84 @@ const PublicJobCard = ({ job }) => {
   );
 };
 
-/* ------------------------------- landing ------------------------------- */
+/* --------------------------- resume check --------------------------- */
 
-const TRENDING = [
-  { label: "React", to: "/jobs?query=react" },
-  { label: "DevOps", to: "/jobs?query=devops" },
-  { label: "Data Scientist", to: "/jobs?query=data%20scientist" },
-  { label: "Pune", to: "/jobs?location=Pune" },
-  { label: "Mumbai", to: "/jobs?location=Mumbai" },
-  { label: "Remote", to: "/jobs?workplaceMode=remote" },
+const RESUME_CHECK_POINTS = [
+  "Clear feedback on your skills, experience and job fit",
+  "The skills a job asks for that your resume is missing",
+  "Suggestions you can act on, in order of importance",
+  "Your resume stays yours — we never overwrite or share it",
 ];
 
-export const LandingPage = () => {
-  const [what, setWhat] = useState("");
-  const [where, setWhere] = useState("");
-  const [mode, setMode] = useState("");
-  const navigate = useNavigate();
-  const topCompanies = useQuery({
-    queryKey: ["companies-top"],
-    queryFn: () => companiesApi.list(),
-  });
-  const search = (event) => {
-    event.preventDefault();
-    const p = new URLSearchParams();
-    if (what.trim()) p.set("query", what.trim());
-    if (where.trim()) p.set("location", where.trim());
-    if (mode) p.set("workplaceMode", mode);
-    navigate(`/jobs${p.toString() ? `?${p.toString()}` : ""}`);
-  };
+export const ResumeCheckPage = () => {
+  const auth = useAuth();
+  const destination =
+    auth.isAuthenticated && auth.role === "candidate"
+      ? "/app/candidate/resumes"
+      : "/auth/register/candidate";
   usePageMeta({
-    title: "HireSmart AI — Find jobs in India with evidence-backed matching",
+    title: "Resume Check — HireSmart AI",
     description:
-      "Search jobs by role, location, salary and skills. Evidence-backed AI match scores, explainable results, and human-in-the-loop hiring.",
+      "Upload your resume and get clear feedback on your skills, experience and job fit. Free for job seekers.",
   });
   return (
     <>
       <Navbar />
-      <main>
-        <section className="relative overflow-hidden bg-white">
-          <div className="absolute inset-x-0 top-0 h-96 bg-[radial-gradient(circle_at_50%_0%,#e0e7ff,transparent_65%)]" />
-          <div className="relative mx-auto max-w-7xl px-4 pb-16 pt-20 text-center sm:px-6 sm:pt-28">
-            <p className="eyebrow">India's evidence-backed job marketplace</p>
-            <h1 className="mx-auto mt-5 max-w-4xl text-4xl font-bold tracking-[-.04em] text-ink-950 sm:text-6xl">
-              Find work that fits <span className="text-brand-600">your evidence.</span>
+      <main id="main-content" className="page-wrap max-w-5xl">
+        <div className="grid gap-8 rounded-3xl bg-ink-950 p-8 text-white lg:grid-cols-[1fr_.8fr] lg:p-12">
+          <div>
+            <p className="eyebrow !text-brand-300">Resume Check</p>
+            <h1 className="mt-3 text-3xl font-bold sm:text-4xl">
+              Not sure if your resume is strong enough?
             </h1>
-            <p className="mx-auto mt-5 max-w-2xl text-lg leading-8 text-ink-600">
-              Search jobs by role, location and salary — then see exactly how you match, with
-              explainable AI and human decisions.
+            <p className="mt-4 leading-7 text-ink-300">
+              Upload your resume and get clear feedback on your skills, experience and job fit.
+              Create a free candidate account to upload a PDF or DOCX and see exactly what to
+              improve.
             </p>
-            <form
-              onSubmit={search}
-              className="mx-auto mt-9 grid max-w-4xl gap-3 rounded-2xl border border-ink-200 bg-white p-3 shadow-lg shadow-ink-900/5 sm:grid-cols-[1fr_.7fr_.5fr_auto]"
-            >
-              <Input
-                aria-label="What do you want to do"
-                placeholder="Job title, skill or keyword"
-                icon={<Search className="h-4 w-4" />}
-                value={what}
-                onChange={(e) => setWhat(e.target.value)}
-              />
-              <Input
-                aria-label="Where do you want to work"
-                placeholder="City or location"
-                icon={<MapPin className="h-4 w-4" />}
-                value={where}
-                onChange={(e) => setWhere(e.target.value)}
-              />
-              <Select
-                aria-label="Work mode"
-                value={mode}
-                onChange={(e) => setMode(e.target.value)}
-                options={[
-                  { value: "", label: "Any mode" },
-                  { value: "remote", label: "Remote" },
-                  { value: "hybrid", label: "Hybrid" },
-                  { value: "onsite", label: "On-site" },
-                ]}
-              />
-              <Button type="submit" size="lg">
-                Search
+            <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
+              <Button as={Link} to={destination} variant="secondary">
+                Check my resume <ArrowRight className="h-4 w-4" />
               </Button>
-            </form>
-            <div className="mt-5 flex flex-wrap items-center justify-center gap-2 text-sm">
-              <span className="text-ink-400">Trending:</span>
-              {TRENDING.map((item) => (
-                <Link
-                  key={item.label}
-                  to={item.to}
-                  className="rounded-full border border-ink-200 bg-white px-3 py-1 text-xs font-medium text-ink-600 transition hover:border-brand-300 hover:text-brand-700"
-                >
-                  {item.label}
-                </Link>
-              ))}
+              {auth.isAuthenticated && auth.role === "candidate" ? (
+                <span className="text-sm text-ink-400">Opens your saved resumes.</span>
+              ) : (
+                <span className="text-sm text-ink-400">
+                  Already have an account?{" "}
+                  <Link to="/auth/login" className="font-semibold text-white underline-offset-4 hover:underline">
+                    Sign in
+                  </Link>
+                </span>
+              )}
             </div>
           </div>
-        </section>
-        {topCompanies.data?.data?.length > 0 && (
-          <section className="mx-auto max-w-7xl px-4 py-14 sm:px-6">
-            <div className="flex items-end justify-between">
-              <div>
-                <p className="eyebrow">Hiring now</p>
-                <h2 className="mt-1 text-2xl font-bold">Top companies on HireSmart</h2>
-              </div>
-              <Link
-                to="/companies"
-                className="text-sm font-semibold text-brand-600 hover:text-brand-700"
-              >
-                All companies →
-              </Link>
+          <ul className="space-y-3">
+            {RESUME_CHECK_POINTS.map((point) => (
+              <li key={point} className="flex gap-3 rounded-xl bg-white/6 p-4 text-sm">
+                <CheckCircle2 className="h-4 w-4 shrink-0 text-brand-300" aria-hidden="true" />
+                {point}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="mt-8 grid gap-4 sm:grid-cols-3">
+          {[
+            ["1", "Create a free account", "Takes less than a minute. No payment details needed."],
+            ["2", "Upload your resume", "PDF or DOCX, up to 10 MB. Your file stays private."],
+            ["3", "Read your feedback", "See your strengths, your gaps and what to fix first."],
+          ].map(([step, title, text]) => (
+            <div key={step} className="panel p-5">
+              <span className="text-3xl font-extrabold tracking-tight text-ink-100">{step}</span>
+              <h2 className="mt-2 font-bold text-ink-950">{title}</h2>
+              <p className="mt-1.5 text-sm leading-6 text-ink-600">{text}</p>
             </div>
-            <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {topCompanies.data.data.slice(0, 8).map((c) => (
-                <Link
-                  key={c.id}
-                  to={`/companies/${c.slug}`}
-                  className="panel flex items-center gap-4 p-5 transition hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-sm"
-                >
-                  <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-ink-950 text-sm font-bold text-white">
-                    {(c.name || "?").slice(0, 2).toUpperCase()}
-                  </span>
-                  <span>
-                    <span className="block font-bold">{c.name}</span>
-                    <span className="block text-xs text-ink-500">
-                      {c.openRoles} open {c.openRoles === 1 ? "role" : "roles"}
-                      {c.industry ? ` · ${c.industry}` : ""}
-                    </span>
-                  </span>
-                </Link>
-              ))}
-            </div>
-          </section>
-        )}
-        <section className="bg-ink-950 py-20 text-white">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6">
-            <div className="grid gap-10 lg:grid-cols-[.8fr_1.2fr]">
-              <div>
-                <p className="eyebrow !text-cyan-300">Intelligence you can inspect</p>
-                <h2 className="mt-3 text-3xl font-bold">
-                  No opaque score. No autonomous rejection.
-                </h2>
-                <p className="mt-4 leading-7 text-ink-300">
-                  Every match separates required skills, preferred skills, experience, education and
-                  confidence — so candidates learn what to fix and hiring stays human.
-                </p>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {[
-                  [
-                    Target,
-                    "Fit you can inspect",
-                    "See matched evidence and missing requirements for every job.",
-                  ],
-                  [
-                    Bot,
-                    "Real AI, accountable",
-                    "Every AI answer is labeled with how it was generated — never a guess.",
-                  ],
-                  [
-                    UsersRound,
-                    "Team workflows",
-                    "Recruiters, hiring managers and interviewers stay aligned.",
-                  ],
-                  [
-                    ShieldCheck,
-                    "Private by design",
-                    "Versioned resumes, tenant isolation and revocable sessions.",
-                  ],
-                ].map(([Icon, t, c]) => (
-                  <div key={t} className="rounded-2xl border border-white/10 bg-white/5 p-5">
-                    <Icon className="h-5 w-5 text-cyan-300" />
-                    <h3 className="mt-3 font-semibold">{t}</h3>
-                    <p className="mt-2 text-sm leading-6 text-ink-400">{c}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </section>
-        <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6">
-          <div className="flex flex-col justify-center gap-3 sm:flex-row">
-            <Button as={Link} to="/auth/register/candidate" size="lg">
-              I'm looking for work <ArrowRight className="h-4 w-4" />
-            </Button>
-            <Button as={Link} to="/auth/register/recruiter" size="lg" variant="secondary">
-              I'm building a team
-            </Button>
-          </div>
-        </section>
+          ))}
+        </div>
       </main>
       <Footer />
     </>
   );
 };
-
-/* --------------------------- resume check --------------------------- */
-
-export const ResumeCheckPage = () => (
-  <>
-    <Navbar />
-    <main className="page-wrap max-w-5xl">
-      <div className="grid gap-8 rounded-3xl bg-ink-950 p-8 text-white lg:grid-cols-[1fr_.8fr] lg:p-12">
-        <div>
-          <p className="eyebrow !text-cyan-300">Private resume intelligence</p>
-          <h1 className="mt-3 text-4xl font-bold">
-            Analyze a real resume version—not pasted demo text.
-          </h1>
-          <p className="mt-4 leading-7 text-ink-300">
-            Create a candidate account to upload a PDF or DOCX. HireSmart verifies content,
-            preserves versions, extracts structured evidence and returns validated AI or
-            deterministic analysis.
-          </p>
-          <Button as={Link} to="/auth/register/candidate" className="mt-7" variant="secondary">
-            Start a secure analysis <ArrowRight className="h-4 w-4" />
-          </Button>
-        </div>
-        <div className="space-y-3">
-          {[
-            "Private, non-public storage",
-            "Processing and failure status you can inspect",
-            "Prioritized recommendations with confidence",
-            "No automatic overwrite of your resume",
-          ].map((x) => (
-            <div key={x} className="flex gap-3 rounded-xl bg-white/6 p-4 text-sm">
-              <CheckCircle2 className="h-4 w-4 shrink-0 text-cyan-300" />
-              {x}
-            </div>
-          ))}
-        </div>
-      </div>
-    </main>
-    <Footer />
-  </>
-);
 
 /* ----------------------------- job search ----------------------------- */
 
@@ -471,18 +313,16 @@ export const PublicJobsPage = () => {
   usePageMeta({
     title: "Browse jobs — HireSmart AI",
     description:
-      "Search Indian jobs by keyword, location, salary, experience, work mode and skills. Shareable, filterable job search.",
+      "Search open jobs by role, location, work mode and skills. See the skills each employer needs and how you match.",
   });
   const activeCount = FILTER_KEYS.filter((k) => get(k) && k !== "sort").length;
   return (
     <>
       <Navbar />
-      <main className="page-wrap">
+      <main id="main-content" className="page-wrap">
         <div className="rounded-3xl bg-ink-950 px-5 py-8 text-white sm:px-10">
-          <p className="eyebrow !text-cyan-300">Open opportunities</p>
-          <h1 className="mt-1 text-2xl font-bold sm:text-3xl">
-            Find work that fits your evidence.
-          </h1>
+          <p className="eyebrow !text-brand-300">Job search</p>
+          <h1 className="mt-1 text-2xl font-bold sm:text-3xl">Find jobs that match your skills.</h1>
           <form
             className="mt-5 grid gap-3 sm:grid-cols-[1fr_.6fr_auto]"
             onSubmit={(e) => {
@@ -837,7 +677,7 @@ export const PublicJobDetailPage = () => {
   return (
     <>
       <Navbar />
-      <main className="page-wrap max-w-5xl">
+      <main id="main-content" className="page-wrap max-w-5xl">
         {q.isLoading ? (
           <LoadingState />
         ) : q.error ? (
@@ -1058,7 +898,7 @@ export const CompaniesPage = () => {
   return (
     <>
       <Navbar />
-      <main className="page-wrap">
+      <main id="main-content" className="page-wrap">
         <p className="eyebrow">Companies</p>
         <h1 className="mt-1 text-3xl font-bold">Who's hiring</h1>
         {q.isLoading ? (
@@ -1134,7 +974,7 @@ export const CompanyPage = () => {
   return (
     <>
       <Navbar />
-      <main className="page-wrap">
+      <main id="main-content" className="page-wrap">
         {company.isLoading ? (
           <LoadingState />
         ) : company.error ? (
