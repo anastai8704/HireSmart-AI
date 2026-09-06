@@ -17,21 +17,13 @@ import Button from "../components/ui/Button";
 import Input, { Select } from "../components/ui/Input";
 import { EmptyState, ErrorState, LoadingState, SkeletonList } from "../components/ui/States";
 import { jobsApi, companiesApi, alertsApi, aiApi } from "../lib/api";
-import { formatRelativeTime, formatSalary } from "../lib/utils";
+import { formatJobSalary, formatRelativeTime } from "../lib/utils";
 import { useAuth } from "../context/useAuth";
 import { usePageMeta } from "../lib/usePageMeta";
 import { useDebouncedValue } from "../hooks/useApi";
 import { useToast } from "../components/ui/useToast";
 
 /* ----------------------------- shared bits ----------------------------- */
-
-const salaryText = (job) => {
-  const comp = job.compensation;
-  if (!comp || !(comp.min || comp.max)) return null;
-  if (comp.min && comp.max && comp.min !== comp.max)
-    return `${formatSalary(comp.min)} – ${formatSalary(comp.max)}`;
-  return formatSalary(comp.min || comp.max);
-};
 
 const Chip = ({ children }) => (
   <span className="rounded-full bg-ink-50 px-2.5 py-1 text-xs font-medium text-ink-600 ring-1 ring-inset ring-ink-100">
@@ -40,7 +32,7 @@ const Chip = ({ children }) => (
 );
 
 const PublicJobCard = ({ job }) => {
-  const salary = salaryText(job);
+  const salary = formatJobSalary(job);
   const company = job.organization?.name || job.company;
   const chips = [
     job.workplaceMode && job.workplaceMode !== "unspecified" ? job.workplaceMode : null,
@@ -153,7 +145,10 @@ export const ResumeCheckPage = () => {
               ) : (
                 <span className="text-sm text-ink-400">
                   Already have an account?{" "}
-                  <Link to="/auth/login" className="font-semibold text-white underline-offset-4 hover:underline">
+                  <Link
+                    to="/auth/login"
+                    className="font-semibold text-white underline-offset-4 hover:underline"
+                  >
                     Sign in
                   </Link>
                 </span>
@@ -673,7 +668,7 @@ export const PublicJobDetailPage = () => {
     jsonLd,
   });
   const company = job ? job.organization?.name || job.company : "";
-  const salary = job ? salaryText(job) : null;
+  const salary = job ? formatJobSalary(job) : null;
   return (
     <>
       <Navbar />

@@ -39,7 +39,7 @@ import {
 } from "../../lib/api";
 import { useAuth } from "../../context/useAuth";
 import { useToast } from "../../components/ui/useToast";
-import { formatDate, formatRelativeTime } from "../../lib/utils";
+import { formatDate, formatJobSalary, formatRelativeTime } from "../../lib/utils";
 import { useDebouncedValue } from "../../hooks/useApi";
 const getVersions = (response) => response?.meta?.versions || [];
 const useResumes = () => useQuery({ queryKey: ["resumes"], queryFn: resumeApi.list });
@@ -842,6 +842,7 @@ export const CandidateJobDetail = () => {
       </div>
     );
   const job = q.data.data,
+    salary = formatJobSalary(job),
     versions = getVersions(resumes.data).filter((v) => v.processingStatus === "ready");
   return (
     <div className="page-wrap">
@@ -855,6 +856,12 @@ export const CandidateJobDetail = () => {
           <p className="mt-2 text-ink-500">
             {job.company} · {job.location}
           </p>
+          {salary && (
+            <p className="mt-2 text-lg font-bold text-ink-900">
+              {salary}
+              <span className="ml-1.5 text-xs font-medium text-ink-400">per year</span>
+            </p>
+          )}
           <div className="mt-5 flex flex-wrap gap-2">
             {job.requiredSkills?.map((s) => (
               <Badge key={s}>{s} · required</Badge>

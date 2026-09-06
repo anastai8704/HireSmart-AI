@@ -12,7 +12,7 @@ import {
 import { Link } from "react-router-dom";
 import Badge from "./ui/Badge";
 import Button from "./ui/Button";
-import { cn, formatRelativeTime } from "../lib/utils";
+import { cn, formatJobSalary, formatRelativeTime } from "../lib/utils";
 
 export const PageHeader = ({ eyebrow, title, description, action }) => (
   <header className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -383,6 +383,7 @@ export const JobTile = ({ job, match, saved, onSave }) => {
   const jobId = job.id || job._id;
   const href = !match && !onSave ? `/jobs/${jobId}` : `/app/candidate/jobs/${jobId}`;
   const skills = job.requiredSkills || job.skills || [];
+  const salary = formatJobSalary(job);
   const band = match ? matchBand(match.overallScore) : null;
   return (
     <article className="panel group flex flex-col p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-[var(--shadow-card-hover)]">
@@ -399,6 +400,12 @@ export const JobTile = ({ job, match, saved, onSave }) => {
           <p className="mt-1 text-sm text-ink-500">
             {job.company} · {job.location}
           </p>
+          {salary && (
+            <p className="mt-1 text-sm font-semibold text-ink-900">
+              {salary}
+              <span className="ml-1 text-[11px] font-medium text-ink-400">per year</span>
+            </p>
+          )}
         </div>
         {match && (
           <div

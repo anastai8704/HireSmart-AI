@@ -8,7 +8,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import {
   ArrowRight,
   BriefcaseBusiness,
@@ -369,11 +369,34 @@ export const JobsPage = ({ assigned = false }) => {
     </div>
   );
 };
+// Digits-only salary field that re-formats with Indian grouping (4,00,000) as you type.
+const MoneyField = ({ control, name, label, placeholder, hint }) => (
+  <Controller
+    name={name}
+    control={control}
+    render={({ field }) => (
+      <Input
+        label={label}
+        placeholder={placeholder}
+        hint={hint}
+        inputMode="numeric"
+        icon={<span className="text-xs font-bold">\u20b9</span>}
+        value={field.value}
+        onChange={(event) => {
+          const digits = String(event.target.value).replace(/\D/g, "").slice(0, 9);
+          field.onChange(digits ? Number(digits).toLocaleString("en-IN") : "");
+        }}
+      />
+    )}
+  />
+);
+
 const defaultJob = {
   title: "",
   company: "",
   location: "",
-  salary: "",
+  salaryMin: "",
+  salaryMax: "",
   experience: "",
   jobType: "Full-Time",
   workplaceMode: "hybrid",
@@ -411,6 +434,7 @@ export const JobEditor = () => {
     onSuccess: () => toast.success("Hiring team updated"),
   });
   const {
+    control,
     register,
     handleSubmit,
     setValue,
@@ -418,19 +442,37 @@ export const JobEditor = () => {
     formState: { isSubmitting, errors },
   } = useForm({
     values: existing.data?.data
-      ? {
-          ...existing.data.data,
-          requiredSkills: (existing.data.data.requiredSkills || []).join(", "),
-          preferredSkills: (existing.data.data.preferredSkills || []).join(", "),
-        }
+      ? (() => {
+          const job = existing.data.data,
+            comp = job.compensation,
+            min = comp?.min > 0 ? comp.min : job.salary > 0 ? job.salary : 0,
+            max = comp?.max > 0 && comp.max !== min ? comp.max : 0;
+          return {
+            ...job,
+            salaryMin: min ? min.toLocaleString("en-IN") : "",
+            salaryMax: max ? max.toLocaleString("en-IN") : "",
+            requiredSkills: (job.requiredSkills || []).join(", "),
+            preferredSkills: (job.preferredSkills || []).join(", "),
+          };
+        })()
       : defaultJob,
   });
+  const toRupees = (value) => Number(String(value || "").replace(/\D/g, "")) || 0;
   const save = async (v) => {
     setSaveError(null);
     try {
+      const min = toRupees(v.salaryMin),
+        max = toRupees(v.salaryMax),
+        rest = { ...v };
+      delete rest.salaryMin;
+      delete rest.salaryMax;
       const body = {
-        ...v,
-        salary: Number(v.salary || 0),
+        ...rest,
+        salary: min > 0 ? min : max,
+        compensation:
+          min > 0 || max > 0
+            ? { min, max: max || min, currency: "INR", period: "year" }
+            : undefined,
         requiredSkills: v.requiredSkills
           .split(",")
           .map((x) => x.trim())
@@ -497,7 +539,19 @@ export const JobEditor = () => {
             />
             <Input label="Company" required {...register("company", { required: true })} />
             <Input label="Location" required {...register("location", { required: true })} />
-            <Input label="Annual salary" type="number" min="0" {...register("salary")} />
+            <MoneyField
+              control={control}
+              name="salaryMin"
+              label="Salary min (\u20b9 per year)"
+              placeholder="e.g. 4,00,000"
+              hint="Digits only — commas are added for you"
+            />
+            <MoneyField
+              control={control}
+              name="salaryMax"
+              label="Salary max (\u20b9 per year)"
+              placeholder="e.g. 6,00,000"
+            />
             <Input
               label="Experience requirement"
               placeholder="3+ years"

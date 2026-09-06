@@ -8,7 +8,12 @@ export const cn = (...inputs) => twMerge(clsx(inputs));
 
 /** "₹12,00,000" - Indian number formatting, matching the target job market. */
 export const formatSalary = (amount) => {
-  if (amount === null || amount === undefined || Number.isNaN(Number(amount))) {
+  if (
+    amount === null ||
+    amount === undefined ||
+    Number(amount) <= 0 ||
+    Number.isNaN(Number(amount))
+  ) {
     return "Not disclosed";
   }
 
@@ -22,6 +27,16 @@ export const formatSalary = (amount) => {
     currency: "INR",
     maximumFractionDigits: 0,
   }).format(value);
+};
+
+/** "3.00 L \u2013 6.00 L" style salary line for a job; null when undisclosed. */
+export const formatJobSalary = (job) => {
+  const comp = job?.compensation;
+  const min = comp && comp.min > 0 ? comp.min : 0;
+  const max = comp && comp.max > 0 ? comp.max : 0;
+  if (min && max && min !== max) return `${formatSalary(min)} \u2013 ${formatSalary(max)}`;
+  const single = min || max || (job?.salary > 0 ? Number(job.salary) : 0);
+  return single > 0 ? formatSalary(single) : null;
 };
 
 /** "15 Aug 2026" */
