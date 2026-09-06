@@ -61,6 +61,11 @@ test("changing the password succeeds, notifies, audits and logs a security event
     .set(auth(token))
     .send({ currentPassword: "StrongPassword123!", newPassword: "NewStrongPassword456!" });
   assert.equal(changed.status, 200, JSON.stringify(changed.body).slice(0, 1500));
+  const note = await Notification.findOne({ user: userId, type: "password_changed" });
+  assert.ok(note, "a password-changed notification must exist");
+  assert.equal(note.category, "security");
+  assert.match(note.message, /password was changed successfully/i);
+  assert.equal(note.delivery.email, "queued", "the password change must also be queued for email");
 });
 
 test("a wrong current password fails without a success notification", async () => {
