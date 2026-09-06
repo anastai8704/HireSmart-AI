@@ -313,7 +313,7 @@ export const PublicJobsPage = () => {
   usePageMeta({
     title: "Browse jobs — HireSmart AI",
     description:
-      "Search Indian jobs by keyword, location, salary, experience, work mode and skills. Shareable, filterable job search.",
+      "Search open jobs by role, location, work mode and skills. See the skills each employer needs and how you match.",
   });
   const activeCount = FILTER_KEYS.filter((k) => get(k) && k !== "sort").length;
   return (
@@ -321,10 +321,8 @@ export const PublicJobsPage = () => {
       <Navbar />
       <main id="main-content" className="page-wrap">
         <div className="rounded-3xl bg-ink-950 px-5 py-8 text-white sm:px-10">
-          <p className="eyebrow !text-cyan-300">Open opportunities</p>
-          <h1 className="mt-1 text-2xl font-bold sm:text-3xl">
-            Find work that fits your evidence.
-          </h1>
+          <p className="eyebrow !text-brand-300">Job search</p>
+          <h1 className="mt-1 text-2xl font-bold sm:text-3xl">Find jobs that match your skills.</h1>
           <form
             className="mt-5 grid gap-3 sm:grid-cols-[1fr_.6fr_auto]"
             onSubmit={(e) => {
