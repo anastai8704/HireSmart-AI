@@ -380,7 +380,7 @@ const MoneyField = ({ control, name, label, placeholder, hint }) => (
         placeholder={placeholder}
         hint={hint}
         inputMode="numeric"
-        icon={<span className="text-xs font-bold">\u20b9</span>}
+        icon={<span className="text-xs font-bold">₹</span>}
         value={field.value}
         onChange={(event) => {
           const digits = String(event.target.value).replace(/\D/g, "").slice(0, 9);
@@ -542,14 +542,14 @@ export const JobEditor = () => {
             <MoneyField
               control={control}
               name="salaryMin"
-              label="Salary min (\u20b9 per year)"
+              label="Salary min (₹/year)"
               placeholder="e.g. 4,00,000"
               hint="Digits only — commas are added for you"
             />
             <MoneyField
               control={control}
               name="salaryMax"
-              label="Salary max (\u20b9 per year)"
+              label="Salary max (₹/year)"
               placeholder="e.g. 6,00,000"
             />
             <Input
