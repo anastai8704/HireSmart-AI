@@ -7,6 +7,7 @@ exports.list = asyncHandler(async (req, res) => {
   const filter = applyCursor({ user: req.user._id }, page.after);
   if (req.query.unread === "true") filter.readAt = null;
   if (req.query.type) filter.type = req.query.type;
+  if (req.query.category) filter.category = req.query.category;
   const items = await Notification.find(filter).sort({ _id: -1 }).limit(page.limit);
   res.json({ data: items, meta: meta(items, page.limit) });
 });

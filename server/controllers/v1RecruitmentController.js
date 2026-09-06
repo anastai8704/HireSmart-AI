@@ -11,13 +11,13 @@ const asyncHandler = require("../middleware/asyncHandler");
 const AppError = require("../utils/AppError");
 const { parse, applyCursor, meta } = require("../utils/pagination");
 const { calculateHybridMatch } = require("../services/hybridMatchingService");
-const { notify } = require("../services/notificationService");
+const { notify, notifyAdmins } = require("../services/notificationService");
 const { audit } = require("../services/auditService");
 const storageService = require("../services/storageService");
 const idempotency = require("../services/idempotencyService");
 const logger = require("../utils/logger");
 
-const jobDto = (j) => {
+const jobDto = (j, { public: isPublic = false } = {}) => {
   const comp =
     j.compensation && (j.compensation.min || j.compensation.max)
       ? j.compensation
@@ -53,13 +53,26 @@ const jobDto = (j) => {
     status: j.status,
     closesAt: j.closesAt,
     version: j.version,
-    moderation: j.moderation
-      ? {
-          status: j.moderation.status,
-          reason: j.moderation.reason,
-          reviewedAt: j.moderation.reviewedAt,
-        }
-      : { status: "none", reason: "", reviewedAt: null },
+    moderation: isPublic
+      ? { status: j.moderation?.status || "none" }
+      : j.moderation
+        ? {
+            status: j.moderation.status,
+            reason: j.moderation.reason,
+            reviewedAt: j.moderation.reviewedAt,
+          }
+        : { status: "none", reason: "", reviewedAt: null },
+    pendingChanges: isPublic
+      ? null
+      : j.pendingChanges
+        ? {
+            status: j.pendingChanges.status,
+            fields: j.pendingChanges.fields,
+            submittedAt: j.pendingChanges.submittedAt,
+            reason: j.pendingChanges.reason,
+            reviewedAt: j.pendingChanges.reviewedAt,
+          }
+        : null,
     publishedAt: j.publishedAt,
     createdAt: j.createdAt,
     updatedAt: j.updatedAt,
@@ -135,19 +148,24 @@ exports.publicJobs = asyncHandler(async (req, res) => {
         .slice(0, 10),
     }).catch(() => {});
   }
-  res.json({ data: items.map(jobDto), meta: meta(items, page.limit) });
+  res.json({ data: items.map((j) => jobDto(j, { public: true })), meta: meta(items, page.limit) });
 });
 exports.publicJob = asyncHandler(async (req, res) => {
   const job = await Job.findOne({
     _id: req.params.jobId,
     status: "published",
+    "moderation.status": { $in: ["approved", "none"] },
     $or: [{ closesAt: null }, { closesAt: { $gte: new Date() } }],
   }).populate("organization", "slug name");
   if (!job) throw new AppError("Job not found", 404, "RESOURCE_NOT_FOUND");
-  res.json({ data: jobDto(job) });
+  res.json({ data: jobDto(job, { public: true }) });
 });
 exports.relatedJobs = asyncHandler(async (req, res) => {
-  const job = await Job.findOne({ _id: req.params.jobId, status: "published" });
+  const job = await Job.findOne({
+    _id: req.params.jobId,
+    status: "published",
+    "moderation.status": { $in: ["approved", "none"] },
+  });
   if (!job) throw new AppError("Job not found", 404, "RESOURCE_NOT_FOUND"); // Match on required AND preferred skills of the source job, so a role that
   // only shares a preferred skill still counts as related.
   const sourceSkills = job.requiredSkills?.length ? job.requiredSkills : job.skills;
@@ -157,6 +175,7 @@ exports.relatedJobs = asyncHandler(async (req, res) => {
   );
   const filter = {
     status: "published",
+    "moderation.status": { $in: ["approved", "none"] },
     _id: { $ne: job._id },
     $or: [{ closesAt: null }, { closesAt: { $gte: new Date() } }],
   };
@@ -169,7 +188,7 @@ exports.relatedJobs = asyncHandler(async (req, res) => {
       },
     ];
   const items = await Job.find(filter).limit(6);
-  res.json({ data: items.map(jobDto), meta: { count: items.length } });
+  res.json({ data: items.map((j) => jobDto(j, { public: true })), meta: { count: items.length } });
 });
 exports.createJob = asyncHandler(async (req, res) => {
   const payload = req.body;
@@ -239,59 +258,111 @@ exports.setHiringTeam = asyncHandler(async (req, res) => {
 exports.getOrgJob = asyncHandler(async (req, res) =>
   res.json({ data: jobDto(await getOrgJob(req, req.params.jobId)) }),
 );
+// Public fields a published job's live content is built from. Editing any of
+// these on a published job goes through platform review (pendingChanges);
+// the approved version stays visible to candidates meanwhile.
+const publicEditFields = [
+  "title",
+  "company",
+  "location",
+  "salary",
+  "compensation",
+  "experience",
+  "minExpYears",
+  "maxExpYears",
+  "educationRequired",
+  "benefits",
+  "industry",
+  "jobType",
+  "workplaceMode",
+  "description",
+  "requiredSkills",
+  "preferredSkills",
+  "closesAt",
+];
 exports.updateJob = asyncHandler(async (req, res) => {
   const job = await getOrgJob(req, req.params.jobId);
-  const versionedFields = [
-    "title",
-    "location",
-    "experience",
-    "description",
-    "requiredSkills",
-    "preferredSkills",
-    "workplaceMode",
-    "compensation",
-    "minExpYears",
-    "maxExpYears",
-    "educationRequired",
-    "benefits",
-  ];
-  if (job.status === "published" && versionedFields.some((field) => req.body[field] !== undefined))
-    job.version += 1;
-  const allowed = [
-    "title",
-    "company",
-    "location",
-    "salary",
-    "compensation",
-    "experience",
-    "minExpYears",
-    "maxExpYears",
-    "educationRequired",
-    "benefits",
-    "industry",
-    "jobType",
-    "workplaceMode",
-    "description",
-    "requiredSkills",
-    "preferredSkills",
-    "closesAt",
-  ];
-  for (const key of allowed) if (req.body[key] !== undefined) job[key] = req.body[key];
-  if (req.body.requiredSkills) job.skills = req.body.requiredSkills;
-  if (
-    job.status === "published" &&
-    versionedFields.some((field) => req.body[field] !== undefined)
-  ) {
-    const org = await Organization.findById(req.auth.organizationId).select("settings");
-    if (org?.settings?.requireJobApproval) job.moderation.status = "pending";
+  const changes = {};
+  for (const key of publicEditFields)
+    if (req.body[key] !== undefined) changes[key] = req.body[key];
+  if (Object.keys(changes).length === 0)
+    return res.json({ data: jobDto(job) });
+
+  const isLive =
+    job.status === "published" && ["approved", "none"].includes(job.moderation?.status);
+  if (!isLive) {
+    // Drafts, closed and rejected jobs edit normally — nothing public is
+    // affected. A rejected job goes back to the queue when republished.
+    for (const [key, value] of Object.entries(changes)) job[key] = value;
+    if (req.body.requiredSkills) job.skills = req.body.requiredSkills;
+    await job.save();
+    res.json({ data: jobDto(job) });
   }
+
+  // Published, approved job: proposed edits wait for review; live content
+  // untouched until the platform approves the changes.
+  job.pendingChanges = {
+    fields: changes,
+    status: "pending",
+    submittedAt: new Date(),
+    submittedBy: req.user._id,
+    reviewedBy: null,
+    reviewedAt: null,
+    reason: "",
+  };
   await job.save();
   await CandidateMatch.updateMany(
     { organization: req.auth.organizationId, job: job._id, status: "completed" },
     { status: "stale" },
   );
+  await audit({
+    req,
+    organization: req.auth.organizationId,
+    action: "job.changes_submitted",
+    resourceType: "job",
+    resourceId: job._id,
+    metadata: { fields: Object.keys(changes) },
+  });
+  try {
+    const owner = await OrganizationOwner(job.organization);
+    if (owner) {
+      await notify({
+        user: owner.user,
+        organization: job.organization,
+        type: "job_changes_submitted",
+        category: "jobs",
+        title: `Changes submitted for "${job.title}"`,
+        message: "Your updated job details are waiting for platform review. The current live version stays visible to candidates.",
+        resourceType: "job",
+        resourceId: job._id,
+        idempotencyKey: `job:${job._id}:changes-submitted:${job.pendingChanges.submittedAt.getTime()}`,
+      });
+    }
+    await notifyAdmins({
+      type: "job_changes_submitted",
+      category: "approvals",
+      title: `Job changes need review: ${job.title}`,
+      message: `A company submitted updated details for "${job.title}". Review before the changes go live.`,
+      resourceType: "job",
+      resourceId: job._id,
+      idempotencyKey: `job:${job._id}:changes-submitted:${job.pendingChanges.submittedAt.getTime()}`,
+    });
+  } catch (error) {
+    logger.error(`Job changes notification failed: ${error.message}`);
+  }
   res.json({ data: jobDto(job) });
 });
+
+const OrganizationOwner = async (organizationId) => {
+  if (!organizationId) return null;
+  const { Membership } = require("../models/Membership");
+  const owner = await Membership.findOne({
+    organization: organizationId,
+    role: "owner",
+    status: "active",
+  }).select("user");
+  return owner ? { user: owner.user } : null;
+};
 exports.publish = asyncHandler(async (req, res) => {
   const job = await getOrgJob(req, req.params.jobId);
   if (!job.description || !(job.requiredSkills?.length || job.skills?.length))
@@ -300,25 +371,56 @@ exports.publish = asyncHandler(async (req, res) => {
       409,
       "JOB_INCOMPLETE",
     );
-  const org = await Organization.findById(req.auth.organizationId).select("settings");
+  if (job.status === "published" && ["approved", "none"].includes(job.moderation?.status)) {
+    // Already public and approved — republishing must not re-review the job.
+    return res.json({ data: jobDto(job) });
+  }
   job.status = "published";
   job.publishedAt = job.publishedAt || new Date();
-  if (org?.settings?.requireJobApproval) {
-    job.moderation.status = "pending";
-    job.moderation.reviewedAt = null;
-    job.moderation.reason = "";
-  } else {
-    job.moderation.status = "none";
-  }
+  // Publishing always submits the job for platform review. The job only
+  // becomes public once an admin approves it (moderation gate).
+  job.moderation.status = "pending";
+  job.moderation.reviewedBy = null;
+  job.moderation.reviewedAt = null;
+  job.moderation.reason = "";
   await job.save();
   await audit({
     req,
     organization: req.auth.organizationId,
-    action: "job.published",
+    action: "job.submitted_for_approval",
     resourceType: "job",
     resourceId: job._id,
-    metadata: { moderation: job.moderation.status },
   });
+  try {
+    const owner = await OrganizationOwner(job.organization);
+    const targets = new Set(
+      [owner?.user, job.recruiter].filter((id) => id).map(String),
+    );
+    for (const userId of targets) {
+      await notify({
+        user: userId,
+        organization: job.organization,
+        type: "job_submitted_for_approval",
+        category: "jobs",
+        title: `Job submitted: ${job.title}`,
+        message: "Your job has been submitted for admin approval. It will be visible to candidates once approved.",
+        resourceType: "job",
+        resourceId: job._id,
+        idempotencyKey: `job:${job._id}:submitted:${job.updatedAt.getTime()}`,
+      });
+    }
+    await notifyAdmins({
+      type: "job_submitted_for_approval",
+      category: "approvals",
+      title: `New job needs approval: ${job.title}`,
+      message: `${job.company} submitted "${job.title}" (${job.location}). Review it in Approvals.`,
+      resourceType: "job",
+      resourceId: job._id,
+      idempotencyKey: `job:${job._id}:submitted:${job.updatedAt.getTime()}`,
+    });
+  } catch (error) {
+    logger.error(`Job publish notification failed: ${error.message}`);
+  }
   res.json({ data: jobDto(job) });
 });
 exports.close = asyncHandler(async (req, res) => {
@@ -333,6 +435,7 @@ exports.apply = asyncHandler(async (req, res) => {
   const job = await Job.findOne({
     _id: req.params.jobId,
     status: "published",
+    "moderation.status": { $in: ["approved", "none"] },
     $or: [{ closesAt: null }, { closesAt: { $gte: new Date() } }],
   });
   if (!job) throw new AppError("Job is not accepting applications", 404, "RESOURCE_NOT_FOUND");
@@ -385,6 +488,7 @@ exports.apply = asyncHandler(async (req, res) => {
       user: req.user._id,
       organization: job.organization,
       type: "application_acknowledged",
+      category: "applications",
       title: "Application received",
       message: `Your application for ${job.title} was received.`,
       resourceType: "application",
@@ -392,6 +496,27 @@ exports.apply = asyncHandler(async (req, res) => {
       email: req.user.email,
       idempotencyKey: `application:${application._id}:ack`,
     });
+    // The hiring team should know about the new application.
+    const owner = await OrganizationOwner(job.organization);
+    const candidates = new Set(
+      [owner?.user, job.recruiter].filter((id) => id).map(String),
+    );
+    const applicantName =
+      (await User.findById(req.user._id).select("name").lean())?.name || "A candidate";
+    for (const userId of candidates) {
+      await notify({
+        user: userId,
+        organization: job.organization,
+        type: "new_application",
+        category: "candidates",
+        title: `New application: ${job.title}`,
+        message: `${applicantName} applied for ${job.title}.`,
+        resourceType: "application",
+        resourceId: application._id,
+        email: null,
+        idempotencyKey: `application:${application._id}:org`,
+      });
+    }
   } catch (error) {
     logger.error(
       `Application ${application._id} notification enqueue failed: ${error.code || error.name}`,
@@ -471,6 +596,25 @@ exports.withdraw = asyncHandler(async (req, res) => {
     resourceId: app._id,
     metadata: { from },
   });
+  try {
+    const owner = await OrganizationOwner(app.organization);
+    if (owner) {
+      const jobTitle = (await Job.findById(app.job).select("title").lean())?.title || "a role";
+      await notify({
+        user: owner.user,
+        organization: app.organization,
+        type: "application_withdrawn",
+        category: "candidates",
+        title: `Application withdrawn: ${jobTitle}`,
+        message: `${req.user.name} withdrew their application for ${jobTitle}.`,
+        resourceType: "application",
+        resourceId: app._id,
+        idempotencyKey: `application:${app._id}:withdrawn`,
+      });
+    }
+  } catch (error) {
+    logger.error(`Withdraw notification failed: ${error.message}`);
+  }
   res.json({ data: safeApplication(app) });
 });
 exports.applications = asyncHandler(async (req, res) => {
@@ -518,17 +662,46 @@ exports.transition = asyncHandler(async (req, res) => {
   });
   await app.save();
   try {
+    const statusLabel = {
+      shortlisted: "shortlisted",
+      rejected: "not selected",
+      interview: "moved to interview",
+      offer: "offered",
+      hired: "hired",
+      under_review: "under review",
+    }[req.body.toStatus] || req.body.toStatus;
     await notify({
       user: app.candidate._id,
       organization: app.organization,
       type: "application_status_changed",
-      title: "Application update",
-      message: `Your application for ${app.job?.title || "a role"} moved to ${req.body.toStatus}.`,
+      category: "applications",
+      title:
+        req.body.toStatus === "shortlisted"
+          ? "You've been shortlisted"
+          : req.body.toStatus === "rejected"
+            ? "Application update"
+            : "Application update",
+      message: `Your application for ${app.job?.title || "a role"} has been ${statusLabel}.`,
       resourceType: "application",
       resourceId: app._id,
       email: app.candidate.email,
       idempotencyKey: `application:${app._id}:status:${app.status}:${app.statusHistory.length}`,
     });
+    // Keep other hiring-team members informed of decisions.
+    const owner = await OrganizationOwner(app.organization);
+    if (owner && String(owner.user) !== String(req.user._id)) {
+      await notify({
+        user: owner.user,
+        organization: app.organization,
+        type: "application_status_changed",
+        category: "candidates",
+        title: `Application update: ${app.job?.title || "role"}`,
+        message: `${app.candidate?.name || "A candidate"} was ${statusLabel} by the hiring team.`,
+        resourceType: "application",
+        resourceId: app._id,
+        idempotencyKey: `application:${app._id}:org-status:${app.status}:${app.statusHistory.length}`,
+      });
+    }
   } catch (error) {
     logger.error(
       `Application ${app._id} status notification enqueue failed: ${error.code || error.name}`,

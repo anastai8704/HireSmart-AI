@@ -11,6 +11,7 @@ const {
 } = require("../middleware/v1Auth");
 const candidateOnly = requireAccountRole("candidate");
 const upload = require("../middleware/uploadResumeV1");
+const uploadAvatar = require("../middleware/uploadAvatarV1");
 const auth = require("../controllers/v1AuthController");
 const org = require("../controllers/v1OrganizationController");
 const resume = require("../controllers/v1ResumeController");
@@ -100,6 +101,20 @@ router.post(
   auth.resetPassword,
 );
 router.post("/auth/logout", authenticate, auth.logout);
+router.post(
+  "/auth/change-email",
+  authLimit,
+  authenticate,
+  validate(strict({ newEmail: z.string().email().max(254) })),
+  auth.changeEmail,
+);
+router.post(
+  "/auth/confirm-email-change",
+  authLimit,
+  validate(strict({ token: z.string().min(32).max(256) })),
+  auth.confirmEmailChange,
+);
+router.get("/auth/security", authenticate, auth.securityLog);
 router.get("/auth/sessions", authenticate, auth.sessions);
 router.delete("/auth/sessions/:sessionId", authenticate, auth.revokeSession);
 router.patch(
@@ -116,7 +131,48 @@ router.post(
   invites.accept,
 );
 router.post("/invitations/:token/accept-existing", authLimit, authenticate, invites.acceptExisting);
+const urlField = z.string().url().max(2048).or(z.literal(""));
+const userProfileSchema = strict({
+  name: z.string().trim().min(2).max(100).optional(),
+  phone: z.string().max(30).optional(),
+  headline: z.string().max(160).optional(),
+  location: z.string().max(150).optional(),
+  bio: z.string().max(2000).optional(),
+  skills: z.array(z.string().trim().min(1).max(100)).max(50).optional(),
+  companyName: z.string().max(150).optional(),
+  companyWebsite: z.string().url().max(2048).or(z.literal("")).optional(),
+  socialLinks: strict({
+    linkedin: urlField.optional(),
+    github: urlField.optional(),
+    portfolio: urlField.optional(),
+    website: urlField.optional(),
+  }).optional(),
+  timezone: z.string().max(100).optional(),
+  locale: z.string().max(20).optional(),
+});
+const notificationPrefsSchema = strict({
+  applications: strict({ inApp: z.boolean().optional(), email: z.boolean().optional() }).optional(),
+  interviews: strict({ inApp: z.boolean().optional(), email: z.boolean().optional() }).optional(),
+  jobs: strict({ inApp: z.boolean().optional(), email: z.boolean().optional() }).optional(),
+  candidates: strict({ inApp: z.boolean().optional(), email: z.boolean().optional() }).optional(),
+});
 router.get("/users/me", authenticate, users.me);
+router.patch("/users/me", authenticate, validate(userProfileSchema), users.updateProfile);
+router.patch(
+  "/users/me/notification-prefs",
+  authenticate,
+  validate(notificationPrefsSchema),
+  users.updateNotificationPrefs,
+);
+router.post(
+  "/users/me/avatar",
+  authenticate,
+  uploadAvatar.single("avatar"),
+  users.uploadAvatar,
+);
+router.delete("/users/me/avatar", authenticate, users.removeAvatar);
+router.get("/users/me/avatar", authenticate, users.avatar);
+router.get("/avatars/:key", users.avatarByKey);
 router.get("/users/me/export", authenticate, users.exportData);
 router.delete(
   "/users/me",

@@ -49,6 +49,13 @@ const createPublishedJob = async (payload) => {
     .post(`/api/v1/organizations/${organizationId}/jobs/${created.body.data.id}/publish`)
     .set(auth(ownerToken));
   assert.equal(published.status, 200, JSON.stringify(published.body));
+  // Publishing now always requires platform approval; this suite exercises
+  // the public marketplace, so approve the job directly at the data layer.
+  const { Job } = require("../models/Job");
+  await Job.updateOne(
+    { _id: created.body.data.id },
+    { $set: { "moderation.status": "approved" } },
+  );
   return created.body.data;
 };
 

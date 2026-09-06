@@ -26,8 +26,8 @@ const audit = async ({
     requestId: req?.id || "",
     metadata,
   });
-const security = async ({ req, user, organization, type, severity = "info", details = {} }) =>
-  SecurityEvent.create({
+const security = async ({ req, user, organization, type, severity = "info", details = {} }) => {
+  const event = await SecurityEvent.create({
     user: user || req?.user?._id || null,
     organization: organization || null,
     type,
@@ -36,4 +36,19 @@ const security = async ({ req, user, organization, type, severity = "info", deta
     ipHash: hashIp(req?.ip),
     details,
   });
+  // High-severity events alert platform admins without failing the caller.
+  if (severity === "high") {
+    const { notifyAdmins } = require("./notificationService");
+    notifyAdmins({
+      type: "security_alert",
+      category: "security",
+      title: `Security alert: ${type.replace(/_/g, " ")}`,
+      message: `A high-severity security event (${type}) was recorded${organization ? ` for organization ${organization}` : ""}.`,
+      resourceType: "security_event",
+      resourceId: event._id,
+      idempotencyKey: `security:${event._id}`,
+    }).catch(() => {});
+  }
+  return event;
+};
 module.exports = { audit, security, hashIp };

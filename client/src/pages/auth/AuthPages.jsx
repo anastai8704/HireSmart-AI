@@ -307,6 +307,38 @@ export const VerifyPage = () => {
     </Shell>
   );
 };
+export const ChangeEmailPage = () => {
+  const [params] = useSearchParams(),
+    [state, setState] = useState("working"),
+    [error, setError] = useState(null);
+  useEffect(() => {
+    authApi
+      .confirmEmailChange(params.get("token"))
+      .then(() => setState("done"))
+      .catch((e) => {
+        setError(e);
+        setState("error");
+      });
+  }, [params]);
+  return (
+    <Shell title="Email change" copy="Confirming your new HireSmart email address.">
+      {state === "working" && <p role="status">Confirming…</p>}
+      {state === "done" && (
+        <div className="panel p-6 text-center">
+          <ShieldCheck className="mx-auto h-10 w-10 text-success-700" />
+          <p className="mt-3">Your email address has been updated.</p>
+          <p className="mt-1 text-sm text-ink-500">
+            We sent a verification link to your new address — sign in and verify it.
+          </p>
+          <Button as={Link} to="/auth/login" className="mt-5">
+            Continue to sign in
+          </Button>
+        </div>
+      )}
+      {state === "error" && <ErrorCallout error={error} />}
+    </Shell>
+  );
+};
 export const ForgotPage = () => {
   const [done, setDone] = useState(false),
     [error, setError] = useState(null);

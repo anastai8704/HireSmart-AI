@@ -273,6 +273,8 @@ export const AdminModeration = () => {
     [target, setTarget] = useState(null),
     [reason, setReason] = useState(""),
     [view, setView] = useState(null);
+  const effectiveStatus = (job) =>
+    job.changeReview?.status === "pending" ? "changes_pending" : job.moderation?.status;
   const statuses = tab === "all" ? ["pending", "approved", "rejected"] : [tab];
   const results = useQueries({
     queries: statuses.map((s) => ({
@@ -285,7 +287,15 @@ export const AdminModeration = () => {
       adminApi.moderate(jobId, action, action === "reject" ? reason || undefined : undefined),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["moderation-jobs"] });
-      toast.success(target?.action === "approve" ? "Job approved" : "Job rejected");
+      toast.success(
+        target?.action === "approve"
+          ? target?.changes
+            ? "Changes approved — now live"
+            : "Job approved"
+          : target?.changes
+            ? "Changes rejected — previous version stays live"
+            : "Job rejected",
+      );
       setTarget(null);
       setReason("");
     },
@@ -301,7 +311,12 @@ export const AdminModeration = () => {
     return hay.includes(search.toLowerCase());
   });
   const countFor = (s) =>
-    s === "all" ? all.length : all.filter((j) => j.moderation?.status === s).length;
+    s === "all"
+      ? all.length
+      : all.filter(
+          (j) =>
+            effectiveStatus(j) === s || (s === "pending" && j.moderation?.status === "pending"),
+        ).length;
   return (
     <div className="page-wrap">
       <PageHeader
@@ -368,7 +383,7 @@ export const AdminModeration = () => {
                   {formatRelativeTime(job.createdAt)}
                 </td>
                 <td className="px-5 py-4">
-                  <StatusPill status={job.moderation?.status} />
+                  <StatusPill status={effectiveStatus(job)} />
                 </td>
                 <td className="px-5 py-4">
                   <div className="flex gap-1.5">
@@ -376,12 +391,18 @@ export const AdminModeration = () => {
                       <Eye className="mr-1 h-3.5 w-3.5" />
                       View
                     </Button>
-                    {job.moderation?.status === "pending" && (
+                    {["pending", "changes_pending"].includes(effectiveStatus(job)) && (
                       <>
                         <Button
                           size="sm"
                           variant="secondary"
-                          onClick={() => setTarget({ jobId: job.id, action: "approve" })}
+                          onClick={() =>
+                            setTarget({
+                              jobId: job.id,
+                              action: "approve",
+                              changes: effectiveStatus(job) === "changes_pending",
+                            })
+                          }
                         >
                           Approve
                         </Button>
@@ -389,7 +410,13 @@ export const AdminModeration = () => {
                           size="sm"
                           variant="ghost"
                           className="text-danger-600 hover:text-danger-700"
-                          onClick={() => setTarget({ jobId: job.id, action: "reject" })}
+                          onClick={() =>
+                            setTarget({
+                              jobId: job.id,
+                              action: "reject",
+                              changes: effectiveStatus(job) === "changes_pending",
+                            })
+                          }
                         >
                           Reject
                         </Button>
@@ -425,18 +452,70 @@ export const AdminModeration = () => {
               />
             )}
             {view.moderation?.reason && <DetailRow label="Reason" value={view.moderation.reason} />}
+            {view.changeReview && (
+              <>
+                <DetailRow
+                  label="Change review"
+                  value={<StatusPill status={view.changeReview.status} />}
+                />
+                {view.changeReview.submittedAt && (
+                  <DetailRow
+                    label="Changes submitted"
+                    value={`${formatDate(view.changeReview.submittedAt)} · ${formatRelativeTime(
+                      view.changeReview.submittedAt,
+                    )}`}
+                  />
+                )}
+                {view.changeReview.reason && (
+                  <DetailRow label="Change review reason" value={view.changeReview.reason} />
+                )}
+                {view.changeReview.status === "pending" &&
+                  view.changeReview.fields &&
+                  Object.keys(view.changeReview.fields).length > 0 && (
+                    <div className="mt-2">
+                      <p className="text-xs font-bold uppercase tracking-wider text-ink-400">
+                        Proposed changes
+                      </p>
+                      <ul className="mt-2 space-y-2">
+                        {Object.entries(view.changeReview.fields).map(([field, value]) => (
+                          <li key={field} className="rounded-lg bg-ink-50 p-3 text-sm">
+                            <p className="font-semibold capitalize">{field.replaceAll("_", " ")}</p>
+                            <p className="mt-0.5 break-words text-ink-600">
+                              {Array.isArray(value)
+                                ? value.join(", ")
+                                : value && typeof value === "object"
+                                  ? JSON.stringify(value)
+                                  : String(value ?? "—")}
+                            </p>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+              </>
+            )}
           </dl>
         )}
       </Drawer>
       <Modal
         isOpen={Boolean(target)}
         onClose={() => setTarget(null)}
-        title={target?.action === "reject" ? "Reject job" : "Approve job"}
+        title={
+          target?.changes
+            ? target?.action === "reject"
+              ? "Reject changes"
+              : "Approve changes"
+            : target?.action === "reject"
+              ? "Reject job"
+              : "Approve job"
+        }
       >
         {target?.action === "reject" ? (
           <div className="space-y-3">
             <p className="text-sm text-ink-600">
-              The organization owner will be notified. A reason helps them fix the listing.
+              {target?.changes
+                ? "The proposed changes are discarded and the previously approved version stays visible to candidates. The owner is notified with your reason."
+                : "The organization owner will be notified. A reason helps them fix the listing."}
             </p>
             <Input
               label="Reason (optional)"
@@ -447,7 +526,9 @@ export const AdminModeration = () => {
           </div>
         ) : (
           <p className="text-sm text-ink-600">
-            The job becomes visible on public search and the company page immediately.
+            {target?.changes
+              ? "The updated job details become live and the owner is notified."
+              : "The job becomes visible on public search and the company page immediately."}
           </p>
         )}
         <div className="mt-5 flex justify-end gap-2">

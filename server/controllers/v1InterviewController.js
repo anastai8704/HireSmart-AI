@@ -2,6 +2,7 @@ const Interview = require("../models/Interview");
 const { Application } = require("../models/Application");
 const Job = require("../models/Job");
 const { notify } = require("../services/notificationService");
+const { Membership } = require("../models/Membership");
 const { run } = require("../services/ai/orchestrator");
 const { audit } = require("../services/auditService");
 const { parse, applyCursor, meta } = require("../utils/pagination");
@@ -9,6 +10,13 @@ const asyncHandler = require("../middleware/asyncHandler");
 const AppError = require("../utils/AppError");
 const idempotency = require("../services/idempotencyService");
 const logger = require("../utils/logger");
+
+const orgOwner = async (organizationId) =>
+  (await Membership.findOne({
+    organization: organizationId,
+    role: "owner",
+    status: "active",
+  }).select("user"))?.user || null;
 const restrictedRoles = new Set(["hiring_manager", "interviewer", "viewer"]);
 const getOrgInterview = async (req) => {
   const value = await Interview.findOne({
@@ -62,6 +70,7 @@ exports.create = asyncHandler(async (req, res) => {
         user: application.candidate._id,
         organization: req.auth.organizationId,
         type: "interview_invitation",
+        category: "interviews",
         title: `Interview invitation: ${application.job?.title || "role"}`,
         message: `An interview is proposed for ${interview.scheduledStart.toISOString()}.`,
         resourceType: "interview",
@@ -137,8 +146,30 @@ exports.update = asyncHandler(async (req, res) => {
     "type",
   ])
     if (req.body[key] !== undefined) interview[key] = req.body[key];
-  if (req.body.scheduledStart) interview.status = "invited";
+  const rescheduled = Boolean(req.body.scheduledStart);
+  if (rescheduled) interview.status = "invited";
   await interview.save();
+  if (rescheduled && interview.application) {
+    try {
+      const candidate = await require("../models/User").findById(
+        interview.application.candidate,
+      ).select("email name");
+      await notify({
+        user: interview.application.candidate,
+        organization: interview.organization,
+        type: "interview_rescheduled",
+        category: "interviews",
+        title: `Interview rescheduled: ${interview.title || "role"}`,
+        message: `Your interview was rescheduled to ${interview.scheduledStart.toISOString()}. Please confirm the new time.`,
+        resourceType: "interview",
+        resourceId: interview._id,
+        email: candidate?.email,
+        idempotencyKey: `interview:${interview._id}:rescheduled:${interview.updatedAt.getTime()}`,
+      });
+    } catch (error) {
+      logger.error(`Interview reschedule notification failed: ${error.message}`);
+    }
+  }
   res.json({ data: interview });
 });
 exports.cancel = asyncHandler(async (req, res) => {
@@ -148,6 +179,29 @@ exports.cancel = asyncHandler(async (req, res) => {
   interview.status = "cancelled";
   interview.cancelledReason = req.body.reason;
   await interview.save();
+  if (interview.application) {
+    try {
+      const candidate = await require("../models/User").findById(
+        interview.application.candidate,
+      ).select("email name");
+      await notify({
+        user: interview.application.candidate,
+        organization: interview.organization,
+        type: "interview_cancelled",
+        category: "interviews",
+        title: `Interview cancelled: ${interview.title || "role"}`,
+        message: `Your interview was cancelled${
+          req.body.reason ? `: ${req.body.reason}` : ""
+        }.`,
+        resourceType: "interview",
+        resourceId: interview._id,
+        email: candidate?.email,
+        idempotencyKey: `interview:${interview._id}:cancelled`,
+      });
+    } catch (error) {
+      logger.error(`Interview cancel notification failed: ${error.message}`);
+    }
+  }
   res.json({ data: interview });
 });
 exports.complete = asyncHandler(async (req, res) => {
@@ -176,7 +230,8 @@ exports.listMine = asyncHandler(async (req, res) => {
 exports.confirm = asyncHandler(async (req, res) => {
   const interview = await Interview.findById(req.params.interviewId).populate({
     path: "application",
-    select: "candidate",
+    select: "candidate job",
+    populate: { path: "job", select: "title" },
   });
   if (!interview || String(interview.application?.candidate) !== String(req.user._id))
     throw new AppError("Interview not found", 404, "RESOURCE_NOT_FOUND");
@@ -185,6 +240,26 @@ exports.confirm = asyncHandler(async (req, res) => {
   interview.status = "confirmed";
   interview.candidateConfirmedAt = new Date();
   await interview.save();
+  try {
+    const owner = await orgOwner(interview.organization);
+    for (const userId of new Set([owner].filter(Boolean))) {
+      await notify({
+        user: userId,
+        organization: interview.organization,
+        type: "interview_confirmed",
+        category: "interviews",
+        title: `Interview confirmed: ${interview.application?.job?.title || "role"}`,
+        message: `${req.user.name} confirmed the interview scheduled for ${
+          interview.scheduledStart ? interview.scheduledStart.toISOString() : "TBD"
+        }.`,
+        resourceType: "interview",
+        resourceId: interview._id,
+        idempotencyKey: `interview:${interview._id}:confirmed`,
+      });
+    }
+  } catch (error) {
+    logger.error(`Interview confirm notification failed: ${error.message}`);
+  }
   res.json({ data: interview });
 });
 exports.rescheduleRequest = asyncHandler(async (req, res) => {
@@ -197,6 +272,26 @@ exports.rescheduleRequest = asyncHandler(async (req, res) => {
   interview.status = "reschedule_requested";
   interview.cancelledReason = req.body.reason;
   await interview.save();
+  try {
+    const owner = await orgOwner(interview.organization);
+    for (const userId of new Set([owner].filter(Boolean))) {
+      await notify({
+        user: userId,
+        organization: interview.organization,
+        type: "interview_reschedule_requested",
+        category: "interviews",
+        title: `Reschedule requested: ${interview.title || "interview"}`,
+        message: `${req.user.name} requested a new interview time${
+          req.body.reason ? `: ${req.body.reason}` : ""
+        }.`,
+        resourceType: "interview",
+        resourceId: interview._id,
+        idempotencyKey: `interview:${interview._id}:reschedule-requested`,
+      });
+    }
+  } catch (error) {
+    logger.error(`Reschedule request notification failed: ${error.message}`);
+  }
   res.json({ data: interview });
 });
 exports.feedback = asyncHandler(async (req, res) => {

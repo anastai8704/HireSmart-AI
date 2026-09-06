@@ -20,10 +20,11 @@ import {
   Video,
   X,
 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../context/useAuth";
 import { notificationApi } from "../../lib/api";
-import { cn, formatRelativeTime, initials } from "../../lib/utils";
+import { cn, formatRelativeTime, notificationTarget } from "../../lib/utils";
+import Avatar from "../ui/Avatar";
 
 const candidateGroups = [
   [
@@ -115,13 +116,23 @@ const AppShell = () => {
     [menuOpen, setMenuOpen] = useState(false),
     location = useLocation();
   const isAdmin = auth.role === "admin";
+  const qc = useQueryClient();
   const notifications = useQuery({
     queryKey: ["notifications", {}],
     queryFn: () => notificationApi.list({ limit: 100 }),
-    enabled: isAdmin,
     staleTime: 30_000,
   });
   const unread = (notifications.data?.data || []).filter((n) => !n.readAt);
+  const markRead = useMutation({
+    mutationFn: notificationApi.read,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["notifications"] }),
+  });
+  const openNotification = (n) => {
+    setBellOpen(false);
+    if (!n.readAt) markRead.mutate(n._id);
+    const target = notificationTarget(auth, n);
+    navigate(target?.to || "/app/notifications");
+  };
   const groups = isAdmin
     ? adminGroups
     : auth.organization
@@ -234,9 +245,7 @@ const AppShell = () => {
         </nav>
         <div className="border-t border-white/10 p-3">
           <div className="flex items-center gap-3 rounded-xl px-2 py-2">
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand-400 to-brand-600 text-xs font-bold">
-              {initials(auth.user?.displayName)}
-            </span>
+            <Avatar user={auth.user} />
             <span className="min-w-0 flex-1">
               <span className="block truncate text-sm font-semibold">{auth.user?.displayName}</span>
               <span className="block truncate text-xs text-ink-400">
@@ -313,10 +322,7 @@ const AppShell = () => {
                         <button
                           key={n._id}
                           type="button"
-                          onClick={() => {
-                            setBellOpen(false);
-                            navigate("/app/notifications");
-                          }}
+                          onClick={() => openNotification(n)}
                           className="flex w-full items-start gap-3 border-b border-ink-50 px-4 py-3 text-left transition-colors hover:bg-ink-50"
                         >
                           <span
@@ -359,9 +365,9 @@ const AppShell = () => {
                 onClick={() => setMenuOpen((v) => !v)}
                 aria-label="Account menu"
                 aria-expanded={menuOpen}
-                className="hidden h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-brand-400 to-brand-600 text-xs font-bold text-white transition-transform hover:scale-105 sm:grid"
+                className="hidden transition-transform hover:scale-105 sm:block"
               >
-                {initials(auth.user?.displayName)}
+                <Avatar user={auth.user} />
               </button>
               {menuOpen && (
                 <>

@@ -83,5 +83,5 @@ exports.companyJobs = asyncHandler(async (req, res) => {
     page.after,
   );
   const items = await Job.find(filter).sort({ _id: -1 }).limit(page.limit);
-  res.json({ data: items.map(jobDto), meta: meta(items, page.limit) });
+  res.json({ data: items.map((j) => jobDto(j, { public: true })), meta: meta(items, page.limit) });
 });

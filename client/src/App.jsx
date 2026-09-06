@@ -19,6 +19,7 @@ const Login = pick(() => import("./pages/auth/AuthPages"), "LoginPage"),
   Register = pick(() => import("./pages/auth/AuthPages"), "RegisterPage"),
   CheckEmail = pick(() => import("./pages/auth/AuthPages"), "CheckEmailPage"),
   Verify = pick(() => import("./pages/auth/AuthPages"), "VerifyPage"),
+  ChangeEmail = pick(() => import("./pages/auth/AuthPages"), "ChangeEmailPage"),
   Forgot = pick(() => import("./pages/auth/AuthPages"), "ForgotPage"),
   Reset = pick(() => import("./pages/auth/AuthPages"), "ResetPage"),
   AcceptInvite = pick(() => import("./pages/auth/AuthPages"), "AcceptInvitePage");
@@ -96,7 +97,10 @@ const App = () => (
             </Route>
             <Route path="/auth/check-email" element={<CheckEmail />} />
             <Route path="/auth/verify-email" element={<Verify />} />
+            <Route path="/auth/change-email" element={<ChangeEmail />} />
             <Route path="/accept-invite" element={<AcceptInvite />} />
+            <Route path="/verify-email" element={<Navigate to="/auth/verify-email" replace />} />
+            <Route path="/change-email" element={<Navigate to="/auth/change-email" replace />} />
             <Route element={<ProtectedRoute />}>
               <Route element={<AppShell />}>
                 <Route path="/app/notifications" element={<Notifications />} />

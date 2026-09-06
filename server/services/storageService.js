@@ -9,7 +9,12 @@ const {
 } = require("@aws-sdk/client-s3");
 
 const { config } = require("../config/env");
-const { ensureResumeDirectory, resumeDirectory } = require("../utils/resumeStorage");
+const {
+  ensureResumeDirectory,
+  ensureAvatarDirectory,
+  resumeDirectory,
+  avatarDirectory,
+} = require("../utils/resumeStorage");
 
 const getLocalPath = (storageKey) => {
   if (!storageKey) {
@@ -17,6 +22,90 @@ const getLocalPath = (storageKey) => {
   }
 
   return path.join(resumeDirectory, path.basename(storageKey));
+};
+
+const getLocalAvatarPath = (storageKey) => {
+  if (!storageKey) {
+    return null;
+  }
+
+  return path.join(avatarDirectory, path.basename(storageKey));
+};
+
+const IMAGE_CONTENT_TYPES = {
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".png": "image/png",
+  ".webp": "image/webp",
+};
+
+const saveImage = async ({ buffer, originalName }) => {
+  const provider = getCurrentProvider();
+  const extension = path.extname(originalName).toLowerCase();
+  const contentType = IMAGE_CONTENT_TYPES[extension];
+  if (!contentType) {
+    const err = new Error("Unsupported image type");
+    err.code = "UNSUPPORTED_IMAGE";
+    throw err;
+  }
+  const storageKey = `avatar-${Date.now()}-${crypto.randomUUID()}${extension}`;
+
+  if (provider === "s3") {
+    const client = s3Client();
+    await client.send(
+      new PutObjectCommand({
+        Bucket: config.s3Bucket,
+        Key: storageKey,
+        Body: buffer,
+        ContentType: contentType,
+        ServerSideEncryption: "AES256",
+      }),
+    );
+    return { storageKey, provider, contentType };
+  }
+
+  ensureAvatarDirectory();
+  await fs.promises.writeFile(getLocalAvatarPath(storageKey), buffer, { mode: 0o600 });
+  return { storageKey, provider, contentType };
+};
+
+const deleteAvatar = async (storageKey, provider = getCurrentProvider()) => {
+  if (!storageKey) {
+    return;
+  }
+
+  if (provider === "s3") {
+    try {
+      await s3Client().send(new DeleteObjectCommand({ Bucket: config.s3Bucket, Key: storageKey }));
+    } catch (error) {
+      if (error.name !== "NoSuchKey") throw error;
+    }
+    return;
+  }
+
+  try {
+    await fs.promises.unlink(getLocalAvatarPath(storageKey));
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+};
+
+const getAvatarStream = async (storageKey, provider = getCurrentProvider()) => {
+  if (!storageKey) {
+    throw new Error("Avatar storage key is required");
+  }
+
+  if (provider === "s3") {
+    const response = await s3Client().send(
+      new GetObjectCommand({ Bucket: config.s3Bucket, Key: storageKey }),
+    );
+    if (!response.Body) throw new Error("Unable to load avatar from S3");
+    return response.Body;
+  }
+
+  const filePath = getLocalAvatarPath(storageKey);
+  await fs.promises.access(filePath);
+  return fs.createReadStream(filePath);
 };
 
 const s3Client = () =>
@@ -131,5 +220,9 @@ module.exports = {
   deleteFile,
   getFileStream,
   getLocalPath,
+  saveImage,
+  deleteAvatar,
+  getAvatarStream,
+  getLocalAvatarPath,
   getCurrentProvider,
 };

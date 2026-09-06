@@ -84,6 +84,38 @@ const userSchema = new mongoose.Schema(
       trim: true,
       maxlength: 2048,
     },
+    profileImageProvider: {
+      type: String,
+      enum: ["local", "s3"],
+      default: "local",
+    },
+    socialLinks: {
+      linkedin: { type: String, default: "", trim: true, maxlength: 2048 },
+      github: { type: String, default: "", trim: true, maxlength: 2048 },
+      portfolio: { type: String, default: "", trim: true, maxlength: 2048 },
+      website: { type: String, default: "", trim: true, maxlength: 2048 },
+    },
+    pendingEmail: { type: String, default: "", lowercase: true, trim: true, select: false },
+    pendingEmailToken: { type: String, select: false },
+    pendingEmailTokenExpires: { type: Date, select: false },
+    notificationPrefs: {
+      applications: {
+        inApp: { type: Boolean, default: true },
+        email: { type: Boolean, default: true },
+      },
+      interviews: {
+        inApp: { type: Boolean, default: true },
+        email: { type: Boolean, default: true },
+      },
+      jobs: {
+        inApp: { type: Boolean, default: true },
+        email: { type: Boolean, default: true },
+      },
+      candidates: {
+        inApp: { type: Boolean, default: true },
+        email: { type: Boolean, default: true },
+      },
+    },
     headline: {
       type: String,
       default: "",
@@ -171,4 +203,5 @@ const userSchema = new mongoose.Schema(
 
 userSchema.index({ role: 1, createdAt: -1 });
 
+userSchema.index({ profileImage: 1 }, { sparse: true });
 module.exports = mongoose.model("User", userSchema);

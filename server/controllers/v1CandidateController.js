@@ -84,6 +84,7 @@ exports.fit = asyncHandler(async (req, res) => {
   const job = await Job.findOne({
     _id: req.params.jobId,
     status: "published",
+    "moderation.status": { $in: ["approved", "none"] },
     $or: [{ closesAt: null }, { closesAt: { $gte: new Date() } }],
   });
   if (!job) throw new AppError("Job not found", 404, "RESOURCE_NOT_FOUND");
@@ -108,7 +109,7 @@ exports.fit = asyncHandler(async (req, res) => {
 exports.savedJobs = asyncHandler(async (req, res) => {
   const user = await User.findById(req.user._id).populate({
     path: "savedJobs",
-    match: { status: "published" },
+    match: { status: "published", "moderation.status": { $in: ["approved", "none"] } },
   });
   res.json({
     data: (user.savedJobs || [])
@@ -134,6 +135,7 @@ exports.saveJob = asyncHandler(async (req, res) => {
   const job = await Job.findOne({
     _id: req.params.jobId,
     status: "published",
+    "moderation.status": { $in: ["approved", "none"] },
     $or: [{ closesAt: null }, { closesAt: { $gte: new Date() } }],
   });
   if (!job) throw new AppError("Job not found", 404, "RESOURCE_NOT_FOUND");

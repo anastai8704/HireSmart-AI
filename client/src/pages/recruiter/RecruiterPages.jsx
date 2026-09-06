@@ -317,6 +317,16 @@ export const JobsPage = ({ assigned = false }) => {
                         Not approved{job.moderation.reason ? ` — ${job.moderation.reason}` : ""}
                       </span>
                     )}
+                    {job.pendingChanges?.status === "pending" && (
+                      <span className="rounded-full bg-warning-50 px-2 py-0.5 text-xs font-semibold text-warning-700">
+                        Changes pending approval
+                      </span>
+                    )}
+                    {job.pendingChanges?.status === "rejected" && (
+                      <span className="rounded-full bg-danger-50 px-2 py-0.5 text-xs font-semibold text-danger-700">
+                        Changes rejected
+                      </span>
+                    )}
                   </div>
                   <h2 className="mt-3 text-lg font-bold">{job.title}</h2>
                   <p className="mt-1 text-sm text-ink-500">
@@ -458,35 +468,43 @@ export const JobEditor = () => {
       : defaultJob,
   });
   const toRupees = (value) => Number(String(value || "").replace(/\D/g, "")) || 0;
+  const splitSkills = (value) =>
+    String(value || "")
+      .split(",")
+      .map((x) => x.trim())
+      .filter(Boolean);
   const save = async (v) => {
     setSaveError(null);
     try {
       const min = toRupees(v.salaryMin),
-        max = toRupees(v.salaryMax),
-        rest = { ...v };
-      delete rest.salaryMin;
-      delete rest.salaryMax;
+        max = toRupees(v.salaryMax);
+      // Send only real job fields — the API rejects unknown keys, and job
+      // lifecycle fields (status, moderation, timestamps) are server-owned.
       const body = {
-        ...rest,
+        title: v.title,
+        company: v.company,
+        location: v.location,
+        experience: v.experience,
+        jobType: v.jobType || "Full-Time",
+        workplaceMode: v.workplaceMode || "unspecified",
+        description: v.description,
+        requiredSkills: splitSkills(v.requiredSkills),
+        preferredSkills: splitSkills(v.preferredSkills),
         salary: min > 0 ? min : max,
-        compensation:
-          min > 0 || max > 0
-            ? { min, max: max || min, currency: "INR", period: "year" }
-            : undefined,
-        requiredSkills: v.requiredSkills
-          .split(",")
-          .map((x) => x.trim())
-          .filter(Boolean),
-        preferredSkills: v.preferredSkills
-          .split(",")
-          .map((x) => x.trim())
-          .filter(Boolean),
       };
+      if (min > 0 || max > 0)
+        body.compensation = { min, max: max || min, currency: "INR", period: "year" };
       const r = jobId
         ? await jobsApi.update(orgId, jobId, body)
         : await jobsApi.create(orgId, body);
-      toast.success("Draft saved");
+      const job = r.data;
+      if (jobId && job.status === "published" && job.pendingChanges?.status === "pending") {
+        toast.success("Changes submitted for approval — the live version stays visible");
+      } else {
+        toast.success("Draft saved");
+      }
       qc.invalidateQueries({ queryKey: ["jobs-org", orgId] });
+      qc.invalidateQueries({ queryKey: ["job", "org", orgId, jobId] });
       navigate(`/app/o/${orgId}/jobs/${r.data.id}/edit`, { replace: true });
     } catch (error) {
       setSaveError(error);
@@ -515,11 +533,18 @@ export const JobEditor = () => {
   });
   const publish = useMutation({
     mutationFn: () => jobsApi.publish(orgId, jobId),
-    onSuccess: () => {
-      toast.success("Job published");
+    onSuccess: (r) => {
+      toast.success(
+        r.data?.moderation?.status === "pending"
+          ? "Job submitted for admin approval — it goes live once approved"
+          : "Job published",
+      );
       qc.invalidateQueries({ queryKey: ["jobs-org", orgId] });
     },
+    onError: (error) => toast.error(error.message || "Unable to publish the job right now"),
   });
+  const job = existing.data?.data;
+  const pendingChanges = job?.pendingChanges;
   return (
     <div className="page-wrap">
       <PageHeader
@@ -529,6 +554,24 @@ export const JobEditor = () => {
       />
       <div className="grid gap-6 xl:grid-cols-[1.1fr_.9fr]">
         <form onSubmit={handleSubmit(save)} className="panel space-y-5 p-6" noValidate>
+          {pendingChanges?.status === "pending" && job?.status === "published" && (
+            <div className="rounded-xl border border-warning-500/30 bg-warning-50 p-4 text-sm text-warning-700">
+              <p className="font-semibold">Changes pending approval</p>
+              <p className="mt-1">
+                Your last edits to this published job are waiting for platform review. The current
+                live version stays visible to candidates until they are approved.
+              </p>
+            </div>
+          )}
+          {pendingChanges?.status === "rejected" && job?.status === "published" && (
+            <div className="rounded-xl border border-danger-500/30 bg-danger-50 p-4 text-sm text-danger-700">
+              <p className="font-semibold">Changes rejected</p>
+              <p className="mt-1">
+                {pendingChanges.reason ||
+                  "Your last changes were not approved. The live version is unchanged — edit and save again to resubmit."}
+              </p>
+            </div>
+          )}
           {saveError && <ErrorCallout error={saveError} />}
           <div className="grid gap-4 sm:grid-cols-2">
             <Input
@@ -2104,42 +2147,15 @@ const CompanyProfileCard = () => {
     </section>
   );
 };
-const JobApprovalToggle = () => {
-  const orgId = useOrg(),
-    toast = useToast(),
-    qc = useQueryClient(),
-    org = useQuery({
-      queryKey: ["org-settings", orgId],
-      queryFn: () => organizationApi.get(orgId),
-    }),
-    toggle = useMutation({
-      mutationFn: (value) => organizationApi.settings(orgId, { requireJobApproval: value }),
-      onSuccess: (_, value) => {
-        qc.invalidateQueries({ queryKey: ["org-settings", orgId] });
-        toast.success(
-          value ? "Approval is now required before jobs go public" : "Approval requirement removed",
-        );
-      },
-      onError: (error) => toast.error(error.message),
-    });
-  const on = Boolean(org.data?.data?.settings?.requireJobApproval);
-  return (
-    <section className="panel mb-4 flex flex-wrap items-center gap-4 p-4">
-      <div className="min-w-56 flex-1">
-        <p className="font-bold">Job Approval</p>
-        <p className="mt-0.5 text-sm text-ink-500">
-          New jobs need platform approval before they appear in public search and on company pages.
-          Already approved jobs stay live.
-        </p>
-      </div>
-      <Button
-        size="sm"
-        variant={on ? "secondary" : "primary"}
-        isLoading={toggle.isPending}
-        onClick={() => toggle.mutate(!on)}
-      >
-        {on ? "Approval required" : "Approval not required"}
-      </Button>
-    </section>
-  );
-};
+const JobApprovalToggle = () => (
+  <section className="panel mb-4 flex flex-wrap items-center gap-4 p-4">
+    <div className="min-w-56 flex-1">
+      <p className="font-bold">Job Approval</p>
+      <p className="mt-0.5 text-sm text-ink-500">
+        Every new job — and every edit to a published job — is reviewed by the platform before it is
+        (or stays) visible to candidates.
+      </p>
+    </div>
+    <Badge variant="brand">Always on</Badge>
+  </section>
+);

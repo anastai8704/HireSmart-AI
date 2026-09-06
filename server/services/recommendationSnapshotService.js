@@ -65,6 +65,7 @@ const buildRecommendations = async (userId) => {
   const excludedIds = [...new Set([...appliedIds, ...savedJobIds])];
   const jobs = await Job.find({
     status: "published",
+    "moderation.status": { $in: ["approved", "none"] },
     _id: { $nin: excludedIds },
     $or: [{ closesAt: null }, { closesAt: { $gte: new Date() } }],
   })

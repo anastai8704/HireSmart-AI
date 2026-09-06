@@ -20,11 +20,25 @@ export const authApi = {
   forgot: (email) => api.post("/auth/password/forgot", { email }),
   reset: (body) => api.post("/auth/password/reset", body),
   changePassword: (body) => api.patch("/auth/password", body),
+  changeEmail: (newEmail) => api.post("/auth/change-email", { newEmail }),
+  confirmEmailChange: (token) => api.post("/auth/confirm-email-change", { token }),
+  security: () => api.get("/auth/security"),
   sessions: () => api.get("/auth/sessions"),
   revokeSession: (sessionId) => api.delete(`/auth/sessions/${sessionId}`),
 };
 export const userApi = {
   me: () => api.get("/users/me"),
+  updateProfile: (body) => api.patch("/users/me", body),
+  updateNotificationPrefs: (prefs) => api.patch("/users/me/notification-prefs", prefs),
+  uploadAvatar: (file) => {
+    const form = new FormData();
+    form.append("avatar", file);
+    return api.post("/users/me/avatar", form, {
+      headers: { "Content-Type": undefined },
+      timeout: 60000,
+    });
+  },
+  removeAvatar: () => api.delete("/users/me/avatar"),
   exportData: () => api.get("/users/me/export", { responseType: "blob" }),
   remove: (reason) => api.delete("/users/me", { data: { reason } }),
   consents: () => api.get("/users/me/consents"),

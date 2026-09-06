@@ -2,9 +2,14 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const resumeDirectory = path.resolve(__dirname, "..", "uploads", "resumes");
+const avatarDirectory = path.join(resumeDirectory, "avatars");
 
 const ensureResumeDirectory = () => {
   fs.mkdirSync(resumeDirectory, { recursive: true });
+};
+
+const ensureAvatarDirectory = () => {
+  fs.mkdirSync(avatarDirectory, { recursive: true });
 };
 
 const getResumePath = (storedResume) => {
@@ -33,7 +38,9 @@ const removeStoredResume = async (storedResume) => {
 
 module.exports = {
   ensureResumeDirectory,
+  ensureAvatarDirectory,
   getResumePath,
   removeStoredResume,
   resumeDirectory,
+  avatarDirectory,
 };

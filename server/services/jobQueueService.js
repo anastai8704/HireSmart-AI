@@ -6,6 +6,29 @@ const handlers = {
   "resume.process": async (payload) => {
     const { processVersion } = require("./resumeProcessingService");
     const version = await processVersion(payload.resumeVersionId);
+    try {
+      const { notify } = require("./notificationService");
+      const User = require("../models/User");
+      const user = await User.findById(version.candidate).select("email");
+      if (user) {
+        const ready = version.processingStatus === "ready";
+        await notify({
+          user: version.candidate,
+          type: ready ? "resume_processed" : "resume_processing_failed",
+          category: "applications",
+          title: ready ? "Resume ready" : "We couldn't process your resume",
+          message: ready
+            ? "Your resume is ready. You can now check it and apply for jobs."
+            : "There was a problem reading your resume. You can try uploading it again.",
+          resourceType: "resume_version",
+          resourceId: version._id,
+          email: ready ? user.email : null,
+          idempotencyKey: `resume:${version._id}:${version.processingStatus}:${version.processingStage || ""}`,
+        });
+      }
+    } catch (error) {
+      logger.error(`Resume notification failed: ${error.message}`);
+    }
     return { resumeVersionId: version._id, status: version.processingStatus };
   },
   "recommendations.refresh": async (payload) => {

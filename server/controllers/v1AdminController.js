@@ -11,10 +11,30 @@ const asyncHandler = require("../middleware/asyncHandler");
 const AppError = require("../utils/AppError");
 const { audit } = require("../services/auditService");
 const { parse, applyCursor, meta } = require("../utils/pagination");
+const logger = require("../utils/logger");
 const requireAdmin = (req) => {
   if (req.auth.platformRole !== "platform_admin")
     throw new AppError("Resource not found", 404, "RESOURCE_NOT_FOUND");
 };
+const PUBLIC_EDIT_FIELDS = new Set([
+  "title",
+  "company",
+  "location",
+  "salary",
+  "compensation",
+  "experience",
+  "minExpYears",
+  "maxExpYears",
+  "educationRequired",
+  "benefits",
+  "industry",
+  "jobType",
+  "workplaceMode",
+  "description",
+  "requiredSkills",
+  "preferredSkills",
+  "closesAt",
+]);
 const moderationDto = (job) => ({
   id: job._id,
   title: job.title,
@@ -31,13 +51,39 @@ const moderationDto = (job) => ({
   status: job.status,
   version: job.version,
   requiredSkills: job.requiredSkills,
+  description: job.description,
+  experience: job.experience,
+  compensation: job.compensation || (job.salary ? { min: 0, max: job.salary, currency: "INR", period: "year" } : null),
   moderation: job.moderation,
+  changeReview: job.pendingChanges
+    ? {
+        status: job.pendingChanges.status,
+        fields: job.pendingChanges.fields,
+        submittedAt: job.pendingChanges.submittedAt,
+        reason: job.pendingChanges.reason,
+        reviewedAt: job.pendingChanges.reviewedAt,
+      }
+    : null,
   createdAt: job.createdAt,
 });
 exports.moderationJobs = asyncHandler(async (req, res) => {
   requireAdmin(req);
   const page = parse(req.query);
-  const filter = { "moderation.status": req.query.status || "pending" };
+  const status = req.query.status || "pending";
+  const filter =
+    status === "all"
+      ? {
+          $or: [
+            { "moderation.status": { $in: ["pending", "approved", "rejected"] } },
+            { "pendingChanges.status": { $in: ["pending", "approved", "rejected"] } },
+          ],
+        }
+      : {
+          $or: [
+            { "moderation.status": status },
+            { "pendingChanges.status": status },
+          ],
+        };
   const items = await Job.find(filter)
     .populate("organization", "name slug")
     .sort({ _id: -1 })
@@ -49,37 +95,98 @@ exports.moderateJob = asyncHandler(async (req, res) => {
   const approve = req.params.action === "approve";
   const job = await Job.findById(req.params.jobId);
   if (!job) throw new AppError("Resource not found", 404, "RESOURCE_NOT_FOUND");
-  job.moderation.status = approve ? "approved" : "rejected";
-  job.moderation.reviewedBy = req.user._id;
-  job.moderation.reviewedAt = new Date();
-  job.moderation.reason = approve ? "" : String(req.body.reason || "").slice(0, 500);
+  const reason = String(req.body.reason || "").slice(0, 500);
+  const now = new Date();
+  const isChangeReview = job.pendingChanges?.status === "pending";
+
+  if (isChangeReview) {
+    if (approve) {
+      // Apply the reviewed edits on top of the live job.
+      const changes = job.pendingChanges.fields || {};
+      for (const [key, value] of Object.entries(changes))
+        if (PUBLIC_EDIT_FIELDS.has(key)) job[key] = value;
+      if (changes.requiredSkills) job.skills = changes.requiredSkills;
+      job.version += 1;
+      job.pendingChanges.status = "approved";
+      job.pendingChanges.reviewedBy = req.user._id;
+      job.pendingChanges.reviewedAt = now;
+      job.pendingChanges.reason = "";
+      const { CandidateMatch } = require("../models/Recruitment");
+      await CandidateMatch.updateMany(
+        { organization: job.organization, job: job._id, status: "completed" },
+        { status: "stale" },
+      );
+    } else {
+      // Discard the proposal; the approved version stays live.
+      job.pendingChanges.status = "rejected";
+      job.pendingChanges.reviewedBy = req.user._id;
+      job.pendingChanges.reviewedAt = now;
+      job.pendingChanges.reason = reason;
+    }
+  } else {
+    job.moderation.status = approve ? "approved" : "rejected";
+    job.moderation.reviewedBy = req.user._id;
+    job.moderation.reviewedAt = now;
+    job.moderation.reason = approve ? "" : reason;
+  }
   await job.save();
+
   const owner = await Membership.findOne({
     organization: job.organization,
     role: "owner",
     status: "active",
   });
-  if (owner) {
-    await notify({
-      user: owner.user,
-      organization: job.organization,
-      type: "job_moderation",
-      title: approve ? `Job approved: ${job.title}` : `Job rejected: ${job.title}`,
-      message: approve
-        ? "Your job is now live on the public marketplace."
-        : `Your job was rejected${job.moderation.reason ? `: ${job.moderation.reason}` : ""}. You can edit and republish it.`,
-      resourceType: "job",
-      resourceId: job._id,
-      email: null,
-      idempotencyKey: `moderation:${job._id}:${job.moderation.status}:v${job.version}`,
-    });
+  const targets = new Set(
+    [owner?.user, job.recruiter].filter((id) => id).map(String),
+  );
+  const emailOwner = await require("../models/User").findById(owner?.user).select("email").lean();
+  for (const userId of targets) {
+    try {
+      await notify({
+        user: userId,
+        organization: job.organization,
+        type: "job_moderation",
+        category: "jobs",
+        title:
+          isChangeReview
+            ? approve
+              ? `Changes approved: ${job.title}`
+              : `Changes rejected: ${job.title}`
+            : approve
+              ? `Job approved: ${job.title}`
+              : `Job rejected: ${job.title}`,
+        message: isChangeReview
+          ? approve
+            ? "Your updated job details were approved and are now live."
+            : `Your job changes were rejected${reason ? `. Reason: ${reason}` : ""}. The previously approved version remains visible; edit and resubmit to try again.`
+          : approve
+            ? "Your job has been approved and is now visible to candidates."
+            : `Your job was rejected${reason ? `. Reason: ${reason}` : ""}. You can edit and republish it.`,
+        resourceType: "job",
+        resourceId: job._id,
+        email:
+          String(userId) === String(owner?.user || "") ? (emailOwner?.email || null) : null,
+        idempotencyKey: `moderation:${job._id}:${approve ? "approved" : "rejected"}:${
+          isChangeReview ? `chg-${job.pendingChanges.submittedAt?.getTime() || 0}` : `v${job.version}`
+        }`,
+      });
+    } catch (error) {
+      logger.error(`Moderation notification failed: ${error.message}`);
+    }
   }
   await audit({
     req,
     organization: job.organization,
-    action: approve ? "job.moderation.approved" : "job.moderation.rejected",
+    action: approve
+      ? isChangeReview
+        ? "job.changes_approved"
+        : "job.moderation.approved"
+      : isChangeReview
+        ? "job.changes_rejected"
+        : "job.moderation.rejected",
     resourceType: "job",
     resourceId: job._id,
+    metadata: isChangeReview ? { version: job.version } : {},
   });
   res.json({ data: moderationDto(job) });
 });

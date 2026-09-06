@@ -1,4 +1,3 @@
-const Organization = require("../models/Organization");
 const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const num = (v) => {
   const n = Number(v);
@@ -11,22 +10,12 @@ const openRolesCondition = () => ({
 });
 
 /**
- * Moderation gate for every public surface:
- * - orgs with settings.requireJobApproval expose only approved jobs
- * - platform-rejected jobs are hidden everywhere
+ * Moderation gate for every public surface. Publishing always submits a job
+ * for platform review, so only approved jobs are public. Legacy jobs created
+ * before platform-wide review (moderation.status "none") stay visible —
+ * pending and rejected jobs are hidden everywhere.
  */
-const moderationGate = async () => {
-  const approvalOrgIds = await Organization.distinct("_id", {
-    "settings.requireJobApproval": true,
-    status: "active",
-  });
-  return {
-    $or: [
-      { organization: { $in: approvalOrgIds }, "moderation.status": "approved" },
-      { organization: { $nin: approvalOrgIds }, "moderation.status": { $ne: "rejected" } },
-    ],
-  };
-};
+const moderationGate = () => ({ "moderation.status": { $in: ["approved", "none"] } });
 
 /**
  * Shared filter builder for every public job surface (search, alerts,
@@ -35,7 +24,7 @@ const moderationGate = async () => {
  */
 const buildPublicJobFilter = async (query = {}) => {
   const filter = { ...openRolesCondition() };
-  const and = [await moderationGate()];
+  const and = [moderationGate()];
   if (query.location) filter.location = new RegExp(escapeRegex(query.location), "i");
   if (query.workplaceMode) filter.workplaceMode = String(query.workplaceMode).slice(0, 20);
   if (query.jobType) filter.jobType = String(query.jobType).slice(0, 50);

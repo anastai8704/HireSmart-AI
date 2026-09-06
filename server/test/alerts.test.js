@@ -102,6 +102,13 @@ test("phase 2: seed candidate, owner and two published jobs", async () => {
       .set(auth(ownerToken));
     assert.equal(published.status, 200, JSON.stringify(published.body));
   }
+  // Publishing now always requires platform approval; the alert scan only
+  // sees public (approved) jobs, so approve the seeds at the data layer.
+  const { Job } = require("../models/Job");
+  await Job.updateMany(
+    { _id: { $in: [reactJobId, nodeJobId] } },
+    { $set: { "moderation.status": "approved" } },
+  );
 });
 
 test("phase 2: creating an alert and running the scan delivers matching jobs once", async () => {

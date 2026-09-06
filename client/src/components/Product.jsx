@@ -360,6 +360,7 @@ const STATUS_STYLES = {
   offer: [Star, "brand"],
   queued: [Clock3, "warning"],
   pending: [Clock3, "warning"],
+  changes_pending: [Clock3, "warning"],
   under_review: [CircleDashed, "warning"],
   interview: [Clock3, "warning"],
   withdrawn: [XCircle, "default"],
@@ -444,16 +445,29 @@ export const JobTile = ({ job, match, saved, onSave }) => {
   );
 };
 
-export const ErrorCallout = ({ error }) => (
-  <div
-    role="alert"
-    className="flex gap-3 rounded-xl border border-danger-500/20 bg-danger-50 p-4 text-sm text-danger-700"
-  >
-    <AlertTriangle className="h-5 w-5 shrink-0" />
-    <div>
-      <p className="font-semibold">This action did not complete</p>
-      <p>{error?.message || "Please try again."}</p>
-      {error?.requestId && <p className="mt-1 font-mono text-xs">Request {error.requestId}</p>}
+export const ErrorCallout = ({ error }) => {
+  const fieldErrors = error?.fieldErrors || [];
+  return (
+    <div
+      role="alert"
+      className="flex gap-3 rounded-xl border border-danger-500/20 bg-danger-50 p-4 text-sm text-danger-700"
+    >
+      <AlertTriangle className="h-5 w-5 shrink-0" />
+      <div>
+        <p className="font-semibold">This action did not complete</p>
+        <p>{error?.message || "Please try again."}</p>
+        {fieldErrors.length > 0 && (
+          <ul className="mt-1.5 list-inside list-disc space-y-0.5">
+            {fieldErrors.map((item) => (
+              <li key={`${item.path || "field"}:${item.message}`}>
+                {item.path ? `${item.path}: ` : ""}
+                {item.message}
+              </li>
+            ))}
+          </ul>
+        )}
+        {error?.requestId && <p className="mt-1 font-mono text-xs">Request {error.requestId}</p>}
+      </div>
     </div>
-  </div>
-);
+  );
+};

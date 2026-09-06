@@ -14,8 +14,15 @@ const {
   revoke,
   cookieOptions,
 } = require("../services/sessionService");
-const { sendVerificationEmail, sendPasswordResetEmail } = require("../services/emailService");
+const {
+  sendVerificationEmail,
+  sendPasswordResetEmail,
+  sendEmailChangeEmail,
+} = require("../services/emailService");
+const { notify, notifyAdmins } = require("../services/notificationService");
+const SecurityEvent = require("../models/SecurityEvent");
 const { audit, security } = require("../services/auditService");
+const logger = require("../utils/logger");
 
 const dto = (user) => ({
   id: user._id,
@@ -97,6 +104,17 @@ exports.register = asyncHandler(async (req, res) => {
         policyVersion: "2026-08",
         source: "registration",
       });
+    if (organization) {
+      await notifyAdmins({
+        type: "organization_registered",
+        category: "platform",
+        title: `New company registered: ${organization.name}`,
+        message: `${organization.name} created a recruiter account. Jobs from this company still require approval before going public.`,
+        resourceType: "organization",
+        resourceId: organization._id,
+        idempotencyKey: `org:${organization._id}:registered`,
+      }).catch(() => {});
+    }
   } catch (error) {
     if (organization) {
       await Membership.deleteMany({ organization: organization._id });
@@ -269,6 +287,20 @@ exports.resetPassword = asyncHandler(async (req, res) => {
   await user.save();
   await revoke({ user: user._id }, "password_reset");
   await security({ req, user: user._id, type: "password.reset", severity: "info" });
+  try {
+    await notify({
+      user: user._id,
+      type: "password_reset",
+      category: "security",
+      title: "Password reset",
+      message: "Your password was reset. If you did not request this, contact support immediately.",
+      resourceType: "user",
+      resourceId: user._id,
+      idempotencyKey: `password:reset:${Date.now()}`,
+    });
+  } catch (error) {
+    logger.error(`Password reset notification failed: ${error.message}`);
+  }
   res.json({ data: { reset: true } });
 });
 exports.changePassword = asyncHandler(async (req, res) => {
@@ -280,5 +312,113 @@ exports.changePassword = asyncHandler(async (req, res) => {
   user.tokenInvalidBefore = new Date(Date.now() - 1000);
   await user.save();
   await revoke({ user: user._id, _id: { $ne: req.auth.sessionId } }, "password_changed");
+  await security({ req, user: user._id, type: "password.changed", severity: "info" });
+  await audit({
+    req,
+    action: "password.changed",
+    resourceType: "user",
+    resourceId: user._id,
+  });
+  try {
+    await notify({
+      user: user._id,
+      type: "password_changed",
+      category: "security",
+      title: "Password changed",
+      message: "Your password was changed successfully. If this wasn't you, sign in immediately and change it again.",
+      resourceType: "user",
+      resourceId: user._id,
+      email: user.email,
+      idempotencyKey: `password:changed:${user.passwordChangedAt.getTime()}`,
+    });
+  } catch (error) {
+    logger.error(`Password change notification failed: ${error.message}`);
+  }
   res.json({ data: { changed: true } });
+});
+
+exports.securityLog = asyncHandler(async (req, res) => {
+  const items = await SecurityEvent.find({ user: req.user._id })
+    .sort({ createdAt: -1 })
+    .limit(20);
+  res.json({ data: items });
+});
+
+exports.changeEmail = asyncHandler(async (req, res) => {
+  const newEmail = String(req.body.newEmail || "").toLowerCase().trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail))
+    throw new AppError("Enter a valid email address", 422, "INVALID_EMAIL");
+  if (newEmail === req.user.email)
+    throw new AppError("That is already your email address", 422, "EMAIL_UNCHANGED");
+  if (await User.exists({ email: newEmail }))
+    throw new AppError("An account with that email already exists", 409, "EMAIL_IN_USE");
+  const user = await User.findById(req.user._id);
+  const { token, hashedToken } = createToken();
+  user.pendingEmail = newEmail;
+  user.pendingEmailToken = hashedToken;
+  user.pendingEmailTokenExpires = new Date(Date.now() + config.emailVerificationTokenExpiresIn);
+  await user.save({ validateBeforeSave: false });
+  try {
+    await sendEmailChangeEmail({ email: newEmail, token });
+  } catch (error) {
+    await security({
+      req,
+      user: user._id,
+      type: "email.change_delivery_failed",
+      severity: "low",
+      details: { providerError: error.code || error.name },
+    });
+    throw new AppError("We couldn't send the confirmation email. Please try again.", 502, "EMAIL_DELIVERY_FAILED");
+  }
+  await audit({
+    req,
+    action: "email.change_requested",
+    resourceType: "user",
+    resourceId: user._id,
+  });
+  res.status(202).json({ data: { pending: newEmail } });
+});
+
+exports.confirmEmailChange = asyncHandler(async (req, res) => {
+  const user = await User.findOne({
+    pendingEmailToken: hashToken(req.body.token),
+    pendingEmailTokenExpires: { $gt: new Date() },
+  }).select("+pendingEmail +pendingEmailToken +pendingEmailTokenExpires");
+  if (!user) throw new AppError("Confirmation is invalid or expired", 400, "TOKEN_INVALID");
+  user.email = user.pendingEmail;
+  user.emailVerified = false;
+  user.pendingEmail = "";
+  user.pendingEmailToken = undefined;
+  user.pendingEmailTokenExpires = undefined;
+  await user.save();
+  await security({ req, user: user._id, type: "email.changed", severity: "info" });
+  await audit({
+    req,
+    action: "email.changed",
+    resourceType: "user",
+    resourceId: user._id,
+  });
+  try {
+    await notify({
+      user: user._id,
+      type: "email_changed",
+      category: "security",
+      title: "Email address updated",
+      message: `Your account email is now ${user.email}. Verify it from the email we just sent.`,
+      resourceType: "user",
+      resourceId: user._id,
+      email: user.email,
+      idempotencyKey: `email:changed:${Date.now()}`,
+    });
+    await issueVerification(user);
+  } catch (error) {
+    await security({
+      req,
+      user: user._id,
+      type: "email.verification_delivery_failed",
+      severity: "low",
+      details: { providerError: error.code || error.name },
+    });
+  }
+  res.json({ data: { email: user.email } });
 });

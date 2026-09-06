@@ -180,3 +180,32 @@ export const debounce = (fn, delay = 350) => {
     timer = setTimeout(() => fn(...args), delay);
   };
 };
+
+/**
+ * Where a notification should take the user when clicked, derived from the
+ * role and the notification's related resource. Returns null when there is no
+ * sensible destination.
+ */
+export const notificationTarget = (auth, notification) => {
+  const orgId = auth.organizationId;
+  switch (notification?.resourceType) {
+    case "job":
+      if (auth.role === "admin") return { to: "/app/admin/moderation", label: "Review" };
+      if (orgId) return { to: `/app/o/${orgId}/jobs`, label: "View job" };
+      return null;
+    case "application":
+      if (auth.role === "candidate") return { to: "/app/candidate/applications", label: "View" };
+      if (orgId) return { to: `/app/o/${orgId}/candidates`, label: "View" };
+      return null;
+    case "interview":
+      if (auth.role === "candidate") return { to: "/app/candidate/interviews", label: "View" };
+      if (orgId) return { to: `/app/o/${orgId}/interviews`, label: "View" };
+      return null;
+    case "resume_version":
+      if (auth.role === "candidate") return { to: "/app/candidate/resumes", label: "View" };
+      return null;
+    default:
+      return null;
+  }
+};
+
