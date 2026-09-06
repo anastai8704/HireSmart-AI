@@ -21,9 +21,7 @@ const NAV_LINKS = [
 const linkClass = ({ isActive }) =>
   cn(
     "rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-150",
-    isActive
-      ? "bg-brand-50 text-brand-700"
-      : "text-ink-600 hover:bg-ink-100/80 hover:text-ink-950",
+    isActive ? "bg-brand-50 text-brand-700" : "text-ink-600 hover:bg-ink-100/80 hover:text-ink-950",
   );
 
 const mobileLinkClass = ({ isActive }) =>
@@ -71,7 +69,7 @@ const Navbar = () => {
           className="flex shrink-0 items-center gap-2.5 text-[17px] font-bold tracking-tight text-ink-950 transition-opacity hover:opacity-90"
           aria-label="HireSmart AI — home"
         >
-          <span className="grid h-9 w-9 place-items-center rounded-xl bg-ink-950 text-white">
+          <span className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-[#4f7cff] text-white shadow-md shadow-brand-500/30">
             <Sparkles className="h-4.5 w-4.5" aria-hidden="true" />
           </span>
           <span>
@@ -89,7 +87,12 @@ const Navbar = () => {
 
         <div className="hidden items-center gap-2 md:flex">
           {auth.isAuthenticated ? (
-            <Button as={Link} to={workspaceHome} size="sm" rightIcon={<ArrowRight className="h-4 w-4" />}>
+            <Button
+              as={Link}
+              to={workspaceHome}
+              size="sm"
+              rightIcon={<ArrowRight className="h-4 w-4" />}
+            >
               Open workspace
             </Button>
           ) : (
@@ -97,7 +100,7 @@ const Navbar = () => {
               <Button as={Link} to="/auth/login" variant="ghost" size="sm" className="px-4">
                 Sign in
               </Button>
-              <Button as={Link} to="/auth/register/candidate" size="sm">
+              <Button as={Link} to="/auth/register/candidate" size="sm" variant="gradient">
                 Get Started
               </Button>
             </>
@@ -112,7 +115,11 @@ const Navbar = () => {
           className="grid h-10 w-10 place-items-center rounded-lg text-ink-700 transition-colors hover:bg-ink-100 hover:text-ink-950 md:hidden"
         >
           <span className="sr-only">{open ? "Close menu" : "Open menu"}</span>
-          {open ? <X className="h-5 w-5" aria-hidden="true" /> : <Menu className="h-5 w-5" aria-hidden="true" />}
+          {open ? (
+            <X className="h-5 w-5" aria-hidden="true" />
+          ) : (
+            <Menu className="h-5 w-5" aria-hidden="true" />
+          )}
         </button>
       </nav>
 
@@ -141,7 +148,13 @@ const Navbar = () => {
               </Button>
             ) : (
               <>
-                <Button as={Link} to="/auth/register/candidate" fullWidth onClick={close}>
+                <Button
+                  as={Link}
+                  to="/auth/register/candidate"
+                  fullWidth
+                  variant="gradient"
+                  onClick={close}
+                >
                   Get Started
                 </Button>
                 <Button as={Link} to="/auth/login" variant="secondary" fullWidth onClick={close}>

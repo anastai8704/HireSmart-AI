@@ -7,6 +7,8 @@ import { cn } from "../../lib/utils";
 const VARIANTS = {
   primary:
     "bg-brand-600 text-white shadow-sm hover:bg-brand-700 active:bg-brand-800 disabled:bg-brand-300",
+  gradient:
+    "bg-gradient-to-r from-brand-600 to-[#4f7cff] text-white shadow-sm shadow-brand-600/25 hover:from-brand-700 hover:to-[#4069e0] active:from-brand-800 active:to-[#3a5fd0] disabled:opacity-60",
   secondary:
     "bg-white text-ink-800 border border-ink-200 shadow-sm hover:bg-ink-50 active:bg-ink-100",
   ghost: "bg-transparent text-ink-600 hover:bg-ink-100 hover:text-ink-900",
