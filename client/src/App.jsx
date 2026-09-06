@@ -8,7 +8,8 @@ import AppShell from "./components/layout/AppShell";
 import ScrollToTop from "./components/layout/ScrollToTop";
 import { useAuth } from "./context/useAuth";
 const pick = (loader, name) => lazy(() => loader().then((m) => ({ default: m[name] })));
-const Landing = pick(() => import("./pages/PublicPages"), "LandingPage"),
+const Landing = pick(() => import("./pages/LandingPage"), "LandingPage"),
+  Privacy = pick(() => import("./pages/TrustPages"), "TrustPage"),
   PublicJobs = pick(() => import("./pages/PublicPages"), "PublicJobsPage"),
   PublicJob = pick(() => import("./pages/PublicPages"), "PublicJobDetailPage"),
   ResumeCheck = pick(() => import("./pages/PublicPages"), "ResumeCheckPage"),
@@ -84,6 +85,9 @@ const App = () => (
             <Route path="/companies" element={<Companies />} />
             <Route path="/companies/:slug" element={<Company />} />
             <Route path="/resume-check" element={<ResumeCheck />} />
+            <Route path="/privacy" element={<Privacy doc="privacy" />} />
+            <Route path="/security" element={<Privacy doc="security" />} />
+            <Route path="/terms" element={<Privacy doc="terms" />} />
             <Route element={<PublicOnlyRoute />}>
               <Route path="/auth/login" element={<Login />} />
               <Route path="/auth/register/:intent" element={<Register />} />
