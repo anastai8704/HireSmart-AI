@@ -65,6 +65,28 @@ test("changing the password succeeds, notifies, audits and logs a security event
   assert.ok(note, "a password-changed notification must exist");
   assert.equal(note.category, "security");
   assert.match(note.message, /password was changed successfully/i);
+  // CI processes job runs inline, so the email may already be marked sent;
+  // locally it stays queued until the worker runs.
+  assert.ok(
+    ["queued", "sent"].includes(note.delivery.email),
+    `password change email must be queued or sent, got ${note.delivery.email}`,
+  );
+
+  const auditEntry = await AuditLog.findOne({ action: "password.changed", resourceId: String(userId) });
+  assert.ok(auditEntry, "the password change must be audited");
+  const event = await SecurityEvent.findOne({ user: userId, type: "password.changed" });
+  assert.ok(event, "the password change must create a security event");
+
+  // The new password works and the old one does not.
+  const again = await request(app)
+    .post("/api/v1/auth/login")
+    .send({ email: "accounts@example.com", password: "NewStrongPassword456!" });
+  assert.equal(again.status, 200);
+  const stale = await request(app)
+    .post("/api/v1/auth/login")
+    .send({ email: "accounts@example.com", password: "StrongPassword123!" });
+  assert.equal(stale.status, 401);
+  token = again.body.data.accessToken;
 });
 
 test("a wrong current password fails without a success notification", async () => {
