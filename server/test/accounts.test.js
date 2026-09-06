@@ -4,7 +4,6 @@ const nodeTest = require("node:test");
 // TEMP-DIAG: run only the listed tests (empty = all).
 const ONLY_TESTS = [
   "seed a candidate",
-  "changing the password succeeds, notifies, audits and logs a security event",
   "a wrong current password fails without a success notification",
   "the user can read their own security activity",
 ];
