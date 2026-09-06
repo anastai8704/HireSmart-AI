@@ -222,7 +222,9 @@ test("approving the changes applies them, bumps the version and keeps the job pu
     user: ownerA._id,
     type: "job_moderation",
     resourceId: jobAId,
-  });
+  })
+    .sort({ createdAt: -1 })
+    .lean();
   assert.ok(note);
   assert.match(note.message, /changes.*approved/i);
   const publicList = await request(app).get("/api/v1/jobs");
@@ -253,7 +255,9 @@ test("rejecting changes keeps the previous approved version live", async () => {
     user: ownerA._id,
     type: "job_moderation",
     resourceId: jobAId,
-  });
+  })
+    .sort({ createdAt: -1 })
+    .lean();
   assert.match(note.message, /changes were rejected/i);
   assert.match(note.message, /Location does not match/);
 });

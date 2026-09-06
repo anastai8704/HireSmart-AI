@@ -157,7 +157,7 @@ exports.moderateJob = asyncHandler(async (req, res) => {
               : `Job rejected: ${job.title}`,
         message: isChangeReview
           ? approve
-            ? "Your updated job details were approved and are now live."
+            ? "Your changes were approved and are now live."
             : `Your job changes were rejected${reason ? `. Reason: ${reason}` : ""}. The previously approved version remains visible; edit and resubmit to try again.`
           : approve
             ? "Your job has been approved and is now visible to candidates."
