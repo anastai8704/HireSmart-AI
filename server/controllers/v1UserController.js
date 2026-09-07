@@ -128,7 +128,9 @@ exports.avatarByKey = asyncHandler(async (req, res) => {
     throw new AppError("No profile photo", 404, "RESOURCE_NOT_FOUND");
   const user = await User.findOne({ profileImage: key }).select("_id profileImageProvider");
   if (!user) throw new AppError("No profile photo", 404, "RESOURCE_NOT_FOUND");
-  const stream = await storageService.getAvatarStream(user.profileImage, user.profileImageProvider);
+  // `key` is the stored storageKey (it was the query value); the projection
+  // above intentionally does not load profileImage itself.
+  const stream = await storageService.getAvatarStream(key, user.profileImageProvider);
   res.setHeader("Content-Type", contentTypeFor(key));
   res.setHeader("Cache-Control", "public, max-age=86400");
   stream.pipe(res);
