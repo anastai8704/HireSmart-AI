@@ -165,9 +165,18 @@ test("phase 2: creating an alert and running the scan delivers matching jobs onc
       requiredSkills: ["React", "TypeScript"],
     });
   assert.equal(republished.status, 201);
-  await request(app)
+  const republishedPublished = await request(app)
     .post(`/api/v1/organizations/${organizationId}/jobs/${republished.body.data.id}/publish`)
     .set(auth(ownerToken));
+  assert.equal(republishedPublished.status, 200, JSON.stringify(republishedPublished.body));
+  // Publishing always requires platform approval now; approve at the data
+  // layer so the scan sees the new role (approval flow itself is covered by
+  // the moderation tests).
+  const { Job } = require("../models/Job");
+  await Job.updateOne(
+    { _id: republished.body.data.id },
+    { $set: { "moderation.status": "approved" } },
+  );
   const whileInactive = await runAlertScan();
   assert.equal(whileInactive.delivered, 0, "inactive alerts must not deliver");
   await request(app)
