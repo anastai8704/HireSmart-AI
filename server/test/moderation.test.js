@@ -1,17 +1,7 @@
 process.env.NODE_ENV = "test";
 process.env.PROCESS_JOBS_INLINE = "true";
 const assert = require("node:assert/strict");
-const nodeTest = require("node:test");
-// TEMP-DIAG: run only the listed tests (empty = all).
-const ONLY_TESTS = [
-  "seed admin, two orgs and a candidate",
-  "publishing is platform-wide: every published job waits for admin approval",
-  "publishing notifies the org owner and platform admins",
-];
-const test = (name, fn) =>
-  ONLY_TESTS.length === 0 || ONLY_TESTS.includes(name) ? nodeTest(name, fn) : undefined;
-test.before = nodeTest.before;
-test.after = nodeTest.after;
+const test = require("node:test");
 const request = require("supertest");
 const app = require("../app");
 const { startDatabase, stopDatabase, clearDatabase } = require("./setup");

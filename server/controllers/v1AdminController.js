@@ -55,7 +55,7 @@ const moderationDto = (job) => ({
   experience: job.experience,
   compensation: job.compensation || (job.salary ? { min: 0, max: job.salary, currency: "INR", period: "year" } : null),
   moderation: job.moderation,
-  changeReview: job.pendingChanges
+  changeReview: job.pendingChanges?.status
     ? {
         status: job.pendingChanges.status,
         fields: job.pendingChanges.fields,
@@ -97,7 +97,12 @@ exports.moderateJob = asyncHandler(async (req, res) => {
   if (!job) throw new AppError("Resource not found", 404, "RESOURCE_NOT_FOUND");
   const reason = String(req.body.reason || "").slice(0, 500);
   const now = new Date();
-  const isChangeReview = job.pendingChanges?.status === "pending";
+  const isChangeReview = Boolean(
+    job.pendingChanges &&
+      job.pendingChanges.status === "pending" &&
+      job.pendingChanges.fields &&
+      Object.keys(job.pendingChanges.fields).length > 0,
+  );
 
   if (isChangeReview) {
     if (approve) {

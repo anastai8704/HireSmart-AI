@@ -86,14 +86,17 @@ const jobSchema = new mongoose.Schema(
     },
     // Proposed edits to a published job that wait for platform review.
     // The live (approved) content stays public until the admin approves them.
+    // No defaults anywhere: an unset proposal must stay absent, otherwise
+    // every job looks like it has pending changes (mongoose materializes
+    // subdocument defaults on create and store).
     pendingChanges: {
-      fields: { type: mongoose.Schema.Types.Mixed, default: null },
-      status: { type: String, enum: ["pending", "approved", "rejected"], default: "pending" },
-      submittedAt: { type: Date, default: null },
-      submittedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
-      reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
-      reviewedAt: { type: Date, default: null },
-      reason: { type: String, maxlength: 500, default: "" },
+      fields: { type: mongoose.Schema.Types.Mixed },
+      status: { type: String, enum: ["pending", "approved", "rejected"] },
+      submittedAt: { type: Date },
+      submittedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      reviewedAt: { type: Date },
+      reason: { type: String, maxlength: 500 },
     },
     source: { type: String, default: "direct", maxlength: 50 },
     hiringTeam: [{ type: mongoose.Schema.Types.ObjectId, ref: "Membership" }],

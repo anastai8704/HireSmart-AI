@@ -62,17 +62,16 @@ const jobDto = (j, { public: isPublic = false } = {}) => {
             reviewedAt: j.moderation.reviewedAt,
           }
         : { status: "none", reason: "", reviewedAt: null },
-    pendingChanges: isPublic
-      ? null
-      : j.pendingChanges
-        ? {
+    pendingChanges:
+      isPublic || !j.pendingChanges?.status
+        ? null
+        : {
             status: j.pendingChanges.status,
             fields: j.pendingChanges.fields,
             submittedAt: j.pendingChanges.submittedAt,
             reason: j.pendingChanges.reason,
             reviewedAt: j.pendingChanges.reviewedAt,
-          }
-        : null,
+          },
     publishedAt: j.publishedAt,
     createdAt: j.createdAt,
     updatedAt: j.updatedAt,
