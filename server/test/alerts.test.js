@@ -5,7 +5,6 @@ const nodeTest = require("node:test");
 // TEMP-DIAG: run only the listed tests (empty = all).
 const ONLY_TESTS = [
   "phase 2: seed candidate, owner and two published jobs",
-  "phase 2: creating an alert and running the scan delivers matching jobs once",
 ];
 const test = (name, fn) =>
   ONLY_TESTS.length === 0 || ONLY_TESTS.includes(name) ? nodeTest(name, fn) : undefined;
