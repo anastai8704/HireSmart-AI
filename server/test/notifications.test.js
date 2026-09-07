@@ -167,6 +167,16 @@ test("security notifications are always delivered", async () => {
 });
 
 test("unread count, read and unread state round-trip", async () => {
+  const unreadCount = async () => {
+    const count = await request(app)
+      .get("/api/v1/notifications/unread-count")
+      .set(auth(candidateToken));
+    assert.equal(count.status, 200);
+    return count.body.data.count;
+  };
+  const before = await unreadCount();
+  assert.ok(before >= 1, "earlier fixtures should be unread");
+
   const second = await notify({
     user: candidateId,
     type: "interview_invitation",
@@ -176,37 +186,28 @@ test("unread count, read and unread state round-trip", async () => {
     resourceId: "507f1f77bcf86cd799439012",
     idempotencyKey: "test:second",
   });
-  const count = await request(app)
-    .get("/api/v1/notifications/unread-count")
-    .set(auth(candidateToken));
-  assert.equal(count.status, 200);
-  assert.equal(count.body.data.count, 2, "two unread notifications are expected");
+  assert.ok(second, "the interview invitation must be delivered");
+  assert.equal(await unreadCount(), before + 1);
 
   const read = await request(app)
     .post(`/api/v1/notifications/${deliveredId}/read`)
     .set(auth(candidateToken));
   assert.equal(read.status, 200);
   assert.ok(read.body.data.readAt);
-  const afterRead = await request(app)
-    .get("/api/v1/notifications/unread-count")
-    .set(auth(candidateToken));
-  assert.equal(afterRead.body.data.count, 1);
+  assert.equal(await unreadCount(), before, "marking one notification read lowers the count");
 
-  const unread = await request(app)
+  const markUnread = await request(app)
     .post(`/api/v1/notifications/${deliveredId}/unread`)
     .set(auth(candidateToken));
-  assert.equal(unread.status, 200);
-  assert.equal(unread.body.data.readAt, null, "marking unread clears the read state");
+  assert.equal(markUnread.status, 200);
+  assert.equal(markUnread.body.data.readAt, null, "marking unread clears the read state");
+  assert.equal(await unreadCount(), before + 1);
 
   const readAll = await request(app)
     .post("/api/v1/notifications/read-all")
     .set(auth(candidateToken));
   assert.equal(readAll.status, 200);
-  const afterAll = await request(app)
-    .get("/api/v1/notifications/unread-count")
-    .set(auth(candidateToken));
-  assert.equal(afterAll.body.data.count, 0);
-  assert.ok(second, "fixture");
+  assert.equal(await unreadCount(), 0, "mark all read clears every unread notification");
 });
 
 test("team events notify the organization owner", async () => {
