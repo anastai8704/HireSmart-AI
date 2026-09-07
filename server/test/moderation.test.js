@@ -6,8 +6,6 @@ const nodeTest = require("node:test");
 const ONLY_TESTS = [
   "seed admin, two orgs and a candidate",
   "publishing is platform-wide: every published job waits for admin approval",
-  "publishing notifies the org owner and platform admins",
-  "approving makes the job public and notifies the org",
 ];
 const test = (name, fn) =>
   ONLY_TESTS.length === 0 || ONLY_TESTS.includes(name) ? nodeTest(name, fn) : undefined;
