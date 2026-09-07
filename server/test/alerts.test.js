@@ -1,7 +1,16 @@
 process.env.NODE_ENV = "test";
 process.env.PROCESS_JOBS_INLINE = "true";
 const assert = require("node:assert/strict");
-const test = require("node:test");
+const nodeTest = require("node:test");
+// TEMP-DIAG: run only the listed tests (empty = all).
+const ONLY_TESTS = [
+  "phase 2: seed candidate, owner and two published jobs",
+  "phase 2: creating an alert and running the scan delivers matching jobs once",
+];
+const test = (name, fn) =>
+  ONLY_TESTS.length === 0 || ONLY_TESTS.includes(name) ? nodeTest(name, fn) : undefined;
+test.before = nodeTest.before;
+test.after = nodeTest.after;
 const request = require("supertest");
 const app = require("../app");
 const { startDatabase, stopDatabase, clearDatabase } = require("./setup");
