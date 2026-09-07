@@ -103,6 +103,9 @@ exports.updateNotificationPrefs = asyncHandler(async (req, res) => {
       }
       events[key] = next;
     }
+    // Mixed values are not deep-tracked: mark the path modified so
+    // in-place edits to the stored event map always persist.
+    req.user.markModified("notificationPrefs.events");
   }
   await req.user.save();
   res.json({ data: { notificationPrefs: req.user.notificationPrefs } });
