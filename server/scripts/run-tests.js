@@ -41,6 +41,24 @@ const appendSummary = (text) => {
   }
 };
 
+// GITHUB_OUTPUT step outputs are retrievable through the jobs API, which
+// makes for a third, independent diagnostic channel for CI failures.
+const writeStepOutput = (name, value) => {
+  if (!process.env.GITHUB_OUTPUT) return;
+  const delimiter = `EOFGH_${name}`;
+  try {
+    require("node:fs").appendFileSync(
+      process.env.GITHUB_OUTPUT,
+      `${name}<<${delimiter}
+${String(value).replace(new RegExp(`^${delimiter}$`, "gm"), "")}
+${delimiter}
+`,
+    );
+  } catch {
+    /* best effort diagnostics */
+  }
+};
+
 const runFile = (file) =>
   new Promise((resolve) => {
     const child = spawn(process.execPath, ["--test", file], { stdio: ["ignore", "pipe", "pipe"] });
@@ -99,6 +117,10 @@ const main = async () => {
     );
     appendSummary(
       `**${failed.length}/${results.length} test files failed**: ${failed.map((r) => r.file).join(", ")}`,
+    );
+    writeStepOutput(
+      "failed_details",
+      failed.map((r) => `--- ${r.file} ---\n${r.info.slice(0, 4000)}`).join("\n\n"),
     );
     process.exit(1);
   }
