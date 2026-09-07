@@ -10,6 +10,7 @@ const notificationSchema = new mongoose.Schema(
     },
     type: { type: String, required: true, maxlength: 100 },
     category: { type: String, default: "account", maxlength: 30, index: true },
+    recipientRole: { type: String, default: "", maxlength: 20 },
     title: { type: String, required: true, maxlength: 200 },
     message: { type: String, required: true, maxlength: 2000 },
     resourceType: { type: String, default: "", maxlength: 80 },

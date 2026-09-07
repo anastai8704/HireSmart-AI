@@ -115,6 +115,11 @@ const userSchema = new mongoose.Schema(
         inApp: { type: Boolean, default: true },
         email: { type: Boolean, default: true },
       },
+      // Event-level preferences added by the role-based notification
+      // system: { [eventType]: { inApp, email } }. Open (Mixed) because the
+      // event catalog lives in config/notificationTypes.js and the API
+      // filters keys to known events before writing.
+      events: { type: mongoose.Schema.Types.Mixed, default: null },
     },
     headline: {
       type: String,

@@ -127,6 +127,16 @@ exports.register = asyncHandler(async (req, res) => {
     throw error;
   }
   if (config.requireEmailVerification) await issueVerification(user);
+  notifyAdmins({
+    type: "user_registered",
+    title: `New ${user.role} account: ${user.name}`,
+    message: `${user.name} (${email}) created a ${
+      user.role === "recruiter" ? "recruiter" : "candidate"
+    } account.`,
+    resourceType: "user",
+    resourceId: user._id,
+    idempotencyKey: `user:${user._id}:registered`,
+  }).catch(() => {});
   await audit({
     req,
     action: "user.registered",

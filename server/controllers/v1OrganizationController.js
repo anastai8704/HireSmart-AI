@@ -8,6 +8,9 @@ const AppError = require("../utils/AppError");
 const { config } = require("../config/env");
 const { sendInviteEmail } = require("../services/emailService");
 const { audit } = require("../services/auditService");
+const { notify } = require("../services/notificationService");
+const organizationOwner = require("../utils/organizationOwner");
+const logger = require("../utils/logger");
 const { parse, applyCursor, meta } = require("../utils/pagination");
 const slugify = (v) =>
   String(v)
@@ -118,7 +121,7 @@ exports.updateMember = asyncHandler(async (req, res) => {
   const membership = await Membership.findOne({
     _id: req.params.membershipId,
     organization: req.auth.organizationId,
-  });
+  }).populate({ path: "user", select: "name" });
   if (!membership) throw new AppError("Member not found", 404, "RESOURCE_NOT_FOUND");
   if (
     membership.role === "owner" &&
@@ -130,8 +133,38 @@ exports.updateMember = asyncHandler(async (req, res) => {
     })) <= 1
   )
     throw new AppError("The last active owner cannot be removed", 409, "LAST_OWNER");
+  const before = { role: membership.role, status: membership.status };
   Object.assign(membership, req.body);
   await membership.save();
+  try {
+    const owner = await organizationOwner(req.auth.organizationId);
+    if (owner && String(owner.id) !== String(req.user._id)) {
+      if (req.body.status === "revoked" && before.status !== "revoked")
+        await notify({
+          user: owner.id,
+          organization: req.auth.organizationId,
+          type: "member_removed",
+          title: `Team member removed: ${membership.user?.name || "member"}`,
+          message: `${req.user.name} removed ${membership.user?.name || "a member"} from the company.`,
+          resourceType: "organization",
+          resourceId: req.auth.organizationId,
+          idempotencyKey: `org:${req.auth.organizationId}:member-removed:${membership._id}:${before.status}`,
+        });
+      else if (req.body.role && req.body.role !== before.role)
+        await notify({
+          user: owner.id,
+          organization: req.auth.organizationId,
+          type: "member_role_changed",
+          title: `Team role changed: ${membership.user?.name || "member"}`,
+          message: `${req.user.name} changed ${membership.user?.name || "a member"} from ${before.role} to ${membership.role}.`,
+          resourceType: "organization",
+          resourceId: req.auth.organizationId,
+          idempotencyKey: `org:${req.auth.organizationId}:member-role:${membership._id}:${membership.role}`,
+        });
+    }
+  } catch (error) {
+    logger.error(`Team change notification failed: ${error.message}`);
+  }
   res.json({ data: membership });
 });
 exports.invitations = asyncHandler(async (req, res) => {
@@ -187,6 +220,22 @@ exports.createInvitation = asyncHandler(async (req, res) => {
     resourceId: invitation._id,
     metadata: { role: invitation.role, email },
   });
+  try {
+    const owner = await organizationOwner(org._id);
+    if (owner && String(owner.id) !== String(req.user._id))
+      await notify({
+        user: owner.id,
+        organization: org._id,
+        type: "member_invited",
+        title: `Team member invited: ${email}`,
+        message: `${req.user.name} invited ${email} as ${invitation.role}.`,
+        resourceType: "organization",
+        resourceId: org._id,
+        idempotencyKey: `org:${org._id}:invite:${invitation._id}`,
+      });
+  } catch (error) {
+    logger.error(`Team invitation notification failed: ${error.message}`);
+  }
   res.status(201).json({ data: { invitation, link } });
 });
 exports.revokeInvitation = asyncHandler(async (req, res) => {

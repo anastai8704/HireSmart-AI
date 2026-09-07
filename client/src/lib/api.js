@@ -180,7 +180,10 @@ export const interviewApi = {
 export const notificationApi = {
   list: (params) => api.get(`/notifications${query(params)}`),
   read: (id) => api.post(`/notifications/${id}/read`),
+  markUnread: (id) => api.post(`/notifications/${id}/unread`),
   readAll: () => api.post("/notifications/read-all"),
+  unreadCount: () => api.get("/notifications/unread-count"),
+  preferences: () => api.get("/notifications/preferences"),
 };
 export const aiApi = {
   run: (feature, input, subject = {}) => api.post(`/ai/${feature}`, { input, ...subject }),

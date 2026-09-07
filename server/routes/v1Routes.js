@@ -153,11 +153,18 @@ const userProfileSchema = strict({
   timezone: z.string().max(100).optional(),
   locale: z.string().max(20).optional(),
 });
+const notificationChannelSchema = strict({
+  inApp: z.boolean().optional(),
+  email: z.boolean().optional(),
+});
 const notificationPrefsSchema = strict({
-  applications: strict({ inApp: z.boolean().optional(), email: z.boolean().optional() }).optional(),
-  interviews: strict({ inApp: z.boolean().optional(), email: z.boolean().optional() }).optional(),
-  jobs: strict({ inApp: z.boolean().optional(), email: z.boolean().optional() }).optional(),
-  candidates: strict({ inApp: z.boolean().optional(), email: z.boolean().optional() }).optional(),
+  applications: notificationChannelSchema.optional(),
+  interviews: notificationChannelSchema.optional(),
+  jobs: notificationChannelSchema.optional(),
+  candidates: notificationChannelSchema.optional(),
+  // Event-level preferences; the controller filters keys to the known
+  // notification event catalog.
+  events: z.record(notificationChannelSchema).optional(),
 });
 router.get("/users/me", authenticate, users.me);
 router.patch("/users/me", authenticate, validate(userProfileSchema), users.updateProfile);
@@ -757,7 +764,10 @@ router.post(
   interview.questions,
 );
 router.get("/notifications", authenticate, notifications.list);
+router.get("/notifications/preferences", authenticate, notifications.preferences);
+router.get("/notifications/unread-count", authenticate, notifications.unreadCount);
 router.post("/notifications/:notificationId/read", authenticate, notifications.read);
+router.post("/notifications/:notificationId/unread", authenticate, notifications.markUnread);
 router.post("/notifications/read-all", authenticate, notifications.readAll);
 const aiSchema = strict({
   input: z.record(z.string(), z.any()),

@@ -204,6 +204,15 @@ export const notificationTarget = (auth, notification) => {
     case "resume_version":
       if (auth.role === "candidate") return { to: "/app/candidate/resumes", label: "View" };
       return null;
+    case "organization":
+      if (auth.role === "admin") return { to: "/app/admin/organizations", label: "View company" };
+      if (orgId) return { to: `/app/o/${orgId}`, label: "View company" };
+      return null;
+    case "security_event":
+      if (auth.role === "admin") return { to: "/app/admin/security", label: "View" };
+      return null;
+    case "user":
+      return { to: "/app/settings", label: "Account" };
     default:
       return null;
   }

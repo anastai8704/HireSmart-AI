@@ -4,14 +4,18 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Bell,
   BriefcaseBusiness,
+  Building2,
+  Check,
   CheckCircle2,
   Download,
   FileText,
   KeyRound,
+  RotateCcw,
   ShieldAlert,
   ShieldCheck,
   Sparkles,
   UserRound,
+  UsersRound,
   Video,
 } from "lucide-react";
 import Button from "../components/ui/Button";
@@ -24,22 +28,6 @@ import { authApi, downloadBlob, notificationApi, userApi } from "../lib/api";
 import { useAuth } from "../context/useAuth";
 import { useToast } from "../components/ui/useToast";
 import { cn, formatDate, formatRelativeTime, notificationTarget } from "../lib/utils";
-
-const notificationIcon = (n) => {
-  const t = `${n?.type || ""} ${n?.title || ""}`.toLowerCase();
-  if (t.includes("interview")) return Video;
-  if (t.includes("application") || t.includes("resume") || t.includes("apply")) return FileText;
-  if (t.includes("job") || t.includes("offer") || t.includes("hired")) return BriefcaseBusiness;
-  if (
-    t.includes("security") ||
-    t.includes("password") ||
-    t.includes("suspend") ||
-    t.includes("email")
-  )
-    return ShieldCheck;
-  if (t.includes("profile") || t.includes("account")) return UserRound;
-  return Bell;
-};
 
 /* Role-appropriate filters. Categories come from the backend notification
    record (n.category) with a text fallback for older notifications. */
@@ -65,6 +53,21 @@ const CATEGORY_DEFS = {
     ["account", "Account"],
   ],
 };
+const GROUP_ICONS = {
+  applications: FileText,
+  interviews: Video,
+  jobs: BriefcaseBusiness,
+  candidates: UsersRound,
+  team: UsersRound,
+  approvals: ShieldCheck,
+  companies: Building2,
+  users: UserRound,
+  ai_career: Sparkles,
+  ai: Sparkles,
+  security: ShieldCheck,
+  account: ShieldCheck,
+  platform: ShieldCheck,
+};
 const legacyCategory = (n) => {
   const t = `${n.type || ""} ${n.title || ""} ${n.message || ""}`.toLowerCase();
   if (t.includes("moderation") || t.includes("approv") || t.includes("job")) return "approvals";
@@ -86,13 +89,21 @@ const categoryOf = (n) => n.category || legacyCategory(n);
 export const NotificationsPage = () => {
   const auth = useAuth(),
     qc = useQueryClient(),
-    [category, setCategory] = useState("all"),
+    [filter, setFilter] = useState("all"),
     q = useQuery({
       queryKey: ["notifications", {}],
       queryFn: () => notificationApi.list({ limit: 100 }),
     }),
+    template = useQuery({
+      queryKey: ["notification-prefs-template"],
+      queryFn: notificationApi.preferences,
+    }),
     read = useMutation({
       mutationFn: notificationApi.read,
+      onSuccess: () => qc.invalidateQueries({ queryKey: ["notifications"] }),
+    }),
+    markUnread = useMutation({
+      mutationFn: notificationApi.markUnread,
       onSuccess: () => qc.invalidateQueries({ queryKey: ["notifications"] }),
     }),
     all = useMutation({
@@ -100,10 +111,29 @@ export const NotificationsPage = () => {
       onSuccess: () => qc.invalidateQueries({ queryKey: ["notifications"] }),
     });
   const roleKey = auth.role === "admin" ? "admin" : auth.organizationId ? "recruiter" : "candidate";
-  const defs = CATEGORY_DEFS[roleKey];
+  // Tabs come from the role's notification groups when the catalog is
+  // loaded; the static list is the fallback for older record categories.
+  const roleGroups = template.data?.data?.groups || null;
+  const defs = roleGroups
+    ? [["all", "All"], ...roleGroups.map((g) => [g.key, g.label])]
+    : CATEGORY_DEFS[roleKey];
+  const groupLabel = (key) =>
+    roleGroups?.find((g) => g.key === key)?.label ||
+    defs.find(([k]) => k === key)?.[1] ||
+    { account: "Account", platform: "Platform" }[key] ||
+    key;
   const items = q.data?.data || [];
-  const filtered = category === "all" ? items : items.filter((n) => categoryOf(n) === category);
   const unread = items.filter((n) => !n.readAt).length;
+  const filtered = filter === "all" ? items : items.filter((n) => categoryOf(n) === filter);
+  // "All" view is grouped by category, in the role's group order, with
+  // unknown (legacy) categories appended at the end.
+  const present = [...new Set(filtered.map((n) => categoryOf(n)))];
+  const ordered = [
+    ...((roleGroups ? roleGroups.map((g) => g.key) : defs.slice(1).map(([key]) => key)).filter(
+      (key) => present.includes(key),
+    )),
+    ...present.filter((key) => !defs.some(([k]) => k === key)),
+  ];
   return (
     <div className="page-wrap max-w-4xl">
       <PageHeader
@@ -111,15 +141,18 @@ export const NotificationsPage = () => {
         title="Notifications"
         description="Everything that needs your attention — applications, interviews, approvals and your account."
         action={
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => all.mutate()}
-            isLoading={all.isPending}
-            disabled={unread === 0}
-          >
-            Mark all read
-          </Button>
+          <div className="flex items-center gap-3">
+            {unread > 0 && <Badge variant="brand" size="sm">{unread} unread</Badge>}
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => all.mutate()}
+              isLoading={all.isPending}
+              disabled={unread === 0}
+            >
+              Mark all read
+            </Button>
+          </div>
         }
       />
       <div
@@ -135,10 +168,10 @@ export const NotificationsPage = () => {
               key={key}
               type="button"
               role="tab"
-              aria-selected={category === key}
-              onClick={() => setCategory(key)}
+              aria-selected={filter === key}
+              onClick={() => setFilter(key)}
               className={`rounded-full px-3.5 py-1.5 text-sm font-semibold transition ${
-                category === key
+                filter === key
                   ? "bg-ink-950 text-white"
                   : "bg-ink-50 text-ink-600 hover:bg-ink-100"
               }`}
@@ -146,7 +179,7 @@ export const NotificationsPage = () => {
               {label}
               {count > 0 && (
                 <span
-                  className={`ml-1.5 text-xs ${category === key ? "text-ink-300" : "text-ink-400"}`}
+                  className={`ml-1.5 text-xs ${filter === key ? "text-ink-300" : "text-ink-400"}`}
                 >
                   {count}
                 </span>
@@ -160,74 +193,131 @@ export const NotificationsPage = () => {
       ) : q.error ? (
         <ErrorState error={q.error} onRetry={() => q.refetch()} />
       ) : filtered.length ? (
-        <div className="space-y-3">
-          {filtered.map((n) => {
-            const Icon = notificationIcon(n);
-            const isUnread = !n.readAt;
-            const related = notificationTarget(auth, n);
+        <div className="space-y-6">
+          {ordered.map((key) => {
+            const groupItems = filtered.filter((n) => categoryOf(n) === key);
+            const groupUnread = groupItems.filter((n) => !n.readAt).length;
+            const Icon = GROUP_ICONS[key] || Bell;
             return (
-              <button
-                key={n._id}
-                onClick={() => isUnread && read.mutate(n._id)}
-                className={`panel flex w-full items-start gap-4 p-5 text-left transition-colors ${
-                  isUnread ? "border-brand-200 bg-brand-50/30" : "hover:bg-ink-50/60"
-                }`}
-              >
-                <span
-                  className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${
-                    isUnread ? "bg-brand-100 text-brand-700" : "bg-ink-100 text-ink-500"
-                  }`}
-                >
-                  <Icon className="h-4 w-4" />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="flex flex-wrap items-center gap-2">
-                    <span className="font-semibold">{n.title}</span>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-ink-400">
-                      {defs.find(([key]) => key === categoryOf(n))?.[1] || "Account"}
+              <section key={key} aria-label={groupLabel(key)}>
+                <div className="mb-2 flex items-center gap-2">
+                  <span className="grid h-6 w-6 place-items-center rounded-md bg-ink-100 text-ink-500">
+                    <Icon className="h-3.5 w-3.5" />
+                  </span>
+                  <h2 className="text-sm font-bold uppercase tracking-wider text-ink-500">
+                    {groupLabel(key)}
+                  </h2>
+                  {groupUnread > 0 && (
+                    <span className="rounded-full bg-brand-100 px-2 py-0.5 text-[11px] font-bold text-brand-700">
+                      {groupUnread} new
                     </span>
-                  </span>
-                  <span className="mt-1 block text-sm text-ink-600">{n.message}</span>
-                  <span className="mt-2 flex items-center gap-3 text-xs text-ink-400">
-                    {formatRelativeTime(n.createdAt)}
-                    {related && (
-                      <Link
-                        to={related.to}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (isUnread) read.mutate(n._id);
-                        }}
-                        className="font-semibold text-brand-600 hover:text-brand-700"
+                  )}
+                </div>
+                <div className="space-y-3">
+                  {groupItems.map((n) => {
+                    const isUnread = !n.readAt;
+                    const related = notificationTarget(auth, n);
+                    return (
+                      <article
+                        key={n._id}
+                        className={`panel flex w-full items-start gap-4 p-5 transition-colors ${
+                          isUnread ? "border-brand-200 bg-brand-50/30" : "hover:bg-ink-50/60"
+                        }`}
                       >
-                        {related.label} →
-                      </Link>
-                    )}
-                  </span>
-                </span>
-                {isUnread && (
-                  <span className="mt-2 h-2.5 w-2.5 shrink-0 rounded-full bg-brand-500" />
-                )}
-              </button>
+                        <button
+                          type="button"
+                          onClick={() => isUnread && read.mutate(n._id)}
+                          className="grid h-10 w-10 shrink-0 place-items-center rounded-xl transition-transform"
+                          aria-label={isUnread ? "Mark as read" : "Open notification"}
+                          title={isUnread ? "Mark as read" : undefined}
+                        >
+                          <span
+                            className={`grid h-10 w-10 place-items-center rounded-xl ${
+                              isUnread ? "bg-brand-100 text-brand-700" : "bg-ink-100 text-ink-500"
+                            }`}
+                          >
+                            <Icon className="h-4 w-4" />
+                          </span>
+                        </button>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-semibold">{n.title}</p>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-ink-400">
+                              {groupLabel(key)}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-sm text-ink-600">{n.message}</p>
+                          <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-ink-400">
+                            <time
+                              dateTime={new Date(n.createdAt).toISOString()}
+                              title={new Date(n.createdAt).toLocaleString()}
+                            >
+                              {formatRelativeTime(n.createdAt)}
+                            </time>
+                            {related && (
+                              <Link
+                                to={related.to}
+                                onClick={() => isUnread && read.mutate(n._id)}
+                                className="font-semibold text-brand-600 hover:text-brand-700"
+                              >
+                                {related.label} →
+                              </Link>
+                            )}
+                            <span className="ml-auto flex items-center gap-1">
+                              {isUnread ? (
+                                <button
+                                  type="button"
+                                  onClick={() => read.mutate(n._id)}
+                                  disabled={read.isPending}
+                                  title="Mark as read"
+                                  aria-label={`Mark as read: ${n.title}`}
+                                  className="grid h-7 w-7 place-items-center rounded-lg text-ink-400 transition-colors hover:bg-ink-100 hover:text-ink-700 disabled:opacity-50"
+                                >
+                                  <Check className="h-3.5 w-3.5" />
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => markUnread.mutate(n._id)}
+                                  disabled={markUnread.isPending}
+                                  title="Mark as unread"
+                                  aria-label={`Mark as unread: ${n.title}`}
+                                  className="grid h-7 w-7 place-items-center rounded-lg text-ink-400 transition-colors hover:bg-ink-100 hover:text-ink-700 disabled:opacity-50"
+                                >
+                                  <RotateCcw className="h-3.5 w-3.5" />
+                                </button>
+                              )}
+                            </span>
+                          </div>
+                        </div>
+                        {isUnread && (
+                          <span className="mt-2 h-2.5 w-2.5 shrink-0 rounded-full bg-brand-500" />
+                        )}
+                      </article>
+                    );
+                  })}
+                </div>
+              </section>
             );
           })}
         </div>
       ) : (
         <div className="panel p-10">
           <EmptyState
-            icon={category === "all" ? Bell : CheckCircle2}
+            icon={filter === "all" ? Bell : CheckCircle2}
             title={
-              category === "all"
+              filter === "all"
                 ? "You're all caught up"
-                : `No ${defs.find(([key]) => key === category)?.[1].toLowerCase()} notifications`
+                : `No ${groupLabel(filter).toLowerCase()} notifications`
             }
             description={
-              category === "all"
+              filter === "all"
                 ? "Application updates, interviews, approvals and account changes will appear here."
                 : "When something happens in this category it will show up here."
             }
             action={
-              category !== "all" ? (
-                <Button variant="secondary" size="sm" onClick={() => setCategory("all")}>
+              filter !== "all" ? (
+                <Button variant="secondary" size="sm" onClick={() => setFilter("all")}>
                   View all notifications
                 </Button>
               ) : undefined
@@ -238,6 +328,7 @@ export const NotificationsPage = () => {
     </div>
   );
 };
+
 
 /* ------------------------------ settings page ------------------------------ */
 
@@ -302,92 +393,131 @@ const ToggleRow = ({ label, copy, active, onToggle, busy }) => (
   </div>
 );
 
-const PREF_CATEGORY_DEFS = [
-  ["applications", "Applications", "Confirmations, withdrawals and status updates."],
-  ["interviews", "Interviews", "Invitations, confirmations and schedule changes."],
-  ["jobs", "Jobs", "Approval, rejection and review updates."],
-  ["candidates", "Candidates", "New applications and candidate updates."],
-];
-const PREFS_BY_ROLE = {
-  candidate: ["applications", "interviews", "jobs"],
-  recruiter: ["jobs", "candidates", "interviews", "applications"],
-  admin: ["jobs", "candidates", "interviews", "applications"],
-};
+const ChannelSwitch = ({ label, active, onToggle, busy, disabled, title }) => (
+  <button
+    type="button"
+    role="switch"
+    aria-checked={active}
+    aria-label={label}
+    title={title}
+    disabled={busy || disabled}
+    onClick={onToggle}
+    className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+      active && !disabled ? "bg-brand-600" : "bg-ink-200"
+    }`}
+  >
+    <span
+      className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${
+        active && !disabled ? "left-5.5" : "left-0.5"
+      }`}
+    />
+  </button>
+);
 
-const PrefsSection = ({ auth }) => {
+/**
+ * Role-aware notification preferences. Groups, events, channel support and
+ * defaults all come from the backend catalog (GET /notifications/preferences)
+ * — nothing is hardcoded per role on the client.
+ */
+export const PrefsSection = () => {
   const toast = useToast(),
-    roleKey = auth.role === "admin" ? "admin" : auth.role === "candidate" ? "candidate" : "recruiter",
-    categories = PREFS_BY_ROLE[roleKey].map((key) => PREF_CATEGORY_DEFS.find(([k]) => k === key)),
-    [prefs, setPrefs] = useState(() => auth.user?.notificationPrefs || {}),
-    [busyKey, setBusyKey] = useState(null);
-  const setPref = (category, channel) => {
-    const value = !prefs[category]?.[channel];
-    setPrefs((p) => ({ ...p, [category]: { ...p[category], [channel]: value } }));
-    setBusyKey(`${category}:${channel}`);
+    [current, setCurrent] = useState(null),
+    [busyKey, setBusyKey] = useState(null),
+    q = useQuery({
+      queryKey: ["notification-prefs-template"],
+      queryFn: notificationApi.preferences,
+    });
+  const groups = q.data?.data?.groups || null;
+  const valueFor = (key, channel) =>
+    current?.[key]?.[channel] ?? groups?.flatMap((g) => g.events).find((e) => e.key === key)?.current?.[channel];
+  const setPref = (key, channel) => {
+    const next = !valueFor(key, channel);
+    setCurrent((c) => ({ ...c, [key]: { ...valueFor(key), [channel]: next } }));
+    setBusyKey(`${key}:${channel}`);
     userApi
-      .updateNotificationPrefs({ [category]: { [channel]: value } })
+      .updateNotificationPrefs({ events: { [key]: { [channel]: next } } })
       .then(() => toast.success("Preference saved"))
-      .catch(() => toast.error("Could not save the preference"))
+      .catch(() => {
+        setCurrent((c) => ({ ...c, [key]: { ...c[key], [channel]: !next } }));
+        toast.error("Could not save the preference");
+      })
       .finally(() => setBusyKey(null));
   };
+  if (q.isLoading || !groups) return <SkeletonList rows={4} />;
+  if (q.error)
+    return (
+      <SectionCard title="Notification preferences" icon={Bell}>
+        <ErrorState error={q.error} onRetry={() => q.refetch()} />
+      </SectionCard>
+    );
   return (
     <SectionCard
       title="Notification preferences"
       icon={Bell}
       description="Choose how you hear about updates. Security and account alerts are always delivered."
     >
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-105 text-sm">
-          <thead>
-            <tr className="text-left text-xs uppercase tracking-wider text-ink-400">
-              <th className="pb-2 pr-4 font-semibold">Category</th>
-              <th className="pb-2 pr-4 font-semibold">In-app</th>
-              <th className="pb-2 font-semibold">Email</th>
-            </tr>
-          </thead>
-          <tbody>
-            {categories.map(([key, label, copy]) => (
-              <tr key={key} className="border-t border-ink-100">
-                <td className="py-3 pr-4">
-                  <p className="font-semibold">{label}</p>
-                  <p className="text-xs text-ink-500">{copy}</p>
-                </td>
-                {["inApp", "email"].map((channel) => (
-                  <td key={channel} className="py-3 pr-4">
-                    <ToggleRow
-                      label={`${label} ${channel === "inApp" ? "in-app" : "email"}`}
-                      active={Boolean(prefs[key]?.[channel])}
-                      busy={busyKey === `${key}:${channel}`}
-                      onToggle={() => setPref(key, channel)}
-                    />
-                  </td>
-                ))}
-              </tr>
-            ))}
-            <tr className="border-t border-ink-100">
-              <td className="py-3 pr-4">
-                <p className="font-semibold">Account &amp; security</p>
-                <p className="text-xs text-ink-500">
-                  Password changes and security alerts. Always delivered.
-                </p>
-              </td>
-              <td className="py-3 pr-4 text-xs font-bold text-success-600">Always on</td>
-              <td className="py-3 text-xs font-bold text-success-600">Always on</td>
-            </tr>
-            {auth.role === "admin" && (
-              <tr className="border-t border-ink-100">
-                <td className="py-3 pr-4">
-                  <p className="font-semibold">Approvals &amp; platform</p>
-                  <p className="text-xs text-ink-500">
-                    Job approvals and platform events. Always delivered.
-                  </p>
-                </td>
-                <td className="py-3 pr-4 text-xs font-bold text-success-600">Always on</td>
-                <td className="py-3 text-xs font-bold text-success-600">Always on</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+      <div className="space-y-6">
+        {groups.map((group) => (
+          <div key={group.key}>
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-ink-500">
+                {group.label}
+              </h3>
+              {group.alwaysOn && (
+                <Badge variant="success" size="sm">Always on</Badge>
+              )}
+            </div>
+            <div className="overflow-x-auto rounded-xl border border-ink-100">
+              <table className="w-full min-w-105 text-sm">
+                <thead>
+                  <tr className="border-b border-ink-100 bg-ink-50/60 text-left text-xs uppercase tracking-wider text-ink-400">
+                    <th className="px-4 py-2.5 font-semibold">Notification</th>
+                    <th className="w-24 px-4 py-2.5 font-semibold">In-app</th>
+                    <th className="w-24 px-4 py-2.5 font-semibold">Email</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {group.events.map((event) => (
+                    <tr key={event.key} className="border-t border-ink-100 first:border-t-0">
+                      <td className="px-4 py-3">
+                        <p className="font-semibold">{event.label}</p>
+                        <p className="text-xs text-ink-500">{event.description}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        {event.alwaysOn ? (
+                          <span className="text-xs font-bold text-success-600">Always on</span>
+                        ) : (
+                          <ChannelSwitch
+                            label={`${event.label} in-app`}
+                            active={Boolean(valueFor(event.key, "inApp"))}
+                            busy={busyKey === `${event.key}:inApp`}
+                            onToggle={() => setPref(event.key, "inApp")}
+                          />
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {!event.channels?.email ? (
+                          <span className="text-xs text-ink-300" title="This notification is not sent by email">
+                            Not by email
+                          </span>
+                        ) : event.alwaysOn ? (
+                          <span className="text-xs font-bold text-success-600">Always on</span>
+                        ) : (
+                          <ChannelSwitch
+                            label={`${event.label} email`}
+                            active={Boolean(valueFor(event.key, "email"))}
+                            busy={busyKey === `${event.key}:email`}
+                            onToggle={() => setPref(event.key, "email")}
+                          />
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ))}
       </div>
     </SectionCard>
   );
@@ -847,7 +977,7 @@ export const SettingsPage = () => {
         <div className="min-w-0">
           {section === "account" && (auth.user ? <AccountSection auth={auth} /> : <SkeletonList rows={3} />)}
           {section === "security" && <SecuritySection />}
-          {section === "notifications" && (auth.user ? <PrefsSection auth={auth} /> : <SkeletonList rows={3} />)}
+          {section === "notifications" && (auth.user ? <PrefsSection /> : <SkeletonList rows={3} />)}
           {section === "privacy" && <PrivacySection />}
           {section === "data" && <DataSection />}
           {section === "danger" && (

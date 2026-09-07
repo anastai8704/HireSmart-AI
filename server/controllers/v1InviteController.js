@@ -6,6 +6,28 @@ const { Membership } = require("../models/Membership");
 const asyncHandler = require("../middleware/asyncHandler");
 const AppError = require("../utils/AppError");
 const { audit } = require("../services/auditService");
+const { notify } = require("../services/notificationService");
+const organizationOwner = require("../utils/organizationOwner");
+const logger = require("../utils/logger");
+
+const notifyOwnerOfJoin = async ({ organizationId, orgName, joinerName, joinerId, invitationId }) => {
+  try {
+    const owner = await organizationOwner(organizationId);
+    if (!owner || String(owner.id) === String(joinerId)) return;
+    await notify({
+      user: owner.id,
+      organization: organizationId,
+      type: "invitation_accepted",
+      title: `Invitation accepted: ${joinerName}`,
+      message: `${joinerName} joined ${orgName}.`,
+      resourceType: "organization",
+      resourceId: organizationId,
+      idempotencyKey: `org:${organizationId}:invite-accepted:${invitationId}`,
+    });
+  } catch (error) {
+    logger.error(`Invitation acceptance notification failed: ${error.message}`);
+  }
+};
 
 const loadPendingInvite = async (token) => {
   const invitation = await Invite.findOne({ token })
@@ -88,6 +110,13 @@ exports.accept = asyncHandler(async (req, res) => {
     resourceId: invitation._id,
     metadata: { role: invitation.role },
   });
+  notifyOwnerOfJoin({
+    organizationId: invitation.organization._id,
+    orgName: invitation.organization.name,
+    joinerName: user.name,
+    joinerId: user._id,
+    invitationId: invitation._id,
+  });
   res.status(201).json({
     data: {
       organization: { id: invitation.organization._id, name: invitation.organization.name },
@@ -130,6 +159,13 @@ exports.acceptExisting = asyncHandler(async (req, res) => {
     resourceType: "invitation",
     resourceId: invitation._id,
     metadata: { role: invitation.role },
+  });
+  notifyOwnerOfJoin({
+    organizationId: invitation.organization._id,
+    orgName: invitation.organization.name,
+    joinerName: req.user.name,
+    joinerId: req.user._id,
+    invitationId: invitation._id,
   });
   res.json({
     data: {

@@ -71,6 +71,11 @@ exports.updateProfile = asyncHandler(async (req, res) => {
   res.json({ data: publicUserDto(req.user) });
 });
 
+const {
+  ALL_EVENT_KEYS,
+  isAlwaysOn,
+} = require("../config/notificationTypes");
+
 exports.updateNotificationPrefs = asyncHandler(async (req, res) => {
   for (const category of ["applications", "interviews", "jobs", "candidates"]) {
     if (!req.body[category]) continue;
@@ -79,7 +84,26 @@ exports.updateNotificationPrefs = asyncHandler(async (req, res) => {
     if (typeof req.body[category].email === "boolean")
       req.user.notificationPrefs[category].email = req.body[category].email;
   }
-  // Account/security events are always delivered; never stored as off.
+  // Event-level preferences (role-based notification system). Keys are
+  // filtered to the known event catalog; unknown keys are ignored.
+  if (req.body.events && typeof req.body.events === "object") {
+    const role = req.user.role;
+    const events = (req.user.notificationPrefs.events =
+      req.user.notificationPrefs.events || {});
+    for (const [key, value] of Object.entries(req.body.events)) {
+      if (!ALL_EVENT_KEYS.has(key) || !value || typeof value !== "object") continue;
+      const next = events[key] || {};
+      if (isAlwaysOn(key, role)) {
+        // Security & account events are always delivered; never stored as off.
+        if (value.inApp === true) next.inApp = true;
+        if (value.email === true) next.email = true;
+      } else {
+        if (typeof value.inApp === "boolean") next.inApp = value.inApp;
+        if (typeof value.email === "boolean") next.email = value.email;
+      }
+      events[key] = next;
+    }
+  }
   await req.user.save();
   res.json({ data: { notificationPrefs: req.user.notificationPrefs } });
 });

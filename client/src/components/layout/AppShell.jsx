@@ -126,6 +126,7 @@ const AppShell = () => {
     queryKey: ["notifications", {}],
     queryFn: () => notificationApi.list({ limit: 100 }),
     staleTime: 30_000,
+    refetchInterval: 30_000,
   });
   const unread = (notifications.data?.data || []).filter((n) => !n.readAt);
   const markRead = useMutation({

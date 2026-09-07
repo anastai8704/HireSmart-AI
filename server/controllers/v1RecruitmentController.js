@@ -12,6 +12,7 @@ const AppError = require("../utils/AppError");
 const { parse, applyCursor, meta } = require("../utils/pagination");
 const { calculateHybridMatch } = require("../services/hybridMatchingService");
 const { notify, notifyAdmins } = require("../services/notificationService");
+const OrganizationOwner = require("../utils/organizationOwner");
 const { audit } = require("../services/auditService");
 const storageService = require("../services/storageService");
 const idempotency = require("../services/idempotencyService");
@@ -326,7 +327,7 @@ exports.updateJob = asyncHandler(async (req, res) => {
     const owner = await OrganizationOwner(job.organization);
     if (owner) {
       await notify({
-        user: owner.user,
+        user: owner.id,
         organization: job.organization,
         type: "job_changes_submitted",
         category: "jobs",
@@ -352,16 +353,6 @@ exports.updateJob = asyncHandler(async (req, res) => {
   res.json({ data: jobDto(job) });
 });
 
-const OrganizationOwner = async (organizationId) => {
-  if (!organizationId) return null;
-  const { Membership } = require("../models/Membership");
-  const owner = await Membership.findOne({
-    organization: organizationId,
-    role: "owner",
-    status: "active",
-  }).select("user");
-  return owner ? { user: owner.user } : null;
-};
 exports.publish = asyncHandler(async (req, res) => {
   const job = await getOrgJob(req, req.params.jobId);
   if (!job.description || !(job.requiredSkills?.length || job.skills?.length))
@@ -393,7 +384,7 @@ exports.publish = asyncHandler(async (req, res) => {
   try {
     const owner = await OrganizationOwner(job.organization);
     const targets = new Set(
-      [owner?.user, job.recruiter].filter((id) => id).map(String),
+      [owner?.id, job.recruiter].filter((id) => id).map(String),
     );
     for (const userId of targets) {
       await notify({
@@ -498,7 +489,7 @@ exports.apply = asyncHandler(async (req, res) => {
     // The hiring team should know about the new application.
     const owner = await OrganizationOwner(job.organization);
     const candidates = new Set(
-      [owner?.user, job.recruiter].filter((id) => id).map(String),
+      [owner?.id, job.recruiter].filter((id) => id).map(String),
     );
     const applicantName =
       (await User.findById(req.user._id).select("name").lean())?.name || "A candidate";
@@ -600,7 +591,7 @@ exports.withdraw = asyncHandler(async (req, res) => {
     if (owner) {
       const jobTitle = (await Job.findById(app.job).select("title").lean())?.title || "a role";
       await notify({
-        user: owner.user,
+        user: owner.id,
         organization: app.organization,
         type: "application_withdrawn",
         category: "candidates",
@@ -688,9 +679,9 @@ exports.transition = asyncHandler(async (req, res) => {
     });
     // Keep other hiring-team members informed of decisions.
     const owner = await OrganizationOwner(app.organization);
-    if (owner && String(owner.user) !== String(req.user._id)) {
+    if (owner && String(owner.id) !== String(req.user._id)) {
       await notify({
-        user: owner.user,
+        user: owner.id,
         organization: app.organization,
         type: "application_status_changed",
         category: "candidates",
