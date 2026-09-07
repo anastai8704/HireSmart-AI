@@ -215,7 +215,7 @@ test("team events notify the organization owner", async () => {
   const ownerAToken = await registerAndLogin("team-a@example.com", "recruiter", "Team Co A");
   const ownerBToken = await registerAndLogin("team-b@example.com", "recruiter", "Team Co B");
   const ownerA = await User.findOne({ email: "team-a@example.com" }).lean();
-  const orgA = (await request(app).get("/api/v1/organizations/me").set(auth(ownerAToken))).body
+  const orgA = (await request(app).get("/api/v1/organizations").set(auth(ownerAToken))).body
     .data[0];
 
   const addMember = await request(app)
