@@ -50,6 +50,7 @@ const RDashboard = pick(() => import("./pages/recruiter/RecruiterPages"), "Recru
   Assigned = pick(() => import("./pages/recruiter/RecruiterPages"), "JobsPage");
 const Notifications = pick(() => import("./pages/SystemPages"), "NotificationsPage"),
   Settings = pick(() => import("./pages/SystemPages"), "SettingsPage"),
+  Profile = pick(() => import("./pages/ProfilePages"), "ProfilePage"),
   AdminHome = pick(() => import("./pages/admin/AdminPages"), "AdminHome"),
   AdminUsers = pick(() => import("./pages/admin/AdminPages"), "AdminUsers"),
   AdminOrgs = pick(() => import("./pages/admin/AdminPages"), "AdminOrganizations"),
@@ -104,6 +105,7 @@ const App = () => (
             <Route element={<ProtectedRoute />}>
               <Route element={<AppShell />}>
                 <Route path="/app/notifications" element={<Notifications />} />
+                <Route path="/app/profile" element={<Profile />} />
                 <Route path="/app/settings" element={<Settings />} />
               </Route>
             </Route>

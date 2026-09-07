@@ -9,6 +9,7 @@ import {
   FileText,
   HeartHandshake,
   LayoutDashboard,
+  LifeBuoy,
   LogOut,
   Menu,
   Search,
@@ -25,6 +26,8 @@ import { useAuth } from "../../context/useAuth";
 import { notificationApi } from "../../lib/api";
 import { cn, formatRelativeTime, notificationTarget } from "../../lib/utils";
 import Avatar from "../ui/Avatar";
+import Button from "../ui/Button";
+import Modal from "../ui/Modal";
 
 const candidateGroups = [
   [
@@ -103,6 +106,7 @@ const SECTION_TITLES = [
   ["/app/admin/ai-usage", "AI Activity"],
   ["/app/admin/security", "Security & Audit"],
   ["/app/notifications", "Notifications"],
+  ["/app/profile", "My Profile"],
   ["/app/settings", "Settings"],
 ];
 const sectionTitle = (path) =>
@@ -114,6 +118,7 @@ const AppShell = () => {
   const [open, setOpen] = useState(false),
     [bellOpen, setBellOpen] = useState(false),
     [menuOpen, setMenuOpen] = useState(false),
+    [helpOpen, setHelpOpen] = useState(false),
     location = useLocation();
   const isAdmin = auth.role === "admin";
   const qc = useQueryClient();
@@ -387,6 +392,14 @@ const AppShell = () => {
                     </div>
                     <div className="p-1.5">
                       <NavLink
+                        to="/app/profile"
+                        onClick={() => setMenuOpen(false)}
+                        className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium text-ink-700 transition-colors hover:bg-ink-100"
+                      >
+                        <UserRound className="h-4 w-4" />
+                        My Profile
+                      </NavLink>
+                      <NavLink
                         to="/app/settings"
                         onClick={() => setMenuOpen(false)}
                         className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium text-ink-700 transition-colors hover:bg-ink-100"
@@ -394,6 +407,18 @@ const AppShell = () => {
                         <Settings className="h-4 w-4" />
                         Settings
                       </NavLink>
+                      <div className="mx-2 my-1.5 border-t border-ink-100" role="separator" />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMenuOpen(false);
+                          setHelpOpen(true);
+                        }}
+                        className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm font-medium text-ink-700 transition-colors hover:bg-ink-100"
+                      >
+                        <LifeBuoy className="h-4 w-4" />
+                        Help &amp; Support
+                      </button>
                       <button
                         type="button"
                         onClick={async () => {
@@ -416,6 +441,39 @@ const AppShell = () => {
           <Outlet />
         </main>
       </div>
+      <Modal
+        isOpen={helpOpen}
+        onClose={() => setHelpOpen(false)}
+        title="Help & support"
+        description="Find answers in our policies, or check the areas most relevant to your role."
+        footer={<Button variant="secondary" onClick={() => setHelpOpen(false)}>Close</Button>}
+      >
+        <ul className="space-y-2">
+          {[
+            ["/app/notifications", "Notifications", "Application, interview and approval updates"],
+            ["/app/settings", "Settings", "Security, preferences and data"],
+            ["/security", "Security & privacy", "How your data is protected"],
+            ["/privacy", "Privacy policy", "What we collect and why"],
+            ["/terms", "Terms of service", "The rules of the platform"],
+          ].map(([to, title, copy]) => (
+            <li key={to}>
+              <NavLink
+                to={to}
+                onClick={() => setHelpOpen(false)}
+                className="flex items-start gap-3 rounded-xl border border-ink-100 bg-ink-50/60 p-3.5 transition-colors hover:border-brand-200 hover:bg-brand-50/40"
+              >
+                <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-white text-brand-700 shadow-sm">
+                  <LifeBuoy className="h-4 w-4" />
+                </span>
+                <span>
+                  <span className="block text-sm font-semibold">{title}</span>
+                  <span className="block text-xs text-ink-500">{copy}</span>
+                </span>
+              </NavLink>
+            </li>
+          ))}
+        </ul>
+      </Modal>
     </div>
   );
 };

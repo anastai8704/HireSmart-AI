@@ -204,3 +204,38 @@ test("email change requires confirmation on the new address", async () => {
   const note = await Notification.findOne({ user: userId, type: "email_changed" });
   assert.ok(note, "the email change must create a security notification");
 });
+test("recruiter profile fields persist (department, hiring specializations)", async () => {
+  const updated = await request(app)
+    .patch("/api/v1/users/me")
+    .set(auth(token))
+    .send({ department: "Engineering", hiringSpecializations: ["Backend", "DevOps"] });
+  assert.equal(updated.status, 200, JSON.stringify(updated.body).slice(0, 1500));
+
+  const me = await request(app).get("/api/v1/users/me").set(auth(token));
+  assert.equal(me.status, 200);
+  assert.equal(me.body.data.department, "Engineering");
+  assert.deepEqual(me.body.data.hiringSpecializations, ["Backend", "DevOps"]);
+});
+
+test("signing out other sessions keeps only the current session", async () => {
+  const secondLogin = await request(app)
+    .post("/api/v1/auth/login")
+    .send({ email: "new-address@example.com", password: "NewStrongPassword456!" });
+  assert.equal(secondLogin.status, 200, JSON.stringify(secondLogin.body).slice(0, 800));
+  const secondToken = secondLogin.body.data.accessToken;
+
+  const before = await request(app).get("/api/v1/auth/sessions").set(auth(secondToken));
+  assert.equal(before.status, 200);
+  assert.ok(before.body.data.length >= 2, "two sessions should exist before the revocation");
+
+  const others = await request(app)
+    .post("/api/v1/auth/sessions/revoke-others")
+    .set(auth(secondToken));
+  assert.equal(others.status, 200, JSON.stringify(others.body).slice(0, 800));
+  assert.ok(others.body.data.revoked >= 1, "at least one other session must be revoked");
+
+  const after = await request(app).get("/api/v1/auth/sessions").set(auth(secondToken));
+  assert.equal(after.status, 200);
+  assert.equal(after.body.data.length, 1, "only the current session must survive");
+  assert.equal(after.body.data[0].current, true);
+});

@@ -252,6 +252,21 @@ exports.revokeSession = asyncHandler(async (req, res) => {
   await revoke({ _id: req.params.sessionId, user: req.user._id }, "user_revoked");
   res.status(204).end();
 });
+// "Sign out other sessions": revoke every session except the current one.
+exports.revokeOtherSessions = asyncHandler(async (req, res) => {
+  const result = await revoke(
+    { user: req.user._id, _id: { $ne: req.auth.sessionId } },
+    "signed_out_elsewhere",
+  );
+  await audit({
+    req,
+    action: "session.other_sessions_revoked",
+    resourceType: "session",
+    resourceId: req.auth.sessionId,
+    metadata: { count: result.modifiedCount },
+  });
+  res.json({ data: { revoked: result.modifiedCount } });
+});
 exports.forgotPassword = asyncHandler(async (req, res) => {
   const user = await User.findOne({ email: req.body.email.toLowerCase() });
   if (user) {

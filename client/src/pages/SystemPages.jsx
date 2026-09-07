@@ -7,17 +7,15 @@ import {
   CheckCircle2,
   Download,
   FileText,
-  ImagePlus,
   KeyRound,
-  Mail,
   ShieldAlert,
   ShieldCheck,
-  Trash2,
+  Sparkles,
   UserRound,
   Video,
 } from "lucide-react";
 import Button from "../components/ui/Button";
-import Input, { Textarea } from "../components/ui/Input";
+import Input from "../components/ui/Input";
 import Badge from "../components/ui/Badge";
 import Modal from "../components/ui/Modal";
 import { EmptyState, ErrorState, SkeletonList } from "../components/ui/States";
@@ -25,7 +23,7 @@ import { ErrorCallout, PageHeader } from "../components/Product";
 import { authApi, downloadBlob, notificationApi, userApi } from "../lib/api";
 import { useAuth } from "../context/useAuth";
 import { useToast } from "../components/ui/useToast";
-import { formatDate, formatRelativeTime, initials, notificationTarget } from "../lib/utils";
+import { cn, formatDate, formatRelativeTime, notificationTarget } from "../lib/utils";
 
 const notificationIcon = (n) => {
   const t = `${n?.type || ""} ${n?.title || ""}`.toLowerCase();
@@ -241,278 +239,206 @@ export const NotificationsPage = () => {
   );
 };
 
-const SectionLabel = ({ children }) => (
-  <p className="mb-3 mt-8 text-[11px] font-bold uppercase tracking-widest text-ink-400 first:mt-0">
-    {children}
-  </p>
+/* ------------------------------ settings page ------------------------------ */
+
+
+const SectionCard = ({ title, icon: Icon, description, children, tone }) => (
+  <section
+    className={cn(
+      "panel p-6",
+      tone === "danger" && "border-danger-500/20 bg-danger-50",
+    )}
+  >
+    <h2
+      className={cn(
+        "flex items-center gap-2 font-bold",
+        tone === "danger" && "text-danger-700",
+      )}
+    >
+      {Icon && (
+        <span
+          className={cn(
+            "grid h-9 w-9 place-items-center rounded-xl",
+            tone === "danger" ? "bg-danger-100 text-danger-600" : "bg-brand-50 text-brand-700",
+          )}
+        >
+          <Icon className="h-4.5 w-4.5" />
+        </span>
+      )}
+      {title}
+    </h2>
+    {description && (
+      <p className={cn("mt-2 text-sm", tone === "danger" ? "text-danger-700/80" : "text-ink-500")}>
+        {description}
+      </p>
+    )}
+    <div className="mt-5">{children}</div>
+  </section>
 );
 
-/* ------------------------------ profile form ------------------------------ */
+const ToggleRow = ({ label, copy, active, onToggle, busy }) => (
+  <div className="flex items-center justify-between gap-4 rounded-xl bg-ink-50 p-4">
+    <div className="min-w-0">
+      <p className="text-sm font-semibold">{label}</p>
+      <p className="mt-0.5 text-xs text-ink-500">{copy}</p>
+    </div>
+    <button
+      type="button"
+      role="switch"
+      aria-checked={active}
+      aria-label={label}
+      disabled={busy}
+      onClick={onToggle}
+      className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-50 ${
+        active ? "bg-brand-600" : "bg-ink-200"
+      }`}
+    >
+      <span
+        className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${
+          active ? "left-5.5" : "left-0.5"
+        }`}
+      />
+    </button>
+  </div>
+);
 
-const PREF_CATEGORIES = [
-  ["applications", "Applications", "Application confirmations and status updates."],
-  ["interviews", "Interviews", "Interview invitations, confirmations and schedule changes."],
-  ["jobs", "Jobs", "Job approval, rejection and review updates."],
+const PREF_CATEGORY_DEFS = [
+  ["applications", "Applications", "Confirmations, withdrawals and status updates."],
+  ["interviews", "Interviews", "Invitations, confirmations and schedule changes."],
+  ["jobs", "Jobs", "Approval, rejection and review updates."],
   ["candidates", "Candidates", "New applications and candidate updates."],
 ];
+const PREFS_BY_ROLE = {
+  candidate: ["applications", "interviews", "jobs"],
+  recruiter: ["jobs", "candidates", "interviews", "applications"],
+  admin: ["jobs", "candidates", "interviews", "applications"],
+};
 
-const formFrom = (u) =>
-  u
-    ? {
-        name: u.displayName || "",
-        phone: u.phone || "",
-        headline: u.headline || "",
-        location: u.location || "",
-        bio: u.bio || "",
-        skills: (u.skills || []).join(", "),
-        companyName: u.companyName || "",
-        companyWebsite: u.companyWebsite || "",
-        linkedin: u.socialLinks?.linkedin || "",
-        github: u.socialLinks?.github || "",
-        portfolio: u.socialLinks?.portfolio || "",
-      }
-    : null;
-
-const ProfileSection = ({ auth, onSaved }) => {
+const PrefsSection = ({ auth }) => {
   const toast = useToast(),
-    [form, setForm] = useState(() => formFrom(auth.user)),
-    [saving, setSaving] = useState(false),
-    [error, setError] = useState(null),
-    [photo, setPhoto] = useState(null),
-    [photoBusy, setPhotoBusy] = useState(false),
-    [emailBusy, setEmailBusy] = useState(false),
-    [emailSent, setEmailSent] = useState(false),
-    [newEmail, setNewEmail] = useState("");
-  const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
-  const save = async () => {
-    setSaving(true);
-    setError(null);
-    try {
-      await userApi.updateProfile({
-        name: form.name,
-        phone: form.phone,
-        headline: form.headline,
-        location: form.location,
-        bio: form.bio,
-        skills: form.skills
-          .split(",")
-          .map((x) => x.trim())
-          .filter(Boolean),
-        companyName: form.companyName,
-        companyWebsite: form.companyWebsite,
-        socialLinks: {
-          linkedin: form.linkedin,
-          github: form.github,
-          portfolio: form.portfolio,
-        },
-      });
-      toast.success("Profile saved");
-      onSaved();
-    } catch (err) {
-      setError(err);
-    } finally {
-      setSaving(false);
-    }
+    roleKey = auth.role === "admin" ? "admin" : auth.role === "candidate" ? "candidate" : "recruiter",
+    categories = PREFS_BY_ROLE[roleKey].map((key) => PREF_CATEGORY_DEFS.find(([k]) => k === key)),
+    [prefs, setPrefs] = useState(() => auth.user?.notificationPrefs || {}),
+    [busyKey, setBusyKey] = useState(null);
+  const setPref = (category, channel) => {
+    const value = !prefs[category]?.[channel];
+    setPrefs((p) => ({ ...p, [category]: { ...p[category], [channel]: value } }));
+    setBusyKey(`${category}:${channel}`);
+    userApi
+      .updateNotificationPrefs({ [category]: { [channel]: value } })
+      .then(() => toast.success("Preference saved"))
+      .catch(() => toast.error("Could not save the preference"))
+      .finally(() => setBusyKey(null));
   };
-  const uploadPhoto = async (event) => {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file) return;
-    setPhotoBusy(true);
-    setError(null);
-    try {
-      await userApi.uploadAvatar(file);
-      toast.success("Photo updated");
-      setPhoto(Date.now());
-      onSaved();
-    } catch (err) {
-      setError(err);
-    } finally {
-      setPhotoBusy(false);
-    }
-  };
-  const removePhoto = async () => {
-    setPhotoBusy(true);
-    setError(null);
-    try {
-      await userApi.removeAvatar();
-      toast.success("Photo removed");
-      setPhoto(Date.now());
-      onSaved();
-    } catch (err) {
-      setError(err);
-    } finally {
-      setPhotoBusy(false);
-    }
-  };
-  const changeEmail = async () => {
-    setEmailBusy(true);
-    setError(null);
-    try {
-      await authApi.changeEmail(newEmail.trim());
+  return (
+    <SectionCard
+      title="Notification preferences"
+      icon={Bell}
+      description="Choose how you hear about updates. Security and account alerts are always delivered."
+    >
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-105 text-sm">
+          <thead>
+            <tr className="text-left text-xs uppercase tracking-wider text-ink-400">
+              <th className="pb-2 pr-4 font-semibold">Category</th>
+              <th className="pb-2 pr-4 font-semibold">In-app</th>
+              <th className="pb-2 font-semibold">Email</th>
+            </tr>
+          </thead>
+          <tbody>
+            {categories.map(([key, label, copy]) => (
+              <tr key={key} className="border-t border-ink-100">
+                <td className="py-3 pr-4">
+                  <p className="font-semibold">{label}</p>
+                  <p className="text-xs text-ink-500">{copy}</p>
+                </td>
+                {["inApp", "email"].map((channel) => (
+                  <td key={channel} className="py-3 pr-4">
+                    <ToggleRow
+                      label={`${label} ${channel === "inApp" ? "in-app" : "email"}`}
+                      active={Boolean(prefs[key]?.[channel])}
+                      busy={busyKey === `${key}:${channel}`}
+                      onToggle={() => setPref(key, channel)}
+                    />
+                  </td>
+                ))}
+              </tr>
+            ))}
+            <tr className="border-t border-ink-100">
+              <td className="py-3 pr-4">
+                <p className="font-semibold">Account &amp; security</p>
+                <p className="text-xs text-ink-500">
+                  Password changes and security alerts. Always delivered.
+                </p>
+              </td>
+              <td className="py-3 pr-4 text-xs font-bold text-success-600">Always on</td>
+              <td className="py-3 text-xs font-bold text-success-600">Always on</td>
+            </tr>
+            {auth.role === "admin" && (
+              <tr className="border-t border-ink-100">
+                <td className="py-3 pr-4">
+                  <p className="font-semibold">Approvals &amp; platform</p>
+                  <p className="text-xs text-ink-500">
+                    Job approvals and platform events. Always delivered.
+                  </p>
+                </td>
+                <td className="py-3 pr-4 text-xs font-bold text-success-600">Always on</td>
+                <td className="py-3 text-xs font-bold text-success-600">Always on</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </SectionCard>
+  );
+};
+
+const AccountSection = ({ auth }) => {
+  const toast = useToast(),
+    [info, setInfo] = useState(() => ({
+      name: auth.user?.displayName || "",
+      phone: auth.user?.phone || "",
+    })),
+    [newEmail, setNewEmail] = useState(""),
+    [emailSent, setEmailSent] = useState(false);
+  const saveInfo = useMutation({
+    mutationFn: () => userApi.updateProfile({ name: info.name, phone: info.phone }),
+    onSuccess: async () => {
+      toast.success("Account information saved");
+      await auth.refresh();
+    },
+    onError: (e) => toast.error(e.message || "Could not save"),
+  });
+  const changeEmail = useMutation({
+    mutationFn: () => authApi.changeEmail(newEmail.trim()),
+    onSuccess: () => {
       toast.success(`Confirmation email sent to ${newEmail.trim()}`);
       setEmailSent(true);
       setNewEmail("");
-      onSaved();
-    } catch (err) {
-      setError(err);
-    } finally {
-      setEmailBusy(false);
-    }
-  };
+      auth.refresh();
+    },
+    onError: (e) => toast.error(e.message || "Could not request the change"),
+  });
   return (
-    <section className="panel p-6">
-      <h2 className="font-bold">Profile</h2>
-      <p className="mt-1 text-sm text-ink-500">
-        How you appear to hiring teams and on your applications.
-      </p>
-      <div className="mt-5 flex flex-col gap-5 sm:flex-row">
-        <div className="flex flex-col items-center gap-3">
-          <div className="relative">
-            {auth.user?.profileImage ? (
-              <img
-                key={photo || "current"}
-                src={auth.user.profileImage}
-                alt=""
-                className="h-24 w-24 rounded-full object-cover ring-2 ring-ink-100"
-              />
-            ) : (
-              <span className="grid h-24 w-24 place-items-center rounded-full bg-gradient-to-br from-brand-400 to-brand-600 text-2xl font-bold text-white">
-                {initials(auth.user?.displayName)}
-              </span>
-            )}
-          </div>
-          <label className="cursor-pointer">
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              className="sr-only"
-              onChange={uploadPhoto}
-              disabled={photoBusy}
-            />
-            <span
-              className={`inline-flex items-center gap-1.5 text-sm font-semibold text-brand-600 hover:text-brand-700 ${
-                photoBusy ? "pointer-events-none opacity-50" : ""
-              }`}
-            >
-              <ImagePlus className="h-4 w-4" />
-              {photoBusy ? "Working…" : "Upload photo"}
-            </span>
-          </label>
-          {auth.user?.profileImage && (
-            <button
-              type="button"
-              onClick={removePhoto}
-              disabled={photoBusy}
-              className="text-xs font-semibold text-danger-600 hover:underline disabled:opacity-50"
-            >
-              Remove photo
-            </button>
-          )}
-          <p className="max-w-32 text-center text-[11px] text-ink-400">
-            JPG, PNG or WebP · up to 2 MB
-          </p>
-        </div>
-        <div className="grid flex-1 gap-3 sm:grid-cols-2">
-          <Input label="Full name" value={form.name} onChange={set("name")} />
-          <Input
-            label="Phone"
-            value={form.phone}
-            onChange={set("phone")}
-            placeholder="+91 98765 43210"
-          />
-          <Input
-            label="Professional headline"
-            value={form.headline}
-            onChange={set("headline")}
-            placeholder="e.g. Frontend developer, 4 years"
-          />
-          <Input
-            label="Location"
-            value={form.location}
-            onChange={set("location")}
-            placeholder="City"
-          />
-          <Input
-            label="Skills"
-            value={form.skills}
-            onChange={set("skills")}
-            placeholder="React, TypeScript, Node.js"
-            hint="Separate with commas"
-          />
-          <Input
-            label={auth.role === "candidate" ? "Current company" : "Company"}
-            value={form.companyName}
-            onChange={set("companyName")}
-          />
-          <Input
-            label="LinkedIn"
-            value={form.linkedin}
-            onChange={set("linkedin")}
-            placeholder="https://linkedin.com/in/you"
-          />
-          <Input
-            label="GitHub"
-            value={form.github}
-            onChange={set("github")}
-            placeholder="https://github.com/you"
-          />
-          <div className="sm:col-span-2">
-            <Input
-              label="Portfolio / website"
-              value={form.portfolio}
-              onChange={set("portfolio")}
-              placeholder="https://your-portfolio.com"
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <Textarea
-              label="About you"
-              value={form.bio}
-              onChange={set("bio")}
-              rows={3}
-              placeholder="A short introduction for hiring teams"
-            />
-          </div>
-        </div>
-      </div>
-      {error && (
-        <div className="mt-4">
-          <ErrorCallout error={error} />
-        </div>
-      )}
-      <div className="mt-5 flex items-center gap-3">
-        <Button onClick={save} isLoading={saving}>
-          Save Changes
-        </Button>
-        <Button
-          variant="ghost"
-          onClick={() => {
-            setForm(formFrom(auth.user));
-            setError(null);
-          }}
-        >
-          Cancel
-        </Button>
-      </div>
-      <div className="mt-6 rounded-xl bg-ink-50 p-4">
-        <p className="flex items-center gap-2 text-sm font-semibold">
-          <Mail className="h-4 w-4 text-brand-600" />
-          Email address
-        </p>
-        <p className="mt-1 text-sm text-ink-500">{auth.user?.email}</p>
+    <div className="space-y-6">
+      <SectionCard
+        title="Email address"
+        icon={UserRound}
+        description="Changing your email is confirmed from the new address — your old address stays active until then."
+      >
+        <p className="text-sm font-semibold">{auth.user?.email}</p>
         {auth.user?.pendingEmail && (
-          <p className="mt-2 text-sm font-medium text-warning-700">
+          <p className="mt-2 rounded-xl bg-warning-50 px-4 py-2.5 text-sm font-medium text-warning-700">
             Verification pending for {auth.user.pendingEmail}. Check that inbox to confirm the
             change.
           </p>
         )}
         {emailSent && !auth.user?.pendingEmail && (
-          <p className="mt-2 text-sm font-medium text-success-600">
+          <p className="mt-2 rounded-xl bg-success-50 px-4 py-2.5 text-sm font-medium text-success-600">
             A confirmation email was sent. The address changes once you verify it.
           </p>
         )}
-        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+        <div className="mt-4 flex flex-col gap-2 sm:flex-row">
           <Input
             aria-label="New email address"
             type="email"
@@ -526,93 +452,40 @@ const ProfileSection = ({ auth, onSaved }) => {
           />
           <Button
             variant="secondary"
-            onClick={changeEmail}
-            isLoading={emailBusy}
+            onClick={() => changeEmail.mutate()}
+            isLoading={changeEmail.isPending}
             disabled={!newEmail.includes("@")}
             className="shrink-0"
           >
             Change Email
           </Button>
         </div>
-      </div>
-    </section>
-  );
-};
-
-const PrefsSection = ({ auth, onSaved }) => {
-  const toast = useToast(),
-    [prefs, setPrefs] = useState(() => auth.user?.notificationPrefs || {});
-  const setPref = (category, channel) => {
-    const value = !prefs[category]?.[channel];
-    setPrefs((p) => ({ ...p, [category]: { ...p[category], [channel]: value } }));
-    userApi
-      .updateNotificationPrefs({ [category]: { [channel]: value } })
-      .then(() => {
-        onSaved();
-        toast.success("Preference saved");
-      })
-      .catch(() => toast.error("Could not save the preference"));
-  };
-  return (
-    <section className="panel p-6">
-      <h2 className="font-bold">Notification Preferences</h2>
-      <p className="mt-1 text-sm text-ink-500">
-        Choose how you hear about updates. Security and account alerts are always on.
-      </p>
-      <div className="mt-4 overflow-x-auto">
-        <table className="w-full min-w-105 text-sm">
-          <thead>
-            <tr className="text-left text-xs uppercase tracking-wider text-ink-400">
-              <th className="pb-2 pr-4 font-semibold">Category</th>
-              <th className="pb-2 pr-4 font-semibold">In-app</th>
-              <th className="pb-2 font-semibold">Email</th>
-            </tr>
-          </thead>
-          <tbody>
-            {PREF_CATEGORIES.map(([key, label, copy]) => (
-              <tr key={key} className="border-t border-ink-100">
-                <td className="py-3 pr-4">
-                  <p className="font-semibold">{label}</p>
-                  <p className="text-xs text-ink-500">{copy}</p>
-                </td>
-                {["inApp", "email"].map((channel) => (
-                  <td key={channel} className="py-3 pr-4">
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={Boolean(prefs[key]?.[channel])}
-                      onClick={() => setPref(key, channel)}
-                      className={`relative h-6 w-11 rounded-full transition-colors ${
-                        prefs[key]?.[channel] ? "bg-brand-600" : "bg-ink-200"
-                      }`}
-                    >
-                      <span
-                        className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${
-                          prefs[key]?.[channel] ? "left-5.5" : "left-0.5"
-                        }`}
-                      />
-                      <span className="sr-only">
-                        {channel === "inApp" ? "In-app" : "Email"} notifications for {label}
-                      </span>
-                    </button>
-                  </td>
-                ))}
-              </tr>
-            ))}
-            <tr className="border-t border-ink-100">
-              <td className="py-3 pr-4">
-                <p className="font-semibold">Account & security</p>
-                <p className="text-xs text-ink-500">
-                  Password changes and security alerts. Always delivered.
-                </p>
-              </td>
-              <td className="py-3 pr-4 text-xs font-bold text-success-600">Always on</td>
-              <td className="py-3 text-xs font-bold text-success-600">Always on</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
+      </SectionCard>
+      <SectionCard
+        title="Account information"
+        icon={UserRound}
+        description="The basic details on your account."
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Input
+            label="Display name"
+            value={info.name}
+            onChange={(e) => setInfo((i) => ({ ...i, name: e.target.value }))}
+          />
+          <Input
+            label="Phone"
+            value={info.phone}
+            placeholder="+91 98765 43210"
+            onChange={(e) => setInfo((i) => ({ ...i, phone: e.target.value }))}
+          />
+        </div>
+        <div className="mt-4">
+          <Button onClick={() => saveInfo.mutate()} isLoading={saveInfo.isPending}>
+            Save changes
+          </Button>
+        </div>
+      </SectionCard>
+    </div>
   );
 };
 
@@ -626,7 +499,7 @@ const SecurityActivity = () => {
     return <p className="text-sm text-ink-500">No security activity recorded yet.</p>;
   const label = (type) => type.split(".").pop().replace(/_/g, " ");
   return (
-    <div className="mt-4 space-y-2">
+    <div className="space-y-2">
       {items.slice(0, 6).map((e) => (
         <div
           key={e._id}
@@ -640,19 +513,14 @@ const SecurityActivity = () => {
   );
 };
 
-/* ------------------------------ settings page ------------------------------ */
-
-export const SettingsPage = () => {
-  const auth = useAuth(),
-    toast = useToast(),
+const SecuritySection = () => {
+  const toast = useToast(),
     [password, setPassword] = useState({
       currentPassword: "",
       newPassword: "",
       confirmPassword: "",
     }),
-    [deleteOpen, setDeleteOpen] = useState(false),
     sessions = useQuery({ queryKey: ["sessions"], queryFn: authApi.sessions }),
-    consents = useQuery({ queryKey: ["consents"], queryFn: userApi.consents }),
     change = useMutation({
       mutationFn: () =>
         authApi.changePassword({
@@ -666,212 +534,339 @@ export const SettingsPage = () => {
     }),
     revoke = useMutation({
       mutationFn: authApi.revokeSession,
-      onSuccess: () => sessions.refetch(),
+      onSuccess: () => {
+        toast.success("Session revoked");
+        sessions.refetch();
+      },
     }),
-    consent = useMutation({
-      mutationFn: ({ purpose, granted }) =>
-        userApi.consent(purpose, { granted, policyVersion: "2026-08" }),
-      onSuccess: () => consents.refetch(),
-    }),
-    remove = useMutation({
-      mutationFn: () => userApi.remove("Requested from account settings"),
-      onSuccess: () => auth.logout(),
+    revokeOthers = useMutation({
+      mutationFn: () => authApi.revokeOtherSessions(),
+      onSuccess: (r) => {
+        toast.success(
+          r?.data?.revoked
+            ? `Signed out ${r.data.revoked} other session${r.data.revoked === 1 ? "" : "s"}`
+            : "No other active sessions",
+        );
+        sessions.refetch();
+      },
     });
   const canSavePassword =
     password.currentPassword.length > 0 &&
     password.newPassword.length >= 12 &&
     password.newPassword === password.confirmPassword;
   return (
-    <div className="page-wrap max-w-5xl">
+    <div className="space-y-6">
+      <SectionCard
+        title="Change password"
+        icon={KeyRound}
+        description="Use at least 12 characters. Changing your password signs out your other sessions."
+      >
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Input
+            label="Current password"
+            type="password"
+            autoComplete="current-password"
+            value={password.currentPassword}
+            onChange={(e) =>
+              setPassword((p) => ({ ...p, currentPassword: e.target.value }))
+            }
+          />
+          <Input
+            label="New password"
+            type="password"
+            minLength={12}
+            hint="At least 12 characters"
+            autoComplete="new-password"
+            value={password.newPassword}
+            onChange={(e) => setPassword((p) => ({ ...p, newPassword: e.target.value }))}
+          />
+          <Input
+            label="Confirm new password"
+            type="password"
+            autoComplete="new-password"
+            value={password.confirmPassword}
+            onChange={(e) =>
+              setPassword((p) => ({ ...p, confirmPassword: e.target.value }))
+            }
+            hint={
+              password.confirmPassword.length > 0 &&
+              password.confirmPassword !== password.newPassword
+                ? "Passwords do not match"
+                : "Enter the new password again"
+            }
+          />
+        </div>
+        <div className="mt-4 flex items-center gap-3">
+          <Button
+            disabled={!canSavePassword}
+            isLoading={change.isPending}
+            onClick={() => change.mutate()}
+          >
+            Update Password
+          </Button>
+          {change.isSuccess && (
+            <p className="flex items-center gap-1.5 text-sm font-medium text-success-600">
+              <CheckCircle2 className="h-4 w-4" /> Password updated successfully
+            </p>
+          )}
+        </div>
+        {change.error && (
+          <div className="mt-3">
+            <ErrorCallout error={change.error} />
+          </div>
+        )}
+      </SectionCard>
+      <SectionCard
+        title="Active sessions"
+        icon={ShieldCheck}
+        description="Devices currently signed in. Revoke any session you do not recognize."
+      >
+        <div className="space-y-3">
+          {sessions.data?.data?.length ? (
+            sessions.data.data.map((s) => (
+              <div
+                className="flex flex-col gap-3 rounded-xl bg-ink-50 p-4 sm:flex-row sm:items-center"
+                key={s.id}
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold">
+                    {s.userAgent || "Unknown device"}{" "}
+                    {s.current && <Badge variant="success">current</Badge>}
+                  </p>
+                  <p className="mt-0.5 text-xs text-ink-500">
+                    Last used {formatRelativeTime(s.lastUsedAt)} · expires{" "}
+                    {formatDate(s.expiresAt)}
+                  </p>
+                </div>
+                {!s.current && (
+                  <Button size="sm" variant="danger" onClick={() => revoke.mutate(s.id)}>
+                    Revoke
+                  </Button>
+                )}
+              </div>
+            ))
+          ) : (
+            <p className="text-sm text-ink-500">No active sessions.</p>
+          )}
+        </div>
+        {sessions.data?.data?.length > 1 && (
+          <div className="mt-4">
+            <Button
+              variant="secondary"
+              onClick={() => revokeOthers.mutate()}
+              isLoading={revokeOthers.isPending}
+            >
+              Sign out other sessions
+            </Button>
+          </div>
+        )}
+        <h3 className="mb-3 mt-6 font-semibold">Security activity</h3>
+        <SecurityActivity />
+      </SectionCard>
+    </div>
+  );
+};
+
+const CONSENT_DEFS = [
+  {
+    purpose: "ai_processing",
+    label: "AI processing",
+    copy: "Let AI analyze your resume and profile to generate matches and suggestions.",
+  },
+  {
+    purpose: "talent_pool",
+    label: "Talent pool",
+    copy: "Let companies you apply to see your profile in their talent pool.",
+  },
+  {
+    purpose: "marketing",
+    label: "Marketing",
+    copy: "Receive product updates and news from HireSmart.",
+  },
+];
+
+const PrivacySection = () => {
+  const toast = useToast(),
+    consents = useQuery({ queryKey: ["consents"], queryFn: userApi.consents }),
+    [busyPurpose, setBusyPurpose] = useState(null);
+  const setConsent = (purpose, granted) => {
+    setBusyPurpose(purpose);
+    userApi
+      .consent(purpose, { granted, policyVersion: "2026-08" })
+      .then(() => {
+        toast.success(granted ? "Permission granted" : "Permission revoked");
+        consents.refetch();
+      })
+      .catch(() => toast.error("Could not update the permission"))
+      .finally(() => setBusyPurpose(null));
+  };
+  const isActive = (purpose) =>
+    Boolean(consents.data?.data?.some((c) => c.purpose === purpose && !c.revokedAt));
+  return (
+    <div className="space-y-6">
+      <SectionCard
+        title="AI & data permissions"
+        icon={Sparkles}
+        description="Choose how your information is used. You can change this at any time — revoking a permission never deletes your data."
+      >
+        <div className="space-y-3">
+          {CONSENT_DEFS.map(({ purpose, label, copy }) => (
+            <ToggleRow
+              key={purpose}
+              label={label}
+              copy={copy}
+              active={isActive(purpose)}
+              busy={busyPurpose === purpose}
+              onToggle={() => setConsent(purpose, !isActive(purpose))}
+            />
+          ))}
+        </div>
+        <h3 className="mb-3 mt-6 font-semibold">Recorded permissions</h3>
+        {consents.isLoading ? (
+          <SkeletonList rows={2} />
+        ) : (consents.data?.data?.length || 0) === 0 ? (
+          <p className="text-sm text-ink-500">No permissions recorded yet.</p>
+        ) : (
+          <div className="space-y-2">
+            {consents.data.data
+              .slice()
+              .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+              .slice(0, 8)
+              .map((c) => (
+                <div
+                  key={c._id}
+                  className="flex items-center justify-between gap-3 rounded-xl bg-ink-50 px-4 py-2.5 text-sm"
+                >
+                  <span className="font-medium capitalize">
+                    {c.purpose.replace(/_/g, " ")}
+                    <span className="ml-2 text-xs font-normal text-ink-400">
+                      policy {c.policyVersion}
+                    </span>
+                  </span>
+                  <span
+                    className={cn(
+                      "text-xs font-bold",
+                      c.revokedAt ? "text-ink-400" : "text-success-600",
+                    )}
+                  >
+                    {c.revokedAt ? "Revoked" : "Granted"} · {formatDate(c.createdAt)}
+                  </span>
+                </div>
+              ))}
+          </div>
+        )}
+      </SectionCard>
+    </div>
+  );
+};
+
+const DataSection = () => {
+  const [busy, setBusy] = useState(false);
+  const exportData = async () => {
+    setBusy(true);
+    try {
+      downloadBlob(await userApi.exportData(), "hiresmart-export.json");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <SectionCard
+      title="Export your data"
+      icon={Download}
+      description="Download a JSON copy of your profile, resumes and applications."
+    >
+      <Button variant="secondary" onClick={exportData} isLoading={busy} leftIcon={<Download className="h-4 w-4" />}>
+        Export My Data
+      </Button>
+    </SectionCard>
+  );
+};
+
+export const SettingsPage = () => {
+  const auth = useAuth(),
+    [section, setSection] = useState("account"),
+    [deleteOpen, setDeleteOpen] = useState(false),
+    remove = useMutation({
+      mutationFn: () => userApi.remove("Requested from account settings"),
+      onSuccess: () => auth.logout(),
+    });
+  const nav = [
+    ["account", "Account", "Email & account information", UserRound],
+    ["security", "Security", "Password, sessions & activity", ShieldCheck],
+    ["notifications", "Notifications", "Preferences by category", Bell],
+    ["privacy", "Privacy & AI", "Permissions & data", Sparkles],
+    ["data", "Data", "Export your data", Download],
+    ["danger", "Danger zone", "Delete account", ShieldAlert],
+  ];
+  return (
+    <div className="page-wrap max-w-6xl">
       <PageHeader
         eyebrow="Account"
         title="Settings"
-        description="Manage your profile, security, notification preferences and data."
+        description="Security, preferences and data — your profile lives in My Profile."
       />
-      <SectionLabel>Account</SectionLabel>
-      {auth.user ? (
-        <ProfileSection auth={auth} onSaved={auth.refresh} />
-      ) : (
-        <SkeletonList rows={3} />
-      )}
-      <SectionLabel>Security</SectionLabel>
-      <div className="grid gap-6 lg:grid-cols-2">
-        <section className="panel p-6">
-          <h2 className="flex items-center gap-2 font-bold">
-            <KeyRound className="h-4 w-4 text-brand-600" />
-            Password & Login
-          </h2>
-          <div className="mt-4 space-y-3">
-            <Input
-              label="Current password"
-              type="password"
-              autoComplete="current-password"
-              value={password.currentPassword}
-              onChange={(e) => setPassword((p) => ({ ...p, currentPassword: e.target.value }))}
-            />
-            <Input
-              label="New password"
-              type="password"
-              minLength={12}
-              hint="At least 12 characters"
-              autoComplete="new-password"
-              value={password.newPassword}
-              onChange={(e) => setPassword((p) => ({ ...p, newPassword: e.target.value }))}
-            />
-            <Input
-              label="Confirm new password"
-              type="password"
-              autoComplete="new-password"
-              value={password.confirmPassword}
-              onChange={(e) => setPassword((p) => ({ ...p, confirmPassword: e.target.value }))}
-              hint={
-                password.confirmPassword.length > 0 &&
-                password.confirmPassword !== password.newPassword
-                  ? "Passwords do not match"
-                  : "Enter the new password again"
-              }
-            />
-            <Button
-              disabled={!canSavePassword}
-              isLoading={change.isPending}
-              onClick={() => change.mutate()}
-            >
-              Update Password
-            </Button>
-            {change.error && <ErrorCallout error={change.error} />}
-            {change.isSuccess && (
-              <p className="flex items-center gap-1.5 text-sm font-medium text-success-600">
-                <CheckCircle2 className="h-4 w-4" />
-                Password updated successfully
-              </p>
-            )}
-          </div>
-        </section>
-        <section className="panel p-6">
-          <h2 className="flex items-center gap-2 font-bold">
-            <ShieldCheck className="h-4 w-4 text-brand-600" />
-            Active Sessions
-          </h2>
-          <p className="mt-2 text-sm text-ink-500">
-            Devices currently signed in. Revoke any session you do not recognize.
-          </p>
-          <div className="mt-4 space-y-3">
-            {sessions.data?.data?.length ? (
-              sessions.data.data.map((s) => (
-                <div
-                  className="flex flex-col gap-3 rounded-xl bg-ink-50 p-4 sm:flex-row sm:items-center"
-                  key={s.id}
-                >
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold">
-                      {s.userAgent || "Unknown device"}{" "}
-                      {s.current && <Badge variant="success">current</Badge>}
-                    </p>
-                    <p className="text-xs text-ink-500">
-                      Last used {formatRelativeTime(s.lastUsedAt)} · expires{" "}
-                      {formatDate(s.expiresAt)}
-                    </p>
-                  </div>
-                  {!s.current && (
-                    <Button size="sm" variant="danger" onClick={() => revoke.mutate(s.id)}>
-                      Revoke
-                    </Button>
-                  )}
-                </div>
-              ))
-            ) : (
-              <p className="text-sm text-ink-500">No active sessions.</p>
-            )}
-          </div>
-          <h3 className="mt-6 font-semibold">Security activity</h3>
-          <SecurityActivity />
-        </section>
-      </div>
-      <SectionLabel>Preferences</SectionLabel>
-      {auth.user ? <PrefsSection auth={auth} onSaved={auth.refresh} /> : <SkeletonList rows={3} />}
-      <SectionLabel>AI & Data</SectionLabel>
-      <section className="panel p-6">
-        <h2 className="flex items-center gap-2 font-bold">
-          <ShieldCheck className="h-4 w-4 text-brand-600" />
-          AI & Data Permissions
-        </h2>
-        <p className="mt-2 text-sm text-ink-500">
-          Choose how your information is used. You can change this at any time.
-        </p>
-        <div className="mt-4 space-y-3">
-          {[
-            {
-              purpose: "ai_processing",
-              label: "AI Processing",
-              copy: "Let AI analyze your resume and profile to generate matches and suggestions.",
-            },
-            {
-              purpose: "talent_pool",
-              label: "Talent Pool",
-              copy: "Let companies you apply to see your profile in their talent pool.",
-            },
-            {
-              purpose: "marketing",
-              label: "Marketing",
-              copy: "Receive product updates and news from HireSmart.",
-            },
-          ].map(({ purpose, label, copy }) => {
-            const active = consents.data?.data?.some((c) => c.purpose === purpose && !c.revokedAt);
-            return (
-              <div
-                className="flex items-center justify-between gap-3 rounded-xl bg-ink-50 p-4"
-                key={purpose}
+      <div className="grid gap-6 lg:grid-cols-[230px_1fr]">
+        <nav aria-label="Settings sections" className="lg:sticky lg:top-20 lg:self-start">
+          <div className="flex gap-1.5 overflow-x-auto pb-1 lg:flex-col lg:pb-0">
+            {nav.map(([key, label, copy, Icon]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setSection(key)}
+                aria-current={section === key ? "page" : undefined}
+                className={cn(
+                  "flex shrink-0 items-center gap-3 rounded-xl px-3.5 py-2.5 text-left text-sm transition-colors",
+                  section === key
+                    ? "bg-ink-950 font-semibold text-white shadow-sm"
+                    : "font-medium text-ink-600 hover:bg-ink-100",
+                  key === "danger" && section !== key && "text-danger-600 hover:bg-danger-50",
+                )}
               >
-                <div>
-                  <p className="text-sm font-semibold">{label}</p>
-                  <p className="text-xs text-ink-500">{copy}</p>
-                </div>
-                <Button
-                  size="sm"
-                  variant={active ? "secondary" : "primary"}
-                  onClick={() => consent.mutate({ purpose, granted: !active })}
-                >
-                  {active ? "Revoke" : "Grant"}
-                </Button>
-              </div>
-            );
-          })}
+                <Icon
+                  className={cn(
+                    "h-4 w-4 shrink-0",
+                    section === key ? "text-white" : key === "danger" ? "" : "text-ink-400",
+                  )}
+                />
+                <span className="whitespace-nowrap lg:whitespace-normal">
+                  {label}
+                  <span
+                    className={cn(
+                      "hidden text-xs font-normal lg:block",
+                      section === key ? "text-ink-300" : "text-ink-400",
+                    )}
+                  >
+                    {copy}
+                  </span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </nav>
+        <div className="min-w-0">
+          {section === "account" && (auth.user ? <AccountSection auth={auth} /> : <SkeletonList rows={3} />)}
+          {section === "security" && <SecuritySection />}
+          {section === "notifications" && (auth.user ? <PrefsSection auth={auth} /> : <SkeletonList rows={3} />)}
+          {section === "privacy" && <PrivacySection />}
+          {section === "data" && <DataSection />}
+          {section === "danger" && (
+            <SectionCard
+              title="Delete account"
+              icon={ShieldAlert}
+              tone="danger"
+              description="This signs you out, revokes all sessions and starts the account deletion process. It cannot be undone."
+            >
+              <Button
+                variant="danger"
+                onClick={() => setDeleteOpen(true)}
+                leftIcon={<ShieldAlert className="h-4 w-4" />}
+              >
+                Request deletion
+              </Button>
+            </SectionCard>
+          )}
         </div>
-      </section>
-      <SectionLabel>Data</SectionLabel>
-      <div className="grid gap-6 lg:grid-cols-2">
-        <section className="panel p-6">
-          <h2 className="font-bold">Export Your Data</h2>
-          <p className="mt-2 text-sm text-ink-500">
-            Download a JSON copy of your profile, resumes and applications.
-          </p>
-          <Button
-            className="mt-4"
-            variant="secondary"
-            onClick={async () => downloadBlob(await userApi.exportData(), "hiresmart-export.json")}
-            leftIcon={<Download className="h-4 w-4" />}
-          >
-            Export My Data
-          </Button>
-        </section>
-        <section className="rounded-2xl border border-danger-500/20 bg-danger-50 p-6">
-          <h2 className="flex items-center gap-2 font-bold text-danger-700">
-            <ShieldAlert className="h-4 w-4" />
-            Delete Account
-          </h2>
-          <p className="mt-2 text-sm text-danger-700/80">
-            This signs you out, revokes all sessions and starts the account deletion process. It
-            cannot be undone.
-          </p>
-          <Button
-            className="mt-4"
-            variant="danger"
-            onClick={() => setDeleteOpen(true)}
-            leftIcon={<Trash2 className="h-4 w-4" />}
-          >
-            Request deletion
-          </Button>
-        </section>
       </div>
       <Modal
         isOpen={deleteOpen}

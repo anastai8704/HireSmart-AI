@@ -156,6 +156,16 @@ const userSchema = new mongoose.Schema(
       trim: true,
       maxlength: 2000,
     },
+    department: {
+      type: String,
+      default: "",
+      trim: true,
+      maxlength: 100,
+    },
+    hiringSpecializations: {
+      type: [String],
+      default: [],
+    },
     savedJobs: [
       {
         type: mongoose.Schema.Types.ObjectId,

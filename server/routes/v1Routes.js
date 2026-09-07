@@ -117,6 +117,7 @@ router.post(
 router.get("/auth/security", authenticate, auth.securityLog);
 router.get("/auth/sessions", authenticate, auth.sessions);
 router.delete("/auth/sessions/:sessionId", authenticate, auth.revokeSession);
+router.post("/auth/sessions/revoke-others", authenticate, auth.revokeOtherSessions);
 router.patch(
   "/auth/password",
   authenticate,
@@ -141,6 +142,8 @@ const userProfileSchema = strict({
   skills: z.array(z.string().trim().min(1).max(100)).max(50).optional(),
   companyName: z.string().max(150).optional(),
   companyWebsite: z.string().url().max(2048).or(z.literal("")).optional(),
+  department: z.string().trim().max(100).optional(),
+  hiringSpecializations: z.array(z.string().trim().min(1).max(100)).max(10).optional(),
   socialLinks: strict({
     linkedin: urlField.optional(),
     github: urlField.optional(),

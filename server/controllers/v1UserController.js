@@ -26,6 +26,8 @@ const publicUserDto = (user) => ({
   skills: user.skills || [],
   companyName: user.companyName || "",
   companyWebsite: user.companyWebsite || "",
+  department: user.department || "",
+  hiringSpecializations: user.hiringSpecializations || [],
   socialLinks: {
     linkedin: user.socialLinks?.linkedin || "",
     github: user.socialLinks?.github || "",
@@ -49,6 +51,8 @@ const profileFields = [
   "skills",
   "companyName",
   "companyWebsite",
+  "department",
+  "hiringSpecializations",
   "socialLinks",
   "timezone",
   "locale",

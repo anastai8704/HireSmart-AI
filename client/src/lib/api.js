@@ -25,6 +25,7 @@ export const authApi = {
   security: () => api.get("/auth/security"),
   sessions: () => api.get("/auth/sessions"),
   revokeSession: (sessionId) => api.delete(`/auth/sessions/${sessionId}`),
+  revokeOtherSessions: () => api.post("/auth/sessions/revoke-others"),
 };
 export const userApi = {
   me: () => api.get("/users/me"),
