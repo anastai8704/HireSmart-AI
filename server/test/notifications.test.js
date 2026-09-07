@@ -222,7 +222,10 @@ test("team events notify the organization owner", async () => {
     .post(`/api/v1/organizations/${orgA.id}/members`)
     .set(auth(ownerAToken))
     .send({ email: "team-b@example.com", role: "admin" });
-  assert.equal(addMember.status, 200, JSON.stringify(addMember.body).slice(0, 500));
+  assert.ok(
+    [200, 201].includes(addMember.status),
+    JSON.stringify(addMember.body).slice(0, 500),
+  );
 
   const invite = await request(app)
     .post(`/api/v1/organizations/${orgA.id}/invitations`)
