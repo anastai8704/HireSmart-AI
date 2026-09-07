@@ -320,7 +320,7 @@ test("candidates cannot apply to a job that is still pending approval", async ()
 });
 
 test("jobs published before platform-wide review stay visible (legacy data safe)", async () => {
-  const { Job } = require("../models/Job");
+  const Job = require("../models/Job");
   const ownerB = await User.findOne({ email: "owner@b.example" });
   const legacy = await Job.create({
     organization: orgBId,

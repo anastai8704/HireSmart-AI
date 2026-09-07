@@ -1,16 +1,7 @@
 process.env.NODE_ENV = "test";
-// TEMP-DIAG: inline flag removed to isolate
-// process.env.PROCESS_JOBS_INLINE = "true";
+process.env.PROCESS_JOBS_INLINE = "true";
 const assert = require("node:assert/strict");
-const nodeTest = require("node:test");
-// TEMP-DIAG: run only the listed tests (empty = all).
-const ONLY_TESTS = [
-  "phase 2: seed candidate, owner and two published jobs",
-];
-const test = (name, fn) =>
-  ONLY_TESTS.length === 0 || ONLY_TESTS.includes(name) ? nodeTest(name, fn) : undefined;
-test.before = nodeTest.before;
-test.after = nodeTest.after;
+const test = require("node:test");
 const request = require("supertest");
 const app = require("../app");
 const { startDatabase, stopDatabase, clearDatabase } = require("./setup");
@@ -72,7 +63,54 @@ test("phase 2: seed candidate, owner and two published jobs", async () => {
   });
   candidateToken = candidate.token;
   candidateUserId = candidate.user.id;
-  // TEMP-DIAG: job creation/publish/approve disabled
+  const react = await request(app)
+    .post(`/api/v1/organizations/${organizationId}/jobs`)
+    .set(auth(ownerToken))
+    .send({
+      title: "React Frontend Engineer",
+      company: "Alert Co",
+      location: "Pune",
+      compensation: { min: 1200000, max: 1800000 },
+      experience: "3+ years",
+      jobType: "Full-Time",
+      workplaceMode: "remote",
+      description:
+        "Build accessible React frontends with TypeScript and modern testing practices for our product.",
+      requiredSkills: ["React", "TypeScript"],
+    });
+  assert.equal(react.status, 201, JSON.stringify(react.body));
+  reactJobId = react.body.data.id;
+  const node = await request(app)
+    .post(`/api/v1/organizations/${organizationId}/jobs`)
+    .set(auth(ownerToken))
+    .send({
+      title: "Node.js Engineer",
+      company: "Alert Co",
+      location: "Pune",
+      experience: "2+ years",
+      jobType: "Full-Time",
+      workplaceMode: "onsite",
+      description:
+        "Design reliable Node.js services with MongoDB and write thorough integration tests.",
+      requiredSkills: ["Node.js", "MongoDB"],
+    });
+  assert.equal(node.status, 201, JSON.stringify(node.body));
+  nodeJobId = node.body.data.id;
+  for (const id of [reactJobId, nodeJobId]) {
+    const published = await request(app)
+      .post(`/api/v1/organizations/${organizationId}/jobs/${id}/publish`)
+      .set(auth(ownerToken));
+    assert.equal(published.status, 200, JSON.stringify(published.body));
+  }
+  // Publishing now always requires platform approval; the alert scan only
+  // sees public (approved) jobs, so approve the seeds at the data layer.
+  const Job = require("../models/Job");
+  await Job.updateMany(
+    { _id: { $in: [reactJobId, nodeJobId] } },
+    { $set: { "moderation.status": "approved" } },
+  );
+});
+
 test("phase 2: creating an alert and running the scan delivers matching jobs once", async () => {
   const created = await request(app)
     .post("/api/v1/candidates/me/alerts")
@@ -134,7 +172,7 @@ test("phase 2: creating an alert and running the scan delivers matching jobs onc
   // Publishing always requires platform approval now; approve at the data
   // layer so the scan sees the new role (approval flow itself is covered by
   // the moderation tests).
-  const { Job } = require("../models/Job");
+  const Job = require("../models/Job");
   await Job.updateOne(
     { _id: republished.body.data.id },
     { $set: { "moderation.status": "approved" } },

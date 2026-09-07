@@ -95,7 +95,7 @@ test("phase 4: seed candidate with ready resume and two published jobs", async (
   }
   // Recommendations only surface public (approved) jobs; approve the seeds
   // at the data layer. The approval flow itself is covered by moderation tests.
-  const { Job } = require("../models/Job");
+  const Job = require("../models/Job");
   await Job.updateMany({ status: "published" }, { $set: { "moderation.status": "approved" } });
   const uploaded = await request(app)
     .post("/api/v1/candidates/me/resumes")

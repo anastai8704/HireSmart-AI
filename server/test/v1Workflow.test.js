@@ -133,7 +133,7 @@ test("recruiter creates and publishes a tenant-owned structured job", async () =
   // Publishing now always requires platform approval; this suite exercises
   // the candidate workflow against a public job, so approve it at the data
   // layer. The approval flow itself is covered by moderation tests.
-  const { Job } = require("../models/Job");
+  const Job = require("../models/Job");
   await Job.updateOne({ _id: jobId }, { $set: { "moderation.status": "approved" } });
 });
 test("owner can assign a hiring manager and assigned access is scoped", async () => {
