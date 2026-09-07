@@ -8,6 +8,9 @@ const ONLY_TESTS = [
   "publishing is platform-wide: every published job waits for admin approval",
   "publishing notifies the org owner and platform admins",
   "approving makes the job public and notifies the org",
+  "editing a published job stages changes without touching the live version",
+  "the pending-change review appears in the admin queue",
+  "approving the changes applies them, bumps the version and keeps the job public",
 ];
 const test = (name, fn) =>
   ONLY_TESTS.length === 0 || ONLY_TESTS.includes(name) ? nodeTest(name, fn) : undefined;
