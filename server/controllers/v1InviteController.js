@@ -110,7 +110,7 @@ exports.accept = asyncHandler(async (req, res) => {
     resourceId: invitation._id,
     metadata: { role: invitation.role },
   });
-  notifyOwnerOfJoin({
+  await notifyOwnerOfJoin({
     organizationId: invitation.organization._id,
     orgName: invitation.organization.name,
     joinerName: user.name,
@@ -160,7 +160,7 @@ exports.acceptExisting = asyncHandler(async (req, res) => {
     resourceId: invitation._id,
     metadata: { role: invitation.role },
   });
-  notifyOwnerOfJoin({
+  await notifyOwnerOfJoin({
     organizationId: invitation.organization._id,
     orgName: invitation.organization.name,
     joinerName: req.user.name,
