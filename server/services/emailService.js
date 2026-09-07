@@ -75,7 +75,7 @@ const sendEmailChangeEmail = async ({ email, token }) => {
 };
 
 const sendPasswordResetEmail = async ({ email, token }) => {
-  const resetUrl = `${config.clientUrl || "http://localhost:5173"}/reset-password?token=${token}`;
+  const resetUrl = `${config.clientUrl || "http://localhost:5173"}/auth/reset-password?token=${token}`;
   return sendMail({
     to: email,
     subject: "Reset your HireSmart AI password",
