@@ -13,6 +13,8 @@ const ONLY_TESTS = [
   "approving the changes applies them, bumps the version and keeps the job public",
   "rejecting changes keeps the previous approved version live",
   "rejection of a new job hides it and notifies the org with the reason",
+  "candidates cannot apply to a job that is still pending approval",
+  "jobs published before platform-wide review stay visible (legacy data safe)",
 ];
 const test = (name, fn) =>
   ONLY_TESTS.length === 0 || ONLY_TESTS.includes(name) ? nodeTest(name, fn) : undefined;
