@@ -1,5 +1,6 @@
 process.env.NODE_ENV = "test";
-process.env.PROCESS_JOBS_INLINE = "true";
+// TEMP-DIAG: inline flag removed to isolate
+// process.env.PROCESS_JOBS_INLINE = "true";
 const assert = require("node:assert/strict");
 const nodeTest = require("node:test");
 // TEMP-DIAG: run only the listed tests (empty = all).
