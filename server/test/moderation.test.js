@@ -1,24 +1,7 @@
 process.env.NODE_ENV = "test";
 process.env.PROCESS_JOBS_INLINE = "true";
 const assert = require("node:assert/strict");
-const nodeTest = require("node:test");
-// TEMP-DIAG: run only the listed tests (empty = all).
-const ONLY_TESTS = [
-  "seed admin, two orgs and a candidate",
-  "publishing is platform-wide: every published job waits for admin approval",
-  "publishing notifies the org owner and platform admins",
-  "approving makes the job public and notifies the org",
-  "editing a published job stages changes without touching the live version",
-  "the pending-change review appears in the admin queue",
-  "approving the changes applies them, bumps the version and keeps the job public",
-  "rejecting changes keeps the previous approved version live",
-  "rejection of a new job hides it and notifies the org with the reason",
-  "candidates cannot apply to a job that is still pending approval",
-];
-const test = (name, fn) =>
-  ONLY_TESTS.length === 0 || ONLY_TESTS.includes(name) ? nodeTest(name, fn) : undefined;
-test.before = nodeTest.before;
-test.after = nodeTest.after;
+const test = require("node:test");
 const request = require("supertest");
 const app = require("../app");
 const { startDatabase, stopDatabase, clearDatabase } = require("./setup");
@@ -338,17 +321,22 @@ test("candidates cannot apply to a job that is still pending approval", async ()
 
 test("jobs published before platform-wide review stay visible (legacy data safe)", async () => {
   const { Job } = require("../models/Job");
+  const ownerB = await User.findOne({ email: "owner@b.example" });
   const legacy = await Job.create({
     organization: orgBId,
+    recruiter: ownerB._id,
     title: "Legacy Role",
     company: "Open Co",
     location: "Delhi",
+    salary: 900000,
     experience: "3+ years",
     jobType: "Full-Time",
     workplaceMode: "remote",
     description: "A job published before approval became mandatory.",
     requiredSkills: ["Go"],
+    skills: ["Go"],
     status: "published",
+    publishedAt: new Date(),
     moderation: { status: "none" },
   });
   const publicList = await request(app).get("/api/v1/jobs");
