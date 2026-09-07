@@ -30,6 +30,17 @@ const annotate = (level, file, message) => {
   process.stdout.write(`::${level} file=server/test/${file}::${escaped}\n`);
 };
 
+// Check-run annotations are sometimes dropped by GitHub; the run *summary*
+// is separately retrievable, so failure details are mirrored there too.
+const appendSummary = (text) => {
+  if (!process.env.GITHUB_STEP_SUMMARY) return;
+  try {
+    require("node:fs").appendFileSync(process.env.GITHUB_STEP_SUMMARY, text + "\n");
+  } catch {
+    /* best effort diagnostics */
+  }
+};
+
 const runFile = (file) =>
   new Promise((resolve) => {
     const child = spawn(process.execPath, ["--test", file], { stdio: ["ignore", "pipe", "pipe"] });
@@ -77,11 +88,17 @@ const main = async () => {
   if (failed.length > 0) {
     for (const result of failed) {
       annotate("error", result.file, result.info);
+      appendSummary(
+        `### ❌ ${result.file}\n\n\`\`\`\n${result.info.slice(0, 4000)}\n\`\`\``,
+      );
     }
     annotate(
       "error",
       "summary",
       `${failed.length}/${results.length} files failed: ${failed.map((r) => r.file).join(", ")}`,
+    );
+    appendSummary(
+      `**${failed.length}/${results.length} test files failed**: ${failed.map((r) => r.file).join(", ")}`,
     );
     process.exit(1);
   }
