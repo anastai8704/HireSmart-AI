@@ -74,6 +74,11 @@ const managerGroups = (org) => [
     ],
   ],
 ];
+// A viewer only has job.read, so only the assigned-jobs view is reachable —
+// keeping a link that 404s would teach the role nothing.
+const viewerGroups = (org) => [
+  [["Hiring", [[`/app/o/${org}/assigned`, "Assigned Jobs", HeartHandshake]]]],
+];
 const adminGroups = [
   [
     "Platform",
@@ -143,9 +148,11 @@ const AppShell = () => {
   const groups = isAdmin
     ? adminGroups
     : auth.organization
-      ? ["hiring_manager", "interviewer", "viewer"].includes(auth.membership?.role)
-        ? managerGroups(auth.organizationId)
-        : recruiterGroups(auth.organizationId)
+      ? auth.membership?.role === "viewer"
+        ? viewerGroups(auth.organizationId)
+        : ["hiring_manager", "interviewer"].includes(auth.membership?.role)
+          ? managerGroups(auth.organizationId)
+          : recruiterGroups(auth.organizationId)
       : candidateGroups;
   const switchOrg = (event) => {
     const value = event.target.value;
