@@ -55,6 +55,10 @@ const inviteSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    revokedAt: {
+      type: Date,
+      default: null,
+    },
   },
   { timestamps: true },
 );

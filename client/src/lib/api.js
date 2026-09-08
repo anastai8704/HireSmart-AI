@@ -56,6 +56,8 @@ export const organizationApi = {
   updateMember: (orgId, memberId, body) =>
     api.patch(`/organizations/${orgId}/members/${memberId}`, body),
   invitations: (orgId) => api.get(`/organizations/${orgId}/invitations`),
+  invitationLink: (orgId, invitationId) =>
+    api.get(`/organizations/${orgId}/invitations/${invitationId}/link`),
   invite: (orgId, body) => api.post(`/organizations/${orgId}/invitations`, body),
   revokeInvitation: (orgId, invitationId) =>
     api.delete(`/organizations/${orgId}/invitations/${invitationId}`),

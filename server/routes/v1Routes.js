@@ -27,6 +27,7 @@ const admin = require("../controllers/v1AdminController");
 const health = require("../controllers/v1HealthController");
 const users = require("../controllers/v1UserController");
 const invites = require("../controllers/v1InviteController");
+const { config } = require("../config/env");
 
 const router = express.Router();
 const strict = (shape) => z.object(shape).strict();
@@ -47,7 +48,33 @@ const limited = (options) =>
         }),
     ...options,
   });
+// Credential endpoints (register/login/...) stay on a tight shared per-IP
+// budget — that is where brute force happens.
 const authLimit = limited({ windowMs: 15 * 60 * 1000, limit: 20 });
+// Token refresh is a routine, background call the client makes on every app
+// mount. It must NOT share the credential budget: per-IP it was exhausted by
+// ordinary multi-user networks (offices behind one NAT) and returned 429s on
+// unrelated pages. Key by the session id carried in the refresh JWT so each
+// user has their own generous budget instead.
+const refreshLimit = limited({
+  windowMs: 15 * 60 * 1000,
+  limit: 60,
+  keyGenerator: (req) => {
+    try {
+      const raw = req.cookies?.[config.refreshCookieName] || "";
+      const payload = JSON.parse(Buffer.from(raw.split(".")[1], "base64").toString("utf8"));
+      if (payload?.sid) return `refresh:${payload.sid}`;
+    } catch {
+      /* unreadable/absent cookie — fall back to IP */
+    }
+    return `refresh-ip:${ipKeyGenerator(req)}`;
+  },
+});
+// Invitation links are long random tokens (192-bit) — brute force is not the
+// threat; repeated legitimate opens are. They get their own budget so an
+// invitation link can never 429 because somebody else's logins used the
+// credential budget on the same IP.
+const inviteLimit = limited({ windowMs: 15 * 60 * 1000, limit: 60 });
 const aiLimit = limited({
   windowMs: 60 * 1000,
   limit: 20,
@@ -87,7 +114,7 @@ router.post(
   auth.resendVerification,
 );
 router.post("/auth/login", authLimit, validate(loginSchema), auth.login);
-router.post("/auth/token", authLimit, auth.refresh);
+router.post("/auth/token", refreshLimit, auth.refresh);
 router.post(
   "/auth/password/forgot",
   authLimit,
@@ -124,14 +151,14 @@ router.patch(
   validate(strict({ currentPassword: z.string().min(1).max(128), newPassword: password })),
   auth.changePassword,
 );
-router.get("/invitations/:token", authLimit, invites.info);
+router.get("/invitations/:token", inviteLimit, invites.info);
 router.post(
   "/invitations/:token/accept",
-  authLimit,
+  inviteLimit,
   validate(strict({ name: z.string().trim().min(2).max(100), password })),
   invites.accept,
 );
-router.post("/invitations/:token/accept-existing", authLimit, authenticate, invites.acceptExisting);
+router.post("/invitations/:token/accept-existing", inviteLimit, authenticate, invites.acceptExisting);
 const urlField = z.string().url().max(2048).or(z.literal(""));
 const userProfileSchema = strict({
   name: z.string().trim().min(2).max(100).optional(),
@@ -241,7 +268,8 @@ router.post(
   validate(
     strict({
       email: z.string().email(),
-      role: z.enum(["owner", "admin", "recruiter", "hiring_manager", "interviewer", "viewer"]),
+      // "owner" is intentionally absent: ownership is never assignable.
+      role: z.enum(["admin", "recruiter", "hiring_manager", "interviewer", "viewer"]),
     }),
   ),
   org.addMember,
@@ -252,9 +280,8 @@ router.patch(
   requireOrganization("member.manage"),
   validate(
     strict({
-      role: z
-        .enum(["owner", "admin", "recruiter", "hiring_manager", "interviewer", "viewer"])
-        .optional(),
+      // "owner" is intentionally absent: ownership is never assignable.
+      role: z.enum(["admin", "recruiter", "hiring_manager", "interviewer", "viewer"]).optional(),
       status: z.enum(["active", "suspended", "revoked"]).optional(),
     }),
   ),
@@ -274,9 +301,18 @@ router.post(
     strict({
       email: z.string().email(),
       role: z.enum(["admin", "recruiter", "hiring_manager", "interviewer", "viewer"]),
+      // Re-send the email and refresh the 7-day expiry of an existing
+      // pending invitation (the team page "Resend" action).
+      resend: z.boolean().optional(),
     }),
   ),
   org.createInvitation,
+);
+router.get(
+  "/organizations/:organizationId/invitations/:invitationId/link",
+  authenticate,
+  requireOrganization("member.manage"),
+  org.invitationLink,
 );
 router.delete(
   "/organizations/:organizationId/invitations/:invitationId",

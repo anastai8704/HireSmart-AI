@@ -1866,7 +1866,7 @@ export const TeamPage = () => {
       onSuccess: (r) => {
         setForm({ email: "", role: "recruiter" });
         setInviteOpen(false);
-        setLastLink(`${window.location.origin}/accept-invite?token=${r.data.invitation.token}`);
+        setLastLink(r.data.link);
         qc.invalidateQueries({ queryKey: ["organization-invitations", orgId] });
         toast.success(`Invitation sent to ${form.email}`);
       },
@@ -1876,6 +1876,22 @@ export const TeamPage = () => {
       onSuccess: () => {
         qc.invalidateQueries({ queryKey: ["organization-invitations", orgId] });
         toast.success("Invitation revoked");
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+    resend = useMutation({
+      mutationFn: (inv) => organizationApi.invite(orgId, { email: inv.email, role: inv.role, resend: true }),
+      onSuccess: (_, inv) => {
+        qc.invalidateQueries({ queryKey: ["organization-invitations", orgId] });
+        toast.success(`Invitation re-sent to ${inv.email}`);
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+    changeRole = useMutation({
+      mutationFn: ({ membershipId, role }) => organizationApi.updateMember(orgId, membershipId, { role }),
+      onSuccess: () => {
+        qc.invalidateQueries({ queryKey: ["organization-members", orgId] });
+        toast.success("Role updated");
       },
       onError: (error) => toast.error(error.message),
     }),
@@ -1899,7 +1915,33 @@ export const TeamPage = () => {
       } catch {
         toast.error("Copy failed - select the link manually");
       }
+    },
+    copyLink = async (invitationId) => {
+      try {
+        const r = await organizationApi.invitationLink(orgId, invitationId);
+        await navigator.clipboard.writeText(r.data.link);
+        toast.success("Invitation link copied");
+      } catch (error) {
+        toast.error(error.message || "Copy failed");
+      }
     };
+  // Client-side mirror of the server role ladder — the server re-checks
+  // every change, this only hides controls the actor cannot use.
+  const ROLE_RANK = {
+    owner: 100,
+    admin: 80,
+    recruiter: 50,
+    hiring_manager: 50,
+    interviewer: 30,
+    viewer: 30,
+  };
+  const myRank =
+    auth.workspaceRole === "platform_admin" ? 200 : ROLE_RANK[auth.membership?.role] ?? 0;
+  const canChangeRole = (m) =>
+    m.user?.email !== auth.user?.email && myRank > (ROLE_RANK[m.role] ?? 0);
+  const assignableRoles = Object.keys(ROLE_RANK).filter(
+    (r) => r !== "owner" && ROLE_RANK[r] < myRank,
+  );
   if (!canManage)
     return (
       <div className="page-wrap">
@@ -1992,21 +2034,28 @@ export const TeamPage = () => {
             {inv.data.data.map((i) => (
               <div className="panel flex flex-wrap items-center gap-4 p-4" key={i._id}>
                 <div className="flex-1">
-                  <p className="font-semibold">{i.email}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-semibold">{i.email}</p>
+                    {i.expired && <Badge variant="danger">Expired</Badge>}
+                  </div>
                   <p className="text-xs text-ink-500">
-                    Invited by {i.invitedBy?.name || "—"} · expires {formatDate(i.expiresAt)}
+                    {i.role.replace("_", " ")} · invited by {i.invitedBy?.name || "—"} · sent{" "}
+                    {formatDate(i.createdAt)} · expires {formatDate(i.expiresAt)}
                   </p>
                 </div>
-                <Badge>{i.role.replace("_", " ")}</Badge>
                 <Button
                   size="sm"
                   variant="secondary"
-                  onClick={() =>
-                    copy(
-                      `${window.location.origin}/accept-invite?token=${i.token}`,
-                      "Invitation link copied",
-                    )
-                  }
+                  isLoading={resend.isPending && resend.variables?._id === i._id}
+                  onClick={() => resend.mutate(i)}
+                >
+                  Resend
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={i.expired}
+                  onClick={() => copyLink(i._id)}
                 >
                   Copy link
                 </Button>
@@ -2026,7 +2075,7 @@ export const TeamPage = () => {
       )}
       <div className="space-y-3">
         {q.data?.data?.map((m) => {
-          const removable = m.role !== "owner" && m.status !== "revoked";
+          const removable = canChangeRole(m) && m.status !== "revoked";
           return (
             <div
               className="panel flex flex-wrap items-center gap-4 p-5 transition-colors hover:border-brand-200"
@@ -2037,9 +2086,23 @@ export const TeamPage = () => {
               </span>
               <div className="min-w-0 flex-1">
                 <p className="truncate font-semibold">{m.user?.name}</p>
-                <p className="truncate text-sm text-ink-500">{m.user?.email}</p>
+                <p className="truncate text-sm text-ink-500">
+                  {m.user?.email}
+                  {m.joinedAt ? ` · joined ${formatDate(m.joinedAt)}` : ""}
+                </p>
               </div>
-              <Badge>{m.role.replace("_", " ")}</Badge>
+              {canChangeRole(m) && m.status === "active" ? (
+                <Select
+                  aria-label={`Role for ${m.user?.name || "member"}`}
+                  className="h-9 w-44"
+                  value={m.role}
+                  disabled={changeRole.isPending}
+                  options={assignableRoles.map((r) => ({ value: r, label: r.replace("_", " ") }))}
+                  onChange={(e) => changeRole.mutate({ membershipId: m._id, role: e.target.value })}
+                />
+              ) : (
+                <Badge>{m.role.replace("_", " ")}</Badge>
+              )}
               <StatusPill status={m.status} />
               {removable && confirmId === m._id ? (
                 <div className="flex gap-2">

@@ -417,7 +417,7 @@ export const AcceptInvitePage = () => {
   const [params] = useSearchParams(),
     token = params.get("token"),
     navigate = useNavigate(),
-    { login } = useAuth(),
+    { login, user } = useAuth(),
     info = useQuery({
       queryKey: ["invite", token],
       queryFn: () => inviteApi.info(token),
@@ -430,6 +430,14 @@ export const AcceptInvitePage = () => {
     [busy, setBusy] = useState(false),
     [error, setError] = useState(null);
   const d = info.data?.data;
+  // The sign-in form always starts with the invited email — the account that
+  // can accept this link is the one it was sent to. The user can still type
+  // a different email; the server rejects it with an explicit message.
+  const signInEmail = existing.email || d?.email || "";
+  const signedInAsOther =
+    Boolean(user?.email) &&
+    Boolean(d) &&
+    String(user.email).toLowerCase() !== String(d.email).toLowerCase();
   const activeMode = mode || (d?.accountExists ? "existing" : "new");
   const finish = (orgId) => navigate(`/app/o/${orgId}`, { replace: true });
   const submitNew = async (e) => {
@@ -453,7 +461,7 @@ export const AcceptInvitePage = () => {
     setError(null);
     setBusy(true);
     try {
-      await login({ email: existing.email, password: existing.password });
+      await login({ email: signInEmail, password: existing.password });
       const r = await inviteApi.acceptExisting(token);
       finish(r.data.organization.id);
     } catch (err) {
@@ -479,8 +487,19 @@ export const AcceptInvitePage = () => {
   return (
     <Shell
       title="Join our hiring team"
-      copy={`${d.invitedByName} has invited you to ${d.organization.name} as a ${d.role.replace(/_/g, " ")}. This invitation expires on ${new Date(d.expiresAt).toDateString()}.`}
+      copy={`${d.invitedByName} has invited you to ${d.organization.name} as a ${d.role.replace(/_/g, " ")}. This invitation was sent to ${d.email} and expires on ${new Date(d.expiresAt).toDateString()}.`}
     >
+      {signedInAsOther && (
+        <div className="mb-4 rounded-xl border border-brand-200 bg-brand-50 p-4 text-sm text-brand-800">
+          <p className="font-semibold">
+            You are signed in as {user.email}, but this invitation was sent to {d.email}.
+          </p>
+          <p className="mt-1">
+            Only the account with the invited email can accept it. Sign in below with{" "}
+            {d.email} — this link will not work for any other account.
+          </p>
+        </div>
+      )}
       {error && (
         <div className="mb-4">
           <ErrorCallout error={error} />
@@ -513,7 +532,7 @@ export const AcceptInvitePage = () => {
           <Input
             label="Work email"
             type="email"
-            value={existing.email}
+            value={signInEmail}
             onChange={(e) => setExisting((s) => ({ ...s, email: e.target.value }))}
             required
           />
