@@ -22,7 +22,7 @@ const Login = pick(() => import("./pages/auth/AuthPages"), "LoginPage"),
   ChangeEmail = pick(() => import("./pages/auth/AuthPages"), "ChangeEmailPage"),
   Forgot = pick(() => import("./pages/auth/AuthPages"), "ForgotPage"),
   Reset = pick(() => import("./pages/auth/AuthPages"), "ResetPage"),
-  AcceptInvite = pick(() => import("./pages/auth/AuthPages"), "AcceptInvitePage");
+  AcceptInvite = pick(() => import("./pages/auth/InvitePages"), "AcceptInvitePage");
 const CDashboard = pick(() => import("./pages/candidate/CandidatePages"), "CandidateDashboard"),
   Onboarding = pick(() => import("./pages/candidate/CandidatePages"), "OnboardingPage"),
   Resumes = pick(() => import("./pages/candidate/CandidatePages"), "ResumeManager"),
