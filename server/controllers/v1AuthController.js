@@ -52,7 +52,7 @@ const issueVerification = async (user) => {
     Date.now() + config.emailVerificationTokenExpiresIn,
   );
   await user.save({ validateBeforeSave: false });
-  await sendVerificationEmail({ email: user.email, token });
+  await sendVerificationEmail({ email: user.email, token, name: user.name });
 };
 
 exports.register = asyncHandler(async (req, res) => {
@@ -285,7 +285,7 @@ exports.forgotPassword = asyncHandler(async (req, res) => {
     user.resetPasswordTokenExpires = new Date(Date.now() + config.passwordResetTokenExpiresIn);
     await user.save({ validateBeforeSave: false });
     try {
-      await sendPasswordResetEmail({ email: user.email, token: created.token });
+      await sendPasswordResetEmail({ email: user.email, token: created.token, name: user.name });
     } catch (error) {
       await security({
         req,
@@ -354,6 +354,8 @@ exports.changePassword = asyncHandler(async (req, res) => {
       resourceType: "user",
       resourceId: user._id,
       email: user.email,
+      recipientName: user.name,
+      emailContext: { at: user.passwordChangedAt || new Date() },
       idempotencyKey: `password:changed:${user.passwordChangedAt.getTime()}`,
     });
   } catch (error) {
@@ -384,7 +386,7 @@ exports.changeEmail = asyncHandler(async (req, res) => {
   user.pendingEmailTokenExpires = new Date(Date.now() + config.emailVerificationTokenExpiresIn);
   await user.save({ validateBeforeSave: false });
   try {
-    await sendEmailChangeEmail({ email: newEmail, token });
+    await sendEmailChangeEmail({ email: newEmail, token, name: user.name });
   } catch (error) {
     await security({
       req,
@@ -433,6 +435,8 @@ exports.confirmEmailChange = asyncHandler(async (req, res) => {
       resourceType: "user",
       resourceId: user._id,
       email: user.email,
+      recipientName: user.name,
+      emailContext: { email: user.email },
       idempotencyKey: `email:changed:${Date.now()}`,
     });
     await issueVerification(user);

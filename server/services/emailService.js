@@ -1,6 +1,7 @@
 const nodemailer = require("nodemailer");
 const { config } = require("../config/env");
 const logger = require("../utils/logger");
+const { renderEmail, roleLabel, fmtDate, escapeHtml } = require("./email/templates");
 
 const createTransporter = () => {
   if (config.smtpHost && config.smtpUser && config.smtpPass) {
@@ -28,14 +29,6 @@ const createTransporter = () => {
 
 const transporter = createTransporter();
 
-const escapeHtml = (value = "") =>
-  String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-
 const sendMail = async ({ to, subject, text, html }) => {
   const message = {
     from: config.emailFrom,
@@ -54,50 +47,104 @@ const sendMail = async ({ to, subject, text, html }) => {
   return result;
 };
 
-const sendVerificationEmail = async ({ email, token }) => {
-  const verifyUrl = `${config.clientUrl || "http://localhost:5173"}/verify-email?token=${token}`;
-  return sendMail({
-    to: email,
+/** Sends a transactional email rendered through the shared design system. */
+const sendTemplated = async (to, email) => sendMail({ to, ...email });
+
+const sendVerificationEmail = async ({ email, token, name }) => {
+  const verifyUrl = `${config.clientUrl}/verify-email?token=${token}`;
+  const rendered = renderEmail({
     subject: "Verify your HireSmart AI email address",
-    text: `Please verify your email by visiting the following link: ${verifyUrl}`,
-    html: `<p>Please verify your email by clicking the link below:</p><p><a href="${verifyUrl}">Verify Email</a></p><p>If you did not create an account, please ignore this message.</p>`,
+    preheader: "One click and your email is verified.",
+    greeting: name ? `Hi ${String(name).split(" ")[0]},` : "Hi there,",
+    title: "Verify your email address",
+    body: [
+      "Confirm your email address to activate your HireSmart AI account.",
+      `This link expires in ${Math.round(config.emailVerificationTokenExpiresIn / 3600000)} hours.`,
+    ],
+    cta: { label: "Verify Email", url: verifyUrl },
+    note: {
+      tone: "info",
+      text: "If you did not create an account, you can safely ignore this message.",
+    },
   });
+  return sendTemplated(email, rendered);
 };
 
-const sendEmailChangeEmail = async ({ email, token }) => {
-  const changeUrl = `${config.clientUrl || "http://localhost:5173"}/change-email?token=${token}`;
-  return sendMail({
-    to: email,
+const sendEmailChangeEmail = async ({ email, token, name }) => {
+  const changeUrl = `${config.clientUrl}/change-email?token=${token}`;
+  const rendered = renderEmail({
     subject: "Confirm your new HireSmart AI email address",
-    text: `You requested to change your HireSmart AI email address to ${email}. Visit the link to confirm the change: ${changeUrl}`,
-    html: `<p>You requested to use <strong>${escapeHtml(email)}</strong> for your HireSmart AI account.</p><p><a href="${changeUrl}">Confirm new email address</a></p><p>Your account keeps the old address active until you confirm. If you did not request this, you can ignore this message.</p>`,
+    preheader: "Confirm to switch your account to this address.",
+    greeting: name ? `Hi ${String(name).split(" ")[0]},` : "Hi there,",
+    title: "Confirm your new email address",
+    body: [
+      `You requested to use ${email} for your HireSmart AI account. Confirm below to make it your sign-in address.`,
+      "Your current address stays active until you confirm the change.",
+    ],
+    cta: { label: "Confirm New Email", url: changeUrl },
+    note: {
+      tone: "info",
+      text: "If you did not request this change, you can ignore this message — your account is unchanged.",
+    },
   });
+  return sendTemplated(email, rendered);
 };
 
-const sendPasswordResetEmail = async ({ email, token }) => {
-  const resetUrl = `${config.clientUrl || "http://localhost:5173"}/auth/reset-password?token=${token}`;
-  return sendMail({
-    to: email,
+const sendPasswordResetEmail = async ({ email, token, name }) => {
+  const resetUrl = `${config.clientUrl}/auth/reset-password?token=${token}`;
+  const hours = Math.round(config.passwordResetTokenExpiresIn / 3600000);
+  const rendered = renderEmail({
     subject: "Reset your HireSmart AI password",
-    text: `You can reset your password by visiting the following link: ${resetUrl}`,
-    html: `<p>Reset your password by clicking the link below:</p><p><a href="${resetUrl}">Reset Password</a></p><p>If you did not request a password reset, please ignore this message.</p>`,
+    preheader: `Your reset link expires in ${hours} hour${hours === 1 ? "" : "s"}.`,
+    greeting: name ? `Hi ${String(name).split(" ")[0]},` : "Hi there,",
+    title: "Reset your password",
+    body: [
+      "We received a request to reset your password.",
+      `For your security, the link below expires in ${hours} hour${hours === 1 ? "" : "s"}.`,
+    ],
+    details: [{ label: "Link expires in", value: `${hours} hour${hours === 1 ? "" : "s"}` }],
+    cta: { label: "Reset Password", url: resetUrl },
+    note: {
+      tone: "warning",
+      text: "If you did not request a password reset, ignore this email. Your password will not change until you complete the reset.",
+    },
   });
+  return sendTemplated(email, rendered);
 };
 
-const sendInviteEmail = async ({ to, orgName, role, link }) => {
-  const roleLabel = String(role).replace(/_/g, " ");
-  return sendMail({
-    to,
-    subject: `You have been invited to join ${orgName}`,
-    text: `You have been invited to join ${orgName} as a ${roleLabel}.\n\nOpen this link to accept (it expires in 7 days):\n${link}\n\nIf you did not expect this invitation, you can ignore this email.`,
-    html: `<p>You have been invited to join <strong>${orgName}</strong> as a <strong>${roleLabel}</strong>.</p><p><a href="${link}">Open your invitation</a></p><p>The link expires in 7 days. If you did not expect this invitation, you can ignore this email.</p>`,
+const sendInviteEmail = async ({ to, orgName, role, link, inviterName, expiresAt }) => {
+  const label = roleLabel(role);
+  const rendered = renderEmail({
+    subject: `You're invited to join ${orgName}`,
+    preheader: `${inviterName || "A team member"} invited you to join ${orgName} as a ${label}.`,
+    title: `You're invited to join ${orgName}`,
+    body: [
+      `${inviterName || "A team member"} invited you to join ${orgName} as a ${label}. Accept the invitation to create your account — the role is set by the invitation, so there is nothing to configure.`,
+    ],
+    details: [
+      { label: "Company", value: orgName },
+      { label: "Role", value: label },
+      { label: "Invited by", value: inviterName || "" },
+      { label: "Invitation expires", value: expiresAt ? fmtDate(expiresAt) : "in 7 days" },
+    ],
+    cta: { label: "Accept Invitation", url: link },
+    note: {
+      tone: "info",
+      text: `This invitation is only valid for ${to} and can be used once. If you did not expect it, you can ignore this email.`,
+    },
   });
+  return sendTemplated(to, rendered);
 };
 
 module.exports = {
   sendMail,
+  sendTemplated,
   sendVerificationEmail,
   sendPasswordResetEmail,
   sendInviteEmail,
   sendEmailChangeEmail,
+  renderEmail,
+  roleLabel,
+  fmtDate,
+  escapeHtml,
 };

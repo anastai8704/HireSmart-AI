@@ -38,14 +38,21 @@ const handlers = {
   "notification.email": async (payload) => {
     const Notification = require("../models/Notification");
     const { sendMail } = require("./emailService");
+    const { buildNotificationEmail } = require("./email/notificationEmails");
     const notification = await Notification.findById(payload.notificationId);
     if (!notification || notification.delivery.email === "sent") return { skipped: true };
     try {
+      const email = buildNotificationEmail({
+        type: notification.type,
+        subject: payload.subject,
+        message: payload.message,
+        context: payload.context || {},
+      });
       const result = await sendMail({
         to: payload.to,
-        subject: payload.subject,
-        text: payload.message,
-        html: `<p>${payload.message.replace(/[<>&]/g, "")}</p>`,
+        subject: email.subject,
+        text: email.text,
+        html: email.html,
       });
       notification.delivery = { email: "sent", providerId: result.messageId };
       await notification.save();

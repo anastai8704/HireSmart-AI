@@ -174,6 +174,16 @@ exports.moderateJob = asyncHandler(async (req, res) => {
         idempotencyKey: `moderation:${job._id}:${approve ? "approved" : "rejected"}:${
           isChangeReview ? `chg-${job.pendingChanges.submittedAt?.getTime() || 0}` : `v${job.version}`
         }`,
+        emailContext: {
+          jobTitle: job.title,
+          company: job.company,
+          location: job.location,
+          organizationId: job.organization,
+          jobId: job._id,
+          approved: approve,
+          reason,
+          isChangeReview,
+        },
       });
     } catch (error) {
       logger.error(`Moderation notification failed: ${error.message}`);

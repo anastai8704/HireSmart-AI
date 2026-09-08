@@ -383,6 +383,9 @@ exports.publish = asyncHandler(async (req, res) => {
   });
   try {
     const owner = await OrganizationOwner(job.organization);
+    const ownerEmail = owner
+      ? await User.findById(owner.id).select("email").lean()
+      : null;
     const targets = new Set(
       [owner?.id, job.recruiter].filter((id) => id).map(String),
     );
@@ -397,6 +400,15 @@ exports.publish = asyncHandler(async (req, res) => {
         resourceType: "job",
         resourceId: job._id,
         idempotencyKey: `job:${job._id}:submitted:${job.updatedAt.getTime()}`,
+        email:
+          owner && String(userId) === String(owner.id) ? ownerEmail?.email || null : null,
+        emailContext: {
+          jobTitle: job.title,
+          company: job.company,
+          location: job.location,
+          organizationId: job.organization,
+          jobId: job._id,
+        },
       });
     }
     await notifyAdmins({
@@ -484,6 +496,14 @@ exports.apply = asyncHandler(async (req, res) => {
       resourceType: "application",
       resourceId: application._id,
       email: req.user.email,
+      recipientName: req.user.name,
+      emailContext: {
+        jobTitle: job.title,
+        company: job.company,
+        organizationId: job.organization,
+        applicationId: application._id,
+        appliedAt: application.appliedAt || new Date(),
+      },
       idempotencyKey: `application:${application._id}:ack`,
     });
     // The hiring team should know about the new application.
@@ -634,7 +654,7 @@ exports.transition = asyncHandler(async (req, res) => {
     organization: req.auth.organizationId,
   })
     .populate("candidate", "email name")
-    .populate("job", "title hiringTeam");
+    .populate("job", "title company hiringTeam");
   if (!app) throw new AppError("Application not found", 404, "RESOURCE_NOT_FOUND");
   await assertApplicationAssignment(req, app);
   if (!(transitions[app.status] || []).includes(req.body.toStatus))
@@ -675,6 +695,14 @@ exports.transition = asyncHandler(async (req, res) => {
       resourceType: "application",
       resourceId: app._id,
       email: app.candidate.email,
+      recipientName: app.candidate.name,
+      emailContext: {
+        jobTitle: app.job?.title || "",
+        company: app.job?.company,
+        statusLabel,
+        toStatus: req.body.toStatus,
+        applicationId: app._id,
+      },
       idempotencyKey: `application:${app._id}:status:${app.status}:${app.statusHistory.length}`,
     });
     // Keep other hiring-team members informed of decisions.

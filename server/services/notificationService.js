@@ -4,12 +4,18 @@ const { enqueue } = require("./jobQueueService");
 const logger = require("../utils/logger");
 const { viewFor, categoryFor, isAlwaysOn } = require("../config/notificationTypes");
 
-const queueEmail = (notification, { user, organization, email, title, message }) =>
+const queueEmail = (notification, { user, organization, email, title, message, context }) =>
   enqueue({
     type: "notification.email",
     owner: user,
     organization,
-    payload: { notificationId: notification._id, to: email, subject: title, message },
+    payload: {
+      notificationId: notification._id,
+      to: email,
+      subject: title,
+      message,
+      context: context || undefined,
+    },
     maxAttempts: 5,
   });
 
@@ -58,6 +64,9 @@ const resolveChannels = (
  * - `email` sends through the existing mail infrastructure; a mail
  *   failure never fails the business action — the queue retries and
  *   records the delivery state.
+ * - `emailContext` carries structured data (company, job, interview,
+ *   role, ...) that the email renderer turns into the full premium
+ *   email; `recipientName` personalises the greeting.
  * - `idempotencyKey` prevents duplicate notifications when the same
  *   event is processed twice.
  */
@@ -72,6 +81,8 @@ const notify = async ({
   resourceId = "",
   email,
   idempotencyKey,
+  emailContext = null,
+  recipientName = "",
 }) => {
   const userDoc = await User.findById(user).select("notificationPrefs role").lean();
   const role = userDoc?.role || "candidate";
@@ -105,7 +116,17 @@ const notify = async ({
     notification = await Notification.findOne({ user, idempotencyKey });
   }
   if (email && channels.email && (created || notification?.delivery?.email !== "sent"))
-    await queueEmail(notification, { user, organization, email, title, message });
+    await queueEmail(notification, {
+      user,
+      organization,
+      email,
+      title,
+      message,
+      context:
+        emailContext || recipientName
+          ? { ...(emailContext || {}), name: recipientName }
+          : undefined,
+    });
   return Notification.findById(notification._id);
 };
 

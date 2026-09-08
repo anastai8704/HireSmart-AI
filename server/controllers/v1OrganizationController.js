@@ -286,7 +286,10 @@ exports.createInvitation = asyncHandler(async (req, res) => {
       409,
       "ALREADY_MEMBER",
     );
-  let invitation = await Invite.findOne({ organization: org._id, email, status: "pending" });
+  let invitation = await Invite.findOne({ organization: org._id, email, status: "pending" }).populate(
+    "invitedBy",
+    "name",
+  );
   if (invitation) {
     const roleChanged = invitation.role !== req.body.role;
     const resending = Boolean(req.body.resend);
@@ -298,7 +301,14 @@ exports.createInvitation = asyncHandler(async (req, res) => {
     if (resending) {
       const resendDate = new Date();
       try {
-        await sendInviteEmail({ to: email, orgName: org.name, role: invitation.role, link: `${config.clientUrl}/accept-invite?token=${invitation.token}` });
+        await sendInviteEmail({
+          to: email,
+          orgName: org.name,
+          role: invitation.role,
+          link: `${config.clientUrl}/accept-invite?token=${invitation.token}`,
+          inviterName: invitation.invitedBy?.name || req.user.name,
+          expiresAt: invitation.expiresAt,
+        });
       } catch (_error) {
         /* email delivery is best-effort; the link is returned in the response */
       }
@@ -326,7 +336,14 @@ exports.createInvitation = asyncHandler(async (req, res) => {
   });
   const link = `${config.clientUrl}/accept-invite?token=${invitation.token}`;
   try {
-    await sendInviteEmail({ to: email, orgName: org.name, role: invitation.role, link });
+    await sendInviteEmail({
+      to: email,
+      orgName: org.name,
+      role: invitation.role,
+      link,
+      inviterName: req.user.name,
+      expiresAt: invitation.expiresAt,
+    });
   } catch (_error) {
     /* email delivery is best-effort; the link is returned in the response */
   }

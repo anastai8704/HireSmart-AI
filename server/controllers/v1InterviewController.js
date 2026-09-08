@@ -25,7 +25,7 @@ const getOrgInterview = async (req) => {
   }).populate({
     path: "application",
     select: "candidate job status appliedAt",
-    populate: { path: "job", select: "hiringTeam" },
+    populate: { path: "job", select: "hiringTeam title company" },
   });
   if (!value) throw new AppError("Interview not found", 404, "RESOURCE_NOT_FOUND");
   if (req.membership && restrictedRoles.has(req.membership.role)) {
@@ -49,7 +49,7 @@ exports.create = asyncHandler(async (req, res) => {
     organization: req.auth.organizationId,
   })
     .populate("candidate", "email name")
-    .populate("job", "title");
+    .populate("job", "title company");
   if (!application) throw new AppError("Application not found", 404, "RESOURCE_NOT_FOUND");
   if (
     req.body.scheduledEnd &&
@@ -76,6 +76,16 @@ exports.create = asyncHandler(async (req, res) => {
         resourceType: "interview",
         resourceId: interview._id,
         email: application.candidate.email,
+        recipientName: application.candidate.name,
+        emailContext: {
+          jobTitle: application.job?.title || "",
+          company: application.job?.company,
+          scheduledStart: interview.scheduledStart,
+          timezone: interview.timezone,
+          type: interview.type,
+          location: interview.location,
+          interviewId: interview._id,
+        },
         idempotencyKey: `interview:${interview._id}:invite`,
       });
     } catch (error) {
@@ -164,6 +174,16 @@ exports.update = asyncHandler(async (req, res) => {
         resourceType: "interview",
         resourceId: interview._id,
         email: candidate?.email,
+        recipientName: candidate?.name,
+        emailContext: {
+          jobTitle: interview.application?.job?.title || "",
+          company: interview.application?.job?.company,
+          scheduledStart: interview.scheduledStart,
+          timezone: interview.timezone,
+          type: interview.type,
+          location: interview.location,
+          interviewId: interview._id,
+        },
         idempotencyKey: `interview:${interview._id}:rescheduled:${interview.updatedAt.getTime()}`,
       });
     } catch (error) {
@@ -196,6 +216,17 @@ exports.cancel = asyncHandler(async (req, res) => {
         resourceType: "interview",
         resourceId: interview._id,
         email: candidate?.email,
+        recipientName: candidate?.name,
+        emailContext: {
+          jobTitle: interview.application?.job?.title || "",
+          company: interview.application?.job?.company,
+          scheduledStart: interview.scheduledStart,
+          timezone: interview.timezone,
+          type: interview.type,
+          location: interview.location,
+          reason: req.body.reason || "",
+          interviewId: interview._id,
+        },
         idempotencyKey: `interview:${interview._id}:cancelled`,
       });
     } catch (error) {
@@ -231,7 +262,7 @@ exports.confirm = asyncHandler(async (req, res) => {
   const interview = await Interview.findById(req.params.interviewId).populate({
     path: "application",
     select: "candidate job",
-    populate: { path: "job", select: "title" },
+    populate: { path: "job", select: "title company" },
   });
   if (!interview || String(interview.application?.candidate) !== String(req.user._id))
     throw new AppError("Interview not found", 404, "RESOURCE_NOT_FOUND");
@@ -242,6 +273,9 @@ exports.confirm = asyncHandler(async (req, res) => {
   await interview.save();
   try {
     const owner = await orgOwner(interview.organization);
+    const ownerEmail = owner
+      ? (await require("../models/User").findById(owner).select("email").lean())?.email || null
+      : null;
     for (const userId of new Set([owner].filter(Boolean))) {
       await notify({
         user: userId,
@@ -254,6 +288,16 @@ exports.confirm = asyncHandler(async (req, res) => {
         }.`,
         resourceType: "interview",
         resourceId: interview._id,
+        email: String(userId) === String(owner || "") ? ownerEmail : null,
+        emailContext: {
+          candidateName: req.user.name,
+          jobTitle: interview.application?.job?.title || "",
+          company: interview.application?.job?.company,
+          scheduledStart: interview.scheduledStart,
+          timezone: interview.timezone,
+          organizationId: interview.organization,
+          interviewId: interview._id,
+        },
         idempotencyKey: `interview:${interview._id}:confirmed`,
       });
     }

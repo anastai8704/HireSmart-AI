@@ -38,7 +38,7 @@ const security = async ({ req, user, organization, type, severity = "info", deta
   });
   // High-severity events alert platform admins without failing the caller.
   if (severity === "high") {
-    const { notifyAdmins } = require("./notificationService");
+    const { notifyAdmins, notify } = require("./notificationService");
     notifyAdmins({
       type: "security_alert",
       category: "security",
@@ -48,6 +48,35 @@ const security = async ({ req, user, organization, type, severity = "info", deta
       resourceId: event._id,
       idempotencyKey: `security:${event._id}`,
     }).catch(() => {});
+    // The affected user gets the same event as a premium security email
+    // (in-app + email; the security group is always on).
+    if (user) {
+      const User = require("../models/User");
+      User.findById(user)
+        .select("email name")
+        .lean()
+        .then((userDoc) => {
+          if (!userDoc?.email) return;
+          const labels = {
+            "session.refresh_token_reuse": "possible session takeover",
+          };
+          const what = labels[type] || `unusual activity (${type.replace(/_/g, " ")})`;
+          return notify({
+            user,
+            type: "security_alert",
+            category: "security",
+            title: "Important security alert",
+            message: `We detected ${what} on your account and signed you out of all devices. If this wasn't you, reset your password now.`,
+            resourceType: "security_event",
+            resourceId: event._id,
+            email: userDoc.email,
+            recipientName: userDoc.name,
+            emailContext: { event: type, at: new Date() },
+            idempotencyKey: `security:user:${event._id}`,
+          });
+        })
+        .catch(() => {});
+    }
   }
   return event;
 };
