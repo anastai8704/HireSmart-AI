@@ -24,3 +24,15 @@ createRoot(document.getElementById("root")).render(
     </ErrorBoundary>
   </StrictMode>,
 );
+
+// Production only: the PWA service worker caches immutable static assets so
+// repeat visits open instantly. It never caches navigations or /api, so a
+// deploy never leaves a client on a stale shell and live data is never served
+// from cache.
+if (import.meta.env.PROD && "serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {
+      /* offline shell is an enhancement, never a failure */
+    });
+  });
+}

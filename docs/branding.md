@@ -60,8 +60,8 @@ cd client && node scripts/generate-logo-assets.mjs
 
 1. **Full logo** — public site header (Navbar), footer, auth page headers
    (`Logo` component, `tone="dark"` on light / `tone="light"` on dark).
-2. **Icon mark** — sidebar top block, notification panel header, favicons,
-   app icons (`LogoMark`).
+2. **Icon mark** — sidebar top block, notification panel header, landing hero
+   badge, favicons, app icons (`LogoMark`).
 3. **Sidebar** — `AppShell` top block: mark + wordmark on the dark rail.
 4. **Login / Signup** — `AuthShell`: full lockup top-left on the dark panel
    (desktop), mobile bar above the form.
@@ -70,7 +70,10 @@ cd client && node scripts/generate-logo-assets.mjs
    plus the "HireSmart AI" wordmark. See `server/services/email/templates.js → logo()`.
 6. **Browser favicon** — `favicon.svg` + `favicon.ico` (16/32/48).
 7. **Mobile / PWA** — `site.webmanifest`, `apple-touch-icon.png`, PWA icons
-   (192/512 any + 512 maskable), `theme-color` `#0e1222`.
+   (192/512 any + 512 maskable), `theme-color` `#0e1222`, and `sw.js` — a
+   conservative service worker that caches immutable static assets only
+   (never navigations, never `/api`), so installs open instantly with no risk
+   of a stale shell or cached data.
 8. **Notification UI** — bell dropdown header carries the mark at 20px.
 
 ## Colour

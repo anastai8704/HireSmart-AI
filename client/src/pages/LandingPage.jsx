@@ -30,6 +30,7 @@ import Footer from "../components/layout/Footer";
 import Button from "../components/ui/Button";
 import Input, { Select } from "../components/ui/Input";
 import { EmptyState, Skeleton } from "../components/ui/States";
+import { LogoMark } from "../components/brand/Logo";
 import { companiesApi } from "../lib/api";
 import { useAuth } from "../context/useAuth";
 import { usePageMeta } from "../lib/usePageMeta";
@@ -458,7 +459,7 @@ export const LandingPage = () => {
           <div className="relative mx-auto max-w-7xl px-4 pb-12 pt-14 text-center sm:px-6 sm:pt-20 lg:px-8">
             <Reveal>
               <p className="inline-flex items-center gap-2 rounded-full border border-brand-200 bg-white/80 px-3.5 py-1.5 text-xs font-semibold text-brand-700 shadow-sm backdrop-blur">
-                <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+                <LogoMark className="h-4 w-4" title="" />
                 AI-powered job search &amp; hiring
               </p>
               <h1 className="mx-auto mt-6 max-w-4xl text-balance text-4xl font-extrabold tracking-[-0.035em] text-ink-950 sm:text-5xl lg:text-6xl">
