@@ -440,12 +440,18 @@ test("high-severity security events email the affected user", async () => {
         }),
     );
     assert.ok(notification, "the user should receive a security_alert notification");
-    assert.equal(notification.delivery.email, "queued");
+    // the inline job (processJobsInline in tests) may already have flipped
+    // the delivery state before this snapshot was read
+    assert.ok(["queued", "sent"].includes(notification.delivery.email));
+    // wait for the job to be completed — the handler saves the delivery
+    // state before execute() marks the job completed, so this is deterministic
     const job = await waitFor(async () => {
-      const jobs = await JobRun.find({ type: "notification.email" }).select("+payload");
+      const jobs = await JobRun.find({ type: "notification.email", status: "completed" }).select(
+        "+payload",
+      );
       return jobs.find((j) => String(j.payload.notificationId) === String(notification._id)) || null;
     });
-    assert.ok(job, "a security alert email job should be queued");
+    assert.ok(job, "a security alert email job should be completed");
     assert.equal(job.payload.context.event, "session.refresh_token_reuse");
     const fresh = await Notification.findById(notification._id);
     assert.equal(fresh.delivery.email, "sent");
