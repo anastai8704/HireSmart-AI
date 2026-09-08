@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
-import { CheckCircle2, Sparkles } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
 import { cn } from "../../lib/utils";
+import Logo from "../../components/brand/Logo";
 
 /**
  * Decorative brand visual: concentric orbit rings with floating nodes and a
@@ -96,11 +97,8 @@ const AuthShell = ({
           className="pointer-events-none absolute inset-0 bg-[radial-gradient(46rem_22rem_at_50%_-10rem,rgb(111_100_227/0.35),transparent_65%),radial-gradient(36rem_18rem_at_100%_100%,rgb(79_124_255/0.18),transparent_62%),radial-gradient(rgb(255_255_255/0.05)_1px,transparent_1px)] [background-size:auto,auto,22px_22px]"
         />
         <div className="relative">
-          <Link to="/" className="inline-flex items-center gap-2 font-bold text-white">
-            <span className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-[#4f7cff] shadow-lg shadow-brand-500/30">
-              <Sparkles className="h-4 w-4" />
-            </span>
-            HireSmart AI
+          <Link to="/" aria-label="HireSmart AI — home">
+            <Logo tone="light" />
           </Link>
         </div>
         <div className="relative max-w-lg">
@@ -131,12 +129,9 @@ const AuthShell = ({
       <section className="flex flex-col px-4 py-8 sm:px-8 sm:py-12">
         <div className="flex flex-1 items-center justify-center">
           <div className={cn("w-full", width)}>
-            <div className="mb-8 flex items-center gap-2.5 lg:hidden">
-              <Link to="/" className="inline-flex items-center gap-2 font-bold">
-                <span className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-[#4f7cff] shadow-md shadow-brand-500/25">
-                  <Sparkles className="h-4 w-4 text-white" />
-                </span>
-                HireSmart AI
+            <div className="mb-8 lg:hidden">
+              <Link to="/" aria-label="HireSmart AI — home">
+                <Logo tone="dark" />
               </Link>
             </div>
             <div className="animate-fade-up">

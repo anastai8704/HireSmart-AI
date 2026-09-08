@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink } from "react-router-dom";
-import { ArrowRight, Menu, Sparkles, X } from "lucide-react";
+import { ArrowRight, Menu, X } from "lucide-react";
 import Button from "../ui/Button";
+import Logo from "../brand/Logo";
 import { useAuth } from "../../context/useAuth";
 import { cn } from "../../lib/utils";
 
@@ -64,17 +65,8 @@ const Navbar = () => {
         aria-label="Main"
         className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-3 px-4 sm:px-6 lg:h-17 lg:px-8"
       >
-        <Link
-          to="/"
-          className="flex shrink-0 items-center gap-2.5 text-[17px] font-bold tracking-tight text-ink-950 transition-opacity hover:opacity-90"
-          aria-label="HireSmart AI — home"
-        >
-          <span className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-[#4f7cff] text-white shadow-md shadow-brand-500/30">
-            <Sparkles className="h-4.5 w-4.5" aria-hidden="true" />
-          </span>
-          <span>
-            HireSmart <span className="text-brand-600">AI</span>
-          </span>
+        <Link to="/" className="flex shrink-0 transition-opacity hover:opacity-90" aria-label="HireSmart AI — home">
+          <Logo tone="dark" />
         </Link>
 
         <div className="hidden items-center gap-1 md:flex">

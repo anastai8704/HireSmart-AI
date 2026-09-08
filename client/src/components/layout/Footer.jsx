@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
-import { Sparkles } from "lucide-react";
 
+import Logo from "../brand/Logo";
 import { useAuth } from "../../context/useAuth";
 
 /**
@@ -44,15 +44,8 @@ const Footer = () => {
     <footer className="border-t border-ink-200 bg-white">
       <div className="mx-auto grid max-w-7xl gap-10 px-4 py-14 sm:grid-cols-2 sm:px-6 lg:grid-cols-[1.5fr_1fr_1fr_1fr] lg:px-8">
         <div>
-          <Link
-            to="/"
-            className="inline-flex items-center gap-2.5 text-[15px] font-bold tracking-tight text-ink-950 hover:opacity-90"
-            aria-label="HireSmart AI — home"
-          >
-            <span className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-[#4f7cff] text-white shadow-md shadow-brand-500/30">
-              <Sparkles className="h-4.5 w-4.5" aria-hidden="true" />
-            </span>
-            HireSmart AI
+          <Link to="/" className="inline-flex hover:opacity-90" aria-label="HireSmart AI — home">
+            <Logo tone="dark" />
           </Link>
           <p className="mt-4 max-w-xs text-sm leading-6 text-ink-500">
             AI-powered tools for better job search and hiring.

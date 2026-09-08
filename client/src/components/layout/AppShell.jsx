@@ -28,6 +28,7 @@ import { cn, formatRelativeTime, notificationTarget } from "../../lib/utils";
 import Avatar from "../ui/Avatar";
 import Button from "../ui/Button";
 import Modal from "../ui/Modal";
+import { Logo, LogoMark } from "../brand/Logo";
 
 const candidateGroups = [
   [
@@ -176,13 +177,8 @@ const AppShell = () => {
         )}
       >
         <div className="flex h-18 items-center justify-between px-5">
-          <NavLink to="/" className="flex items-center gap-2.5 font-extrabold tracking-tight">
-            <span className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 shadow-lg shadow-brand-900/40">
-              <Sparkles className="h-5 w-5" />
-            </span>
-            <span className="text-[17px]">
-              HireSmart <span className="text-brand-300">AI</span>
-            </span>
+          <NavLink to="/" className="flex items-center">
+            <Logo tone="light" />
           </NavLink>
           <button
             className="rounded-lg p-2 hover:bg-white/10 lg:hidden"
@@ -318,7 +314,10 @@ const AppShell = () => {
                   />
                   <div className="absolute right-0 z-50 mt-2 w-80 overflow-hidden rounded-2xl border border-ink-200 bg-white shadow-xl">
                     <div className="flex items-center justify-between border-b border-ink-100 px-4 py-3">
-                      <p className="text-sm font-bold">Notifications</p>
+                      <span className="flex items-center gap-2">
+                        <LogoMark className="h-5 w-5" title="" />
+                        <p className="text-sm font-bold">Notifications</p>
+                      </span>
                       <span className="text-xs text-ink-400">
                         {unread.length ? `${unread.length} unread` : "All read"}
                       </span>

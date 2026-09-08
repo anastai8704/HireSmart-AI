@@ -73,6 +73,7 @@ const palette = {
   ink700: "#3e455f",
   ink900: "#171c30",
   white: "#ffffff",
+  spark: "#f5a524", // brand "match" accent (the amber spark in the logo mark)
 };
 
 const NOTE_TONES = {
@@ -84,11 +85,16 @@ const NOTE_TONES = {
 
 const style = (extra = "") => `${FONT};${extra}`;
 
+/**
+ * Brand lockup, drawn with pure HTML/CSS so it renders even when images are
+ * blocked. Mirrors the app mark: a brand tile carrying the "H" (the two
+ * people + the bridge of hiring) with the amber "match" spark beside it.
+ */
 const logo = () => `
             <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:separate;">
               <tr>
-                <td style="width:38px;height:38px;background-color:${palette.brand600};border-radius:10px;text-align:center;${style("font-size:15px;font-weight:bold;line-height:38px;color:#ffffff;letter-spacing:0.5px;")}">HS</td>
-                <td style="padding-left:10px;${style(`font-size:19px;font-weight:bold;line-height:38px;color:${palette.ink900};`)}">HireSmart&nbsp;<span style="color:${palette.brand600};">AI</span></td>
+                <td style="width:40px;height:40px;background-color:${palette.brand600};border-radius:10px;text-align:center;${style("font-size:18px;font-weight:bold;line-height:40px;color:#ffffff;letter-spacing:0;")}">H<span style="color:${palette.spark};font-size:11px;line-height:40px;">&#9670;</span></td>
+                <td style="padding-left:10px;${style(`font-size:19px;font-weight:bold;line-height:40px;color:${palette.ink900};`)}">HireSmart&nbsp;<span style="color:${palette.brand600};">AI</span></td>
               </tr>
             </table>`;
 
