@@ -562,7 +562,11 @@ export const ResumeManager = () => {
             </Link>
           ))
         ) : (
-          <EmptyState title="No resume versions yet" description="Upload a PDF or DOCX to begin." />
+          <EmptyState
+            icon={FileText}
+            title="No resume versions yet"
+            description="Upload a PDF or DOCX above to begin — we’ll validate, parse and analyze it privately."
+          />
         )}
       </div>
     </div>
@@ -976,7 +980,31 @@ export const CandidateJobs = ({ recommendations = false }) => {
           })}
         </div>
       ) : (
-        <EmptyState title="No jobs found" />
+        <EmptyState
+          icon={recommendations ? Sparkles : Search}
+          title={recommendations ? "No recommended roles yet" : "No jobs found"}
+          description={
+            recommendations
+              ? "Once a resume version is processed, AI-ranked roles appear here."
+              : search
+                ? `No jobs match “${search}”. Try fewer keywords or a different location.`
+                : "No published jobs match right now. Check back soon or save a job alert."
+          }
+          action={
+            !recommendations && search ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  setSearch("");
+                  setParams({});
+                }}
+              >
+                Clear search
+              </Button>
+            ) : undefined
+          }
+        />
       )}
     </div>
   );
@@ -1233,15 +1261,34 @@ export const ApplicationsPage = () => {
           ))}
         </div>
       ) : (
-        <EmptyState title="No applications in this stage" />
+        <EmptyState
+          icon={BriefcaseBusiness}
+          title={status ? "No applications in this stage" : "No applications yet"}
+          description={
+            status
+              ? `Nothing is in the ${status.replaceAll("_", " ")} stage right now.`
+              : "When you apply to a job, you'll track it here at every stage."
+          }
+          action={
+            <Button as={Link} to="/app/candidate/jobs" size="sm">
+              Browse jobs
+            </Button>
+          }
+        />
       )}
       <section className="mt-10">
         <h2 className="text-xl font-bold">Saved jobs</h2>
-        <div className="mt-4 grid gap-4 lg:grid-cols-2">
-          {saved.data?.data?.map((j) => (
-            <JobTile key={j.id} job={j} saved onSave={(id) => unsave.mutate(id)} />
-          ))}
-        </div>
+        {saved.data?.data?.length ? (
+          <div className="mt-4 grid gap-4 lg:grid-cols-2">
+            {saved.data.data.map((j) => (
+              <JobTile key={j.id} job={j} saved onSave={(id) => unsave.mutate(id)} />
+            ))}
+          </div>
+        ) : (
+          <p className="mt-3 text-sm text-ink-500">
+            Jobs you save appear here — use the bookmark on any job card.
+          </p>
+        )}
       </section>
     </div>
   );
@@ -1373,7 +1420,16 @@ export const CandidateInterviews = () => {
           ))}
         </div>
       ) : (
-        <EmptyState title="No interviews scheduled" />
+        <EmptyState
+          icon={Video}
+          title="No interviews scheduled"
+          description="Interviews appear here once a recruiter schedules one for you — you'll also get an alert."
+          action={
+            <Button as={Link} to="/app/candidate/applications" variant="secondary" size="sm">
+              View applications
+            </Button>
+          }
+        />
       )}
     </div>
   );

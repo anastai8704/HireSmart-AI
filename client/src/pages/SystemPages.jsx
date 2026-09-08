@@ -891,11 +891,15 @@ const PrivacySection = () => {
 };
 
 const DataSection = () => {
-  const [busy, setBusy] = useState(false);
+  const toast = useToast(),
+    [busy, setBusy] = useState(false);
   const exportData = async () => {
     setBusy(true);
     try {
       downloadBlob(await userApi.exportData(), "hiresmart-export.json");
+      toast.success("Export ready — check your downloads");
+    } catch (error) {
+      toast.error(error.message || "Export failed. Please try again.");
     } finally {
       setBusy(false);
     }

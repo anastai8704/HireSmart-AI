@@ -489,12 +489,24 @@ export const RecruiterDashboard = () => {
 };
 export const JobsPage = ({ assigned = false }) => {
   const orgId = useOrg(),
+    toast = useToast(),
     q = useQuery({
       queryKey: [assigned ? "assigned-jobs" : "jobs-org", orgId],
       queryFn: () => (assigned ? jobsApi.assigned(orgId) : jobsApi.orgList(orgId, { limit: 100 })),
     }),
+    qc = useQueryClient(),
     [jobSearch, setJobSearch] = useState(""),
-    [jobStatus, setJobStatus] = useState("");
+    [jobStatus, setJobStatus] = useState(""),
+    [closeTarget, setCloseTarget] = useState(null),
+    closeJob = useMutation({
+      mutationFn: (jobId) => jobsApi.close(orgId, jobId),
+      onSuccess: () => {
+        setCloseTarget(null);
+        qc.invalidateQueries({ queryKey: [assigned ? "assigned-jobs" : "jobs-org", orgId] });
+        toast.success("Job closed — it no longer accepts applications");
+      },
+      onError: (error) => toast.error(error.message),
+    });
   const allJobs = q.data?.data || [];
   const jobs = allJobs.filter(
     (j) =>
@@ -610,6 +622,16 @@ export const JobsPage = ({ assigned = false }) => {
                 <Button as={Link} size="sm" to={`/app/o/${orgId}/jobs/${job.id}/applications`}>
                   View Candidates
                 </Button>
+                {!assigned && job.status === "published" && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-ink-500 hover:bg-ink-100"
+                    onClick={() => setCloseTarget(job)}
+                  >
+                    Close
+                  </Button>
+                )}
                 <span className="ml-auto whitespace-nowrap text-xs text-ink-400">
                   {job.createdAt ? `Posted ${formatDate(job.createdAt)}` : ""}
                 </span>
@@ -632,6 +654,16 @@ export const JobsPage = ({ assigned = false }) => {
           }
         />
       )}
+      <ConfirmModal
+        isOpen={Boolean(closeTarget)}
+        onClose={() => setCloseTarget(null)}
+        onConfirm={() => closeTarget && closeJob.mutate(closeTarget.id)}
+        title="Close this job?"
+        description={`“${closeTarget?.title || "This job"}” stops accepting new applications. Existing candidates and their applications stay intact, and you can still review them.`}
+        confirmLabel="Close job"
+        tone="warning"
+        isLoading={closeJob.isPending}
+      />
     </div>
   );
 };
@@ -1202,6 +1234,26 @@ export const ApplicantsPage = () => {
               </article>
             );
           })}
+          {apps.length > 0 && visible.length === 0 && (
+            <EmptyState
+              icon={UsersRound}
+              title="No matches for your search"
+              description="No candidates match the current search or filters."
+              action={
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    setSearch("");
+                    setStatus("");
+                    setTag("");
+                  }}
+                >
+                  Clear search &amp; filters
+                </Button>
+              }
+            />
+          )}
           {q.hasNextPage && (
             <div className="pt-3 text-center">
               <Button
@@ -1215,7 +1267,11 @@ export const ApplicantsPage = () => {
           )}
         </div>
       ) : (
-        <EmptyState title="No applicants in this view" />
+        <EmptyState
+          icon={UsersRound}
+          title="No applicants yet"
+          description="When candidates apply to this job, they appear here ready for review."
+        />
       )}
     </div>
   );
@@ -1574,7 +1630,16 @@ export const ComparePage = () => {
         description="Scores do not select a winner. Review missing evidence and human feedback together."
       />
       {ids.length < 2 ? (
-        <EmptyState title="Select at least two candidates" />
+        <EmptyState
+          icon={UsersRound}
+          title="Select at least two candidates"
+          description="Open a job's applicants, tick two or more candidates, then choose Compare."
+          action={
+            <Button as={Link} to={`/app/o/${orgId}/jobs`} variant="secondary" size="sm">
+              Go to jobs
+            </Button>
+          }
+        />
       ) : q.isLoading ? (
         <LoadingState />
       ) : q.error ? (
@@ -1654,10 +1719,10 @@ export const CandidateSearch = () => {
       {q.isLoading ? (
         <LoadingState />
       ) : q.error ? (
-        <ErrorState error={q.error} />
-      ) : (
+        <ErrorState error={q.error} onRetry={() => q.refetch()} />
+      ) : q.data?.data?.length ? (
         <div className="grid gap-3">
-          {q.data?.data?.map((x) => (
+          {q.data.data.map((x) => (
             <div
               className="panel flex flex-col gap-4 p-5 transition-all hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-sm sm:flex-row sm:items-center"
               key={x.candidate._id}
@@ -1689,6 +1754,27 @@ export const CandidateSearch = () => {
             </div>
           ))}
         </div>
+      ) : (
+        <EmptyState
+          icon={UsersRound}
+          title="No candidates found"
+          description={
+            filters.skill || filters.location || filters.minExperience
+              ? "No candidates match these filters. Try broadening your search."
+              : "Candidates appear here once they apply to your open jobs."
+          }
+          action={
+            (filters.skill || filters.location || filters.minExperience) && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => set({ skill: "", location: "", minExperience: "" })}
+              >
+                Clear filters
+              </Button>
+            )
+          }
+        />
       )}
     </div>
   );
@@ -1698,6 +1784,7 @@ export const InterviewsPage = () => {
     [params] = useSearchParams(),
     applicationId = params.get("applicationId"),
     qc = useQueryClient(),
+    toast = useToast(),
     [requestKey, setRequestKey] = useState(() => newId()),
     [form, setForm] = useState({
       applicationId: applicationId || "",
@@ -1725,7 +1812,10 @@ export const InterviewsPage = () => {
       onSuccess: () => {
         setRequestKey(newId());
         qc.invalidateQueries({ queryKey: ["interviews", orgId] });
+        toast.success("Interview invitation sent");
       },
+      onError: (error) =>
+        toast.error(error.message || "Unable to send the interview invitation"),
     });
   return (
     <div className="page-wrap">
@@ -1780,9 +1870,11 @@ export const InterviewsPage = () => {
         <div>
           {q.isLoading ? (
             <LoadingState />
-          ) : (
+          ) : q.error ? (
+            <ErrorState error={q.error} onRetry={() => q.refetch()} />
+          ) : q.data?.data?.length ? (
             <div className="space-y-3">
-              {q.data?.data?.map((i) => (
+              {q.data.data.map((i) => (
                 <Link
                   key={i._id}
                   to={`/app/o/${orgId}/interviews/${i._id}`}
@@ -1808,6 +1900,12 @@ export const InterviewsPage = () => {
                 </Link>
               ))}
             </div>
+          ) : (
+            <EmptyState
+              icon={Video}
+              title="No interviews yet"
+              description="Schedule the first interview with the form — the candidate gets an invitation automatically."
+            />
           )}
         </div>
       </div>
@@ -1817,6 +1915,7 @@ export const InterviewsPage = () => {
 export const InterviewDetail = () => {
   const orgId = useOrg(),
     { interviewId } = useParams(),
+    toast = useToast(),
     [questions, setQuestions] = useState(null),
     [ratings, setRatings] = useState([{ criterion: "Role expertise", score: 3, evidence: "" }]),
     [summary, setSummary] = useState(""),
@@ -1832,8 +1931,32 @@ export const InterviewDetail = () => {
     feedback = useMutation({
       mutationFn: () =>
         interviewApi.feedback(orgId, interviewId, { ratings, recommendation, summary }),
+      onSuccess: () => toast.success("Feedback submitted and locked"),
+      onError: (error) => toast.error(error.message),
     });
   const interview = q.data?.data?.find((i) => i._id === interviewId);
+  if (q.isLoading) return <LoadingState />;
+  if (q.error)
+    return (
+      <div className="page-wrap">
+        <ErrorState error={q.error} onRetry={() => q.refetch()} />
+      </div>
+    );
+  if (!interview)
+    return (
+      <div className="page-wrap">
+        <EmptyState
+          icon={Video}
+          title="Interview not found"
+          description="It may have been removed, or you don't have access to it."
+          action={
+            <Button as={Link} to={`/app/o/${orgId}/interviews`} variant="secondary" size="sm">
+              Back to interviews
+            </Button>
+          }
+        />
+      </div>
+    );
   return (
     <div className="page-wrap max-w-5xl">
       <PageHeader
@@ -1962,50 +2085,68 @@ export const AnalyticsPage = () => {
         title="Understand your hiring activity"
         description="See where candidates are moving through the hiring process. AI recommendations are shown separately from final hiring decisions."
       />
-      <div className="panel grid gap-4 p-6 sm:grid-cols-2 lg:grid-cols-4">
-        <Metric label="Applications" value={d.applications || 0} icon={BriefcaseBusiness} />
-        <Metric
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Kpi label="Applications" value={d.applications || 0} icon={BriefcaseBusiness} />
+        <Kpi
           label="Shortlisted"
           value={d.funnel?.shortlisted || 0}
           tone="brand"
           icon={CheckCircle2}
         />
-        <Metric label="Interviews" value={d.funnel?.interview || 0} icon={Video} />
-        <Metric label="Hired" value={d.funnel?.hired || 0} tone="success" icon={Star} />
+        <Kpi label="Interviews" value={d.funnel?.interview || 0} icon={Video} />
+        <Kpi
+          label="Hired"
+          value={d.funnel?.hired || 0}
+          tone="success"
+          icon={Star}
+        />
       </div>
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
-        <section className="panel p-6">
-          <h2 className="font-bold">Hiring Progress</h2>
-          <div className="mt-5 space-y-4">
-            {stages.map(([stage, count]) => (
-              <div key={stage}>
-                <div className="flex justify-between text-sm">
-                  <span className="capitalize">{stage.replaceAll("_", " ")}</span>
-                  <strong>{count}</strong>
+        <SectionCard title="Hiring Progress" description="Applications by pipeline stage">
+          {stages.length ? (
+            <div className="space-y-4">
+              {stages.map(([stage, count]) => (
+                <div key={stage}>
+                  <div className="flex justify-between text-sm">
+                    <span className="capitalize">{stage.replaceAll("_", " ")}</span>
+                    <strong className="tabular-nums">{count}</strong>
+                  </div>
+                  <div className="mt-1.5 h-3 rounded-full bg-ink-100">
+                    <div
+                      className="h-full rounded-full bg-brand-500 transition-[width] duration-700"
+                      style={{ width: `${(count / max) * 100}%` }}
+                    />
+                  </div>
                 </div>
-                <div className="mt-1.5 h-3 rounded-full bg-ink-100">
-                  <div
-                    className="h-full rounded-full bg-brand-500"
-                    style={{ width: `${(count / max) * 100}%` }}
-                  />
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-ink-500">
+              The funnel fills in as candidates apply to your jobs.
+            </p>
+          )}
+        </SectionCard>
+        <SectionCard title="Application Sources" description="Where your applicants come from">
+          {d.sourcePerformance?.length ? (
+            <div className="space-y-3">
+              {d.sourcePerformance.map((s) => (
+                <div
+                  className="flex items-center justify-between rounded-xl bg-ink-50 p-4"
+                  key={s._id}
+                >
+                  <span className="font-medium capitalize">{s._id.replaceAll("_", " ")}</span>
+                  <span className="text-sm font-semibold tabular-nums text-ink-700">
+                    {s.applications} applications · {s.hires} hires
+                  </span>
                 </div>
-              </div>
-            ))}
-          </div>
-        </section>
-        <section className="panel p-6">
-          <h2 className="font-bold">Application Sources</h2>
-          <div className="mt-4 space-y-3">
-            {d.sourcePerformance?.map((s) => (
-              <div className="flex justify-between rounded-xl bg-ink-50 p-4" key={s._id}>
-                <span>{s._id}</span>
-                <span className="font-semibold">
-                  {s.applications} applications · {s.hires} hires
-                </span>
-              </div>
-            ))}
-          </div>
-        </section>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-ink-500">
+              Source breakdown appears once applications come in.
+            </p>
+          )}
+        </SectionCard>
       </div>
       <section className="ai-panel mt-6 p-6">
         <h2 className="font-bold">AI Activity</h2>
@@ -2014,14 +2155,20 @@ export const AnalyticsPage = () => {
           hiring outcomes.
         </p>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {ai.data?.data?.map((x) => (
-            <div key={JSON.stringify(x._id)} className="rounded-xl bg-white/6 p-4">
-              <p className="font-semibold">{x._id.feature}</p>
-              <p className="mt-1 text-xs text-ink-400">
-                {x._id.provider} · {x.runs} runs · {x.fallbacks} fallbacks
-              </p>
-            </div>
-          ))}
+          {ai.data?.data?.length ? (
+            ai.data.data.map((x) => (
+              <div key={JSON.stringify(x._id)} className="rounded-xl bg-white/6 p-4">
+                <p className="font-semibold capitalize">{x._id.feature.replaceAll("_", " ")}</p>
+                <p className="mt-1 text-xs text-ink-400">
+                  {x._id.provider} · {x.runs} runs · {x.fallbacks} fallbacks
+                </p>
+              </div>
+            ))
+          ) : (
+            <p className="text-sm text-ink-400">
+              AI runs appear here once your team uses the Assistant features.
+            </p>
+          )}
         </div>
       </section>
     </div>
@@ -2114,6 +2261,7 @@ export const TeamPage = () => {
     [form, setForm] = useState({ email: "", role: "recruiter" }),
     [inviteOpen, setInviteOpen] = useState(false),
     [confirmId, setConfirmId] = useState(null),
+    [revokeTarget, setRevokeTarget] = useState(null),
     [lastLink, setLastLink] = useState(""),
     toast = useToast(),
     qc = useQueryClient(),
@@ -2126,10 +2274,12 @@ export const TeamPage = () => {
         qc.invalidateQueries({ queryKey: ["organization-invitations", orgId] });
         toast.success(`Invitation sent to ${form.email}`);
       },
+      onError: (error) => toast.error(error.message),
     }),
     revoke = useMutation({
       mutationFn: (invitationId) => organizationApi.revokeInvitation(orgId, invitationId),
       onSuccess: () => {
+        setRevokeTarget(null);
         qc.invalidateQueries({ queryKey: ["organization-invitations", orgId] });
         toast.success("Invitation revoked");
       },
@@ -2319,9 +2469,8 @@ export const TeamPage = () => {
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="text-red-600"
-                  isLoading={revoke.isPending && revoke.variables === i._id}
-                  onClick={() => revoke.mutate(i._id)}
+                  className="text-danger-700 hover:bg-danger-50"
+                  onClick={() => setRevokeTarget(i)}
                 >
                   Revoke
                 </Button>
@@ -2330,8 +2479,11 @@ export const TeamPage = () => {
           </div>
         </section>
       )}
-      <div className="space-y-3">
-        {q.data?.data?.map((m) => {
+      {q.isLoading ? (
+        <SkeletonList count={3} />
+      ) : (
+        <div className="space-y-3">
+          {q.data?.data?.map((m) => {
           const removable = canChangeRole(m) && m.status !== "revoked";
           return (
             <div
@@ -2373,8 +2525,21 @@ export const TeamPage = () => {
               )}
             </div>
           );
-        })}
-      </div>
+          })}
+          {!(q.data?.data || []).length && (
+            <EmptyState
+              icon={UsersRound}
+              title="No team members yet"
+              description="Invite a teammate with the button above — they join with the role you choose."
+              action={
+                <Button onClick={() => setInviteOpen(true)} size="sm" leftIcon={<Plus className="h-4 w-4" />}>
+                  Invite Member
+                </Button>
+              }
+            />
+          )}
+        </div>
+      )}
       <ConfirmModal
         isOpen={Boolean(removeTarget)}
         onClose={() => setConfirmId(null)}
@@ -2387,6 +2552,16 @@ export const TeamPage = () => {
         confirmLabel="Remove member"
         tone="danger"
         isLoading={remove.isPending}
+      />
+      <ConfirmModal
+        isOpen={Boolean(revokeTarget)}
+        onClose={() => setRevokeTarget(null)}
+        onConfirm={() => revokeTarget && revoke.mutate(revokeTarget._id)}
+        title="Revoke this invitation?"
+        description={`The link for ${revokeTarget?.email || "this invitation"} stops working immediately. They can still be re-invited later.`}
+        confirmLabel="Revoke invitation"
+        tone="warning"
+        isLoading={revoke.isPending}
       />
     </div>
   );
