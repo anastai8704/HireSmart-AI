@@ -14,10 +14,12 @@ import {
   BriefcaseBusiness,
   Check,
   CheckCircle2,
+  Clock3,
   Download,
   Plus,
   RefreshCw,
   Star,
+  UsersRound,
   Video,
   WandSparkles,
 } from "lucide-react";
@@ -25,6 +27,10 @@ import Button from "../../components/ui/Button";
 import Input, { Select, Textarea } from "../../components/ui/Input";
 import Badge from "../../components/ui/Badge";
 import Modal from "../../components/ui/Modal";
+import Kpi from "../../components/ui/Kpi";
+import SectionCard from "../../components/ui/SectionCard";
+import PipelineFunnel from "../../components/ui/PipelineFunnel";
+import ConfirmModal from "../../components/ui/ConfirmModal";
 import { EmptyState, ErrorState, LoadingState, SkeletonList } from "../../components/ui/States";
 import {
   AIProvenance,
@@ -63,6 +69,8 @@ const useOrg = () => {
     auth = useAuth();
   return organizationId || auth.organizationId;
 };
+const funnelCount = (funnel = {}, keys) => keys.reduce((sum, key) => sum + (funnel[key] || 0), 0);
+
 export const RecruiterDashboard = () => {
   const orgId = useOrg(),
     auth = useAuth(),
@@ -78,6 +86,10 @@ export const RecruiterDashboard = () => {
       queryKey: ["interviews", orgId, {}],
       queryFn: () => interviewApi.list(orgId, { limit: 10 }),
     }),
+    team = useQuery({
+      queryKey: ["org-members", orgId, {}],
+      queryFn: () => organizationApi.members(orgId, { limit: 50 }),
+    }),
     applicationQueries = useQueries({
       queries: (jobs.data?.data || []).slice(0, 4).map((job) => ({
         queryKey: ["applications-job", orgId, job.id, "recent"],
@@ -87,11 +99,42 @@ export const RecruiterDashboard = () => {
   if (jobs.isLoading || analytics.isLoading) return <LoadingState />;
   const data = analytics.data?.data || {},
     jobRows = jobs.data?.data || [],
-    upcoming = (interviews.data?.data || []).filter((i) =>
-      ["invited", "confirmed"].includes(i.status),
+    publishedJobs = jobRows.filter((j) => j.status === "published"),
+    pendingApprovals = jobRows.filter(
+      (j) => j.moderation?.status === "pending" || j.pendingChanges?.status === "pending",
     ),
+    funnel = data.funnel || {},
+    pipelineStages = [
+      { label: "Submitted", value: funnelCount(funnel, ["submitted", "Applied"]), tone: "ink" },
+      { label: "Under review", value: funnelCount(funnel, ["under_review"]), tone: "ink" },
+      {
+        label: "Shortlisted",
+        value: funnelCount(funnel, ["shortlisted", "Shortlisted"]),
+        tone: "warning",
+      },
+      { label: "Interview", value: funnelCount(funnel, ["interview", "Interview"]), tone: "brand" },
+      { label: "Hired", value: funnelCount(funnel, ["hired", "Selected"]), tone: "success" },
+    ],
+    upcoming = (interviews.data?.data || [])
+      .filter((i) => ["invited", "confirmed"].includes(i.status))
+      .sort((a, b) => new Date(a.scheduledStart || 0) - new Date(b.scheduledStart || 0)),
+    members = (team.data?.data || []).filter((m) => !m.status || m.status === "active"),
+    newestMember = [...members].sort(
+      (a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0),
+    )[0],
+    aiData = data.ai || {},
+    hasAIScores = (aiData.scoresGenerated || 0) > 0,
+    topAIGroup = (data.jobPerformance || [])
+      .filter((row) => (row.applications || 0) > 0 && (row.averageAIScore || 0) > 0)
+      .sort((a, b) => b.averageAIScore - a.averageAIScore)[0],
     recent = applicationQueries
-      .flatMap((query) => query.data?.data || [])
+      .map((query, index) =>
+        (query.data?.data || []).map((a) => ({
+          ...a,
+          job: { ...a.job, title: jobs.data?.data?.[index]?.title },
+        })),
+      )
+      .flat()
       .sort((a, b) => new Date(b.appliedAt) - new Date(a.appliedAt))
       .slice(0, 6);
   return (
@@ -99,7 +142,7 @@ export const RecruiterDashboard = () => {
       <PageHeader
         eyebrow="Hiring workspace"
         title={`${greeting()}, ${auth.user?.displayName?.split(" ")[0] || "there"}`}
-        description="Here's what needs your attention today."
+        description="Active jobs, approvals, pipeline and interviews — what needs your attention today."
         action={
           <Button as={Link} to={`/app/o/${orgId}/jobs/new`} leftIcon={<Plus className="h-4 w-4" />}>
             Create Job
@@ -123,84 +166,291 @@ export const RecruiterDashboard = () => {
           </div>
         </div>
       )}
-      <div className="grid gap-6 lg:grid-cols-[1.2fr_.8fr]">
-        <section className="panel p-6">
-          <h2 className="text-lg font-bold">Jobs needing attention</h2>
-          <div className="mt-4 space-y-3">
-            {jobRows.slice(0, 6).map((j) => (
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <Kpi
+          label="Active jobs"
+          value={publishedJobs.length}
+          icon={BriefcaseBusiness}
+          detail={`${jobRows.length} total`}
+        />
+        <Kpi
+          label="Pending approvals"
+          value={pendingApprovals.length}
+          tone={pendingApprovals.length ? "warning" : "ink"}
+          icon={Clock3}
+          detail={pendingApprovals.length ? "Awaiting review" : "All clear"}
+        />
+        <Kpi label="Applications" value={data.applications || 0} icon={UsersRound} />
+        <Kpi
+          label="Shortlisted"
+          value={pipelineStages[2].value}
+          tone="brand"
+          icon={CheckCircle2}
+        />
+        <Kpi
+          label="Interviews"
+          value={upcoming.length}
+          tone="warning"
+          icon={Video}
+          detail="Upcoming"
+        />
+        <Kpi
+          label="Hired"
+          value={pipelineStages[4].value}
+          tone="success"
+          icon={Star}
+        />
+      </div>
+      <section className="mt-6 grid gap-6 lg:grid-cols-[1.35fr_.75fr]">
+        <div className="min-w-0 space-y-6">
+          <SectionCard
+            title="Jobs needing attention"
+            description="Drafts and live roles that need a look"
+            action={
               <Link
-                key={j.id}
-                to={`/app/o/${orgId}/jobs/${j.id}/applications`}
-                className="group flex items-center gap-4 rounded-xl border border-ink-100 bg-white p-4 transition-all hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-sm"
+                to={`/app/o/${orgId}/jobs`}
+                className="text-xs font-semibold text-brand-600 transition-colors hover:text-brand-700"
               >
-                <span
-                  className={`h-2.5 w-2.5 shrink-0 rounded-full ${j.status === "published" ? "bg-success-500" : "bg-warning-500"}`}
-                />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-semibold transition-colors group-hover:text-brand-700">
-                    {j.title}
-                  </p>
-                  <p className="truncate text-xs text-ink-500">
-                    {j.location} · {j.status.replace("_", " ")} · updated{" "}
-                    {formatRelativeTime(j.updatedAt)}
-                  </p>
-                </div>
-                <ArrowRight className="h-4 w-4 text-ink-400" />
+                View all
               </Link>
-            ))}
-            {!jobRows.length && <EmptyState title="No jobs yet" />}
-          </div>
-        </section>
-        <div className="space-y-6">
-          <section className="panel p-6">
-            <h2 className="font-bold">Hiring Overview</h2>
-            <div className="mt-5 grid grid-cols-2 gap-3">
-              <Metric
-                label="Applications"
-                value={data.applications || 0}
-                icon={BriefcaseBusiness}
-              />
-              <Metric
-                label="Shortlisted"
-                value={data.funnel?.shortlisted || 0}
-                tone="brand"
-                icon={CheckCircle2}
-              />
-              <Metric label="Interviews" value={data.funnel?.interview || 0} icon={Video} />
-              <Metric label="Hired" value={data.funnel?.hired || 0} tone="success" icon={Star} />
+            }
+          >
+            <div className="space-y-3">
+              {jobRows.slice(0, 6).map((j) => (
+                <Link
+                  key={j.id}
+                  to={`/app/o/${orgId}/jobs/${j.id}/applications`}
+                  className="group flex items-center gap-4 rounded-xl border border-ink-100 bg-white p-4 transition-all hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-sm"
+                >
+                  <span
+                    className={`h-2.5 w-2.5 shrink-0 rounded-full ${j.status === "published" ? "bg-success-500" : "bg-warning-500"}`}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-semibold transition-colors group-hover:text-brand-700">
+                      {j.title}
+                    </p>
+                    <p className="truncate text-xs text-ink-500">
+                      {j.location} · {j.status.replace("_", " ")} · updated{" "}
+                      {formatRelativeTime(j.updatedAt)}
+                    </p>
+                  </div>
+                  <ArrowRight className="h-4 w-4 shrink-0 text-ink-300 transition-transform group-hover:translate-x-0.5 group-hover:text-brand-500" />
+                </Link>
+              ))}
+              {!jobRows.length && (
+                <EmptyState
+                  icon={BriefcaseBusiness}
+                  title="No jobs yet"
+                  description="Create your first job to start receiving applications."
+                  action={
+                    <Button as={Link} to={`/app/o/${orgId}/jobs/new`} size="sm">
+                      Create Job
+                    </Button>
+                  }
+                />
+              )}
             </div>
-            <Link
-              className="mt-5 inline-block text-sm font-semibold text-brand-600"
-              to={`/app/o/${orgId}/analytics`}
-            >
-              Explore analytics →
-            </Link>
-          </section>
-          <section className="rounded-2xl bg-ink-950 p-6 text-white">
-            <h2 className="font-bold">Upcoming interviews</h2>
-            <div className="mt-3 space-y-3">
+          </SectionCard>
+          <SectionCard
+            title="Candidate pipeline"
+            description="Applications by stage"
+            action={
+              <Link
+                to={`/app/o/${orgId}/analytics`}
+                className="text-xs font-semibold text-brand-600 transition-colors hover:text-brand-700"
+              >
+                Explore analytics
+              </Link>
+            }
+          >
+            {data.applications ? (
+              <>
+                <PipelineFunnel stages={pipelineStages} />
+                <div className="mt-5 grid grid-cols-3 gap-3 border-t border-ink-100 pt-4">
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-ink-400">
+                      Shortlist rate
+                    </p>
+                    <p className="mt-1 text-lg font-extrabold tabular-nums text-ink-950">
+                      {Math.round((data.rates?.shortlist || 0) * 100)}%
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-ink-400">
+                      Interview rate
+                    </p>
+                    <p className="mt-1 text-lg font-extrabold tabular-nums text-ink-950">
+                      {Math.round((data.rates?.interview || 0) * 100)}%
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-ink-400">
+                      Hire rate
+                    </p>
+                    <p className="mt-1 text-lg font-extrabold tabular-nums text-success-700">
+                      {Math.round((data.rates?.hired || 0) * 100)}%
+                    </p>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <EmptyState
+                icon={UsersRound}
+                title="No applications yet"
+                description="Your funnel fills in as candidates apply to open jobs."
+              />
+            )}
+          </SectionCard>
+        </div>
+        <div className="space-y-6">
+          <SectionCard
+            title="Pending approvals"
+            description="Jobs waiting on platform review"
+            tone="dark"
+          >
+            {pendingApprovals.length ? (
+              <div className="space-y-3">
+                {pendingApprovals.slice(0, 4).map((j) => (
+                  <Link
+                    key={j.id}
+                    to={`/app/o/${orgId}/jobs/${j.id}`}
+                    className="group block rounded-xl bg-white/6 p-3.5 transition-colors hover:bg-white/10"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="truncate text-sm font-semibold text-white transition-colors group-hover:text-brand-200">
+                        {j.title}
+                      </p>
+                      <Badge
+                        variant={j.pendingChanges?.status === "pending" ? "warning" : "brand"}
+                        size="sm"
+                      >
+                        {j.moderation?.status === "pending" ? "Job review" : "Edits review"}
+                      </Badge>
+                    </div>
+                    <p className="mt-1 text-xs text-ink-400">
+                      {j.moderation?.status === "pending"
+                        ? "Submitted for approval"
+                        : "Proposed changes awaiting review"}{" "}
+                      · {formatRelativeTime(j.updatedAt)}
+                    </p>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-ink-400">
+                All clear — no jobs or edits are waiting on review.
+              </p>
+            )}
+          </SectionCard>
+          <SectionCard
+            title="Upcoming interviews"
+            tone="dark"
+            action={
+              <Link
+                to={`/app/o/${orgId}/interviews`}
+                className="text-xs font-semibold text-brand-300 transition-colors hover:text-brand-200"
+              >
+                View all
+              </Link>
+            }
+          >
+            <div className="space-y-3">
               {upcoming.slice(0, 4).map((i) => (
                 <Link
                   key={i._id}
                   to={`/app/o/${orgId}/interviews/${i._id}`}
-                  className="block rounded-xl bg-white/6 p-3"
+                  className="group block rounded-xl bg-white/6 p-3.5 transition-colors hover:bg-white/10"
                 >
-                  <p className="text-sm font-semibold">{i.title}</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="truncate text-sm font-semibold text-white transition-colors group-hover:text-brand-200">
+                      {i.title}
+                    </p>
+                    <Badge variant={i.status === "confirmed" ? "success" : "warning"} size="sm">
+                      {i.status}
+                    </Badge>
+                  </div>
                   <p className="mt-1 text-xs text-ink-400">
+                    {i.application?.job?.title || "Job"} ·{" "}
                     {i.scheduledStart ? formatDate(i.scheduledStart) : "Awaiting schedule"}
                   </p>
                 </Link>
               ))}
-              {!upcoming.length && <p className="text-sm text-ink-400">No upcoming interviews.</p>}
+              {!upcoming.length && (
+                <p className="text-sm text-ink-400">No upcoming interviews.</p>
+              )}
             </div>
-          </section>
+          </SectionCard>
+          <SectionCard title="AI insights" description="Decision-support, not a verdict">
+            {hasAIScores ? (
+              <div className="space-y-4">
+                <div className="flex items-center gap-4">
+                  <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600">
+                    <WandSparkles className="h-5 w-5" />
+                  </span>
+                  <div>
+                    <p className="text-2xl font-extrabold tabular-nums text-ink-950">
+                      {Math.round(aiData.averageAIScore || 0)}
+                      <span className="text-sm font-bold text-ink-400">/100 avg</span>
+                    </p>
+                    <p className="text-xs text-ink-500">
+                      Across {aiData.scoresGenerated} candidate match
+                      {aiData.scoresGenerated === 1 ? "" : "es"}
+                    </p>
+                  </div>
+                </div>
+                {topAIGroup && (
+                  <p className="rounded-lg bg-ink-50 p-3 text-xs leading-5 text-ink-600">
+                    Strongest AI signals on{" "}
+                    <span className="font-semibold text-ink-800">
+                      {topAIGroup.job?.title || "a role"}
+                    </span>{" "}
+                    — avg {Math.round(topAIGroup.averageAIScore)}/100 across{" "}
+                    {topAIGroup.applications} applicant
+                    {topAIGroup.applications === 1 ? "" : "s"}.
+                  </p>
+                )}
+                <p className="text-[11px] leading-4 text-ink-400">{data.note}</p>
+              </div>
+            ) : (
+              <p className="text-sm text-ink-500">
+                Score candidates against a job to surface AI match insights here.
+              </p>
+            )}
+          </SectionCard>
+          <SectionCard
+            title="Team"
+            action={
+              <Link
+                to={`/app/o/${orgId}/team`}
+                className="text-xs font-semibold text-brand-600 transition-colors hover:text-brand-700"
+              >
+                Manage
+              </Link>
+            }
+          >
+            <div className="flex items-center gap-3">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand-50 text-brand-600">
+                <UsersRound className="h-5 w-5" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-ink-900">
+                  {members.length} active member{members.length === 1 ? "" : "s"}
+                </p>
+                <p className="truncate text-xs text-ink-500">
+                  {newestMember?.user?.name
+                    ? `Newest: ${newestMember.user.name} (${newestMember.role})`
+                    : "Invite your hiring team to collaborate."}
+                </p>
+              </div>
+            </div>
+          </SectionCard>
         </div>
-      </div>
+      </section>
       <CompanyProfileCard />
       <section className="mt-8">
         <div className="flex items-end justify-between">
           <div>
-            <p className="eyebrow">Recent Applications</p>
+            <p className="eyebrow">Team activity</p>
             <h2 className="mt-1 text-xl font-bold">Candidates to Review</h2>
           </div>
         </div>
@@ -219,13 +469,19 @@ export const RecruiterDashboard = () => {
                   {a.candidate?.name || "Candidate"}
                 </p>
                 <p className="truncate text-xs text-ink-500">
-                  {a.candidate?.headline || "New applicant"} · {formatRelativeTime(a.appliedAt)}
+                  {a.candidate?.headline || "New applicant"} ·{" "}
+                  {a.job?.title ? `${a.job.title} · ` : ""}
+                  {formatRelativeTime(a.appliedAt)}
                 </p>
               </div>
               <StatusPill status={a.status} />
             </Link>
           ))}
-          {!recent.length && <p className="text-sm text-ink-500">No recent applications.</p>}
+          {!recent.length && (
+            <p className="text-sm text-ink-500 lg:col-span-2">
+              No recent applications. New applicants from your jobs appear here.
+            </p>
+          )}
         </div>
       </section>
     </div>
@@ -1942,6 +2198,7 @@ export const TeamPage = () => {
   const assignableRoles = Object.keys(ROLE_RANK).filter(
     (r) => r !== "owner" && ROLE_RANK[r] < myRank,
   );
+  const removeTarget = (q.data?.data || []).find((m) => m._id === confirmId) || null;
   if (!canManage)
     return (
       <div className="page-wrap">
@@ -2104,33 +2361,33 @@ export const TeamPage = () => {
                 <Badge>{m.role.replace("_", " ")}</Badge>
               )}
               <StatusPill status={m.status} />
-              {removable && confirmId === m._id ? (
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    isLoading={remove.isPending}
-                    onClick={() => remove.mutate({ membershipId: m._id, name: m.user?.name })}
-                  >
-                    Confirm remove
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setConfirmId(null)}>
-                    Cancel
-                  </Button>
-                </div>
-              ) : removable ? (
+              {removable && (
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="text-red-600"
+                  className="text-danger-700 hover:bg-danger-50"
                   onClick={() => setConfirmId(m._id)}
                 >
                   Remove
                 </Button>
-              ) : null}
+              )}
             </div>
           );
         })}
       </div>
+      <ConfirmModal
+        isOpen={Boolean(removeTarget)}
+        onClose={() => setConfirmId(null)}
+        onConfirm={() =>
+          removeTarget &&
+          remove.mutate({ membershipId: removeTarget._id, name: removeTarget.user?.name })
+        }
+        title="Remove team member?"
+        description={`This revokes ${removeTarget?.user?.name || "the member"}'s access to your hiring workspace. They keep their account and any past activity.`}
+        confirmLabel="Remove member"
+        tone="danger"
+        isLoading={remove.isPending}
+      />
     </div>
   );
 };

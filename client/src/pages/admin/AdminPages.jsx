@@ -19,6 +19,9 @@ import Badge from "../../components/ui/Badge";
 import Modal from "../../components/ui/Modal";
 import { ErrorState, LoadingState, SkeletonList } from "../../components/ui/States";
 import { PageHeader, Metric, StatusPill } from "../../components/Product";
+import Kpi from "../../components/ui/Kpi";
+import SectionCard from "../../components/ui/SectionCard";
+import ActivityFeed from "../../components/ui/ActivityFeed";
 import {
   DataTable,
   DetailRow,
@@ -27,7 +30,7 @@ import {
   LoadMore,
   SeverityBadge,
 } from "../../components/admin/AdminUi";
-import { adminApi } from "../../lib/api";
+import { adminApi, jobsApi } from "../../lib/api";
 import { useToast } from "../../components/ui/useToast";
 import { useDebouncedValue } from "../../hooks/useApi";
 import { formatDate, formatRelativeTime, humanizeAction, initials, shortId } from "../../lib/utils";
@@ -91,6 +94,11 @@ export const AdminHome = () => {
     queryFn: () => adminApi.audit({ limit: 100 }),
   });
   const ready = useQuery({ queryKey: ["health-ready"], queryFn: adminApi.ready, retry: false });
+  const publishedJobs = useQuery({
+    queryKey: ["admin-jobs-count"],
+    queryFn: () => jobsApi.list({ limit: 1 }),
+    retry: false,
+  });
   const loading = users.isLoading || orgs.isLoading || pending.isLoading;
   const userList = users.data?.data || [];
   const orgList = orgs.data?.data || [];
@@ -98,7 +106,20 @@ export const AdminHome = () => {
     (e) => e.severity === "high" || e.severity === "critical",
   );
   const totalRuns = (ai.data?.data || []).reduce((sum, row) => sum + (row.runs || 0), 0);
+  const candidates = userList.filter((u) => u.role === "candidate").length;
+  const recruiters = userList.filter((u) => u.role === "recruiter").length;
   const suspended = userList.filter((u) => u.accountStatus === "suspended").length;
+  const activityItems = (audit.data?.data || []).slice(0, 8).map((a) => ({
+    title: humanizeAction(a.action),
+    meta: `${a.resourceType} · ${a.outcome}`,
+    tone:
+      a.outcome === "failure" || a.outcome === "error"
+        ? "danger"
+        : String(a.action).includes("suspend")
+          ? "warning"
+          : "brand",
+    time: a.createdAt,
+  }));
   const quickActions = [
     ["Review Approvals", "/app/admin/moderation"],
     ["Manage Users", "/app/admin/users"],
@@ -118,25 +139,34 @@ export const AdminHome = () => {
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-            <Metric label="Total Users" value={userList.length} icon={UsersRound} />
-            <Metric
-              label="Candidates"
-              value={userList.filter((u) => u.role === "candidate").length}
-              icon={UserRound}
+            <Kpi
+              label="Total Users"
+              value={userList.length}
+              icon={UsersRound}
+              detail={`${candidates} candidates · ${recruiters} recruiters`}
             />
-            <Metric
-              label="Recruiters"
-              value={userList.filter((u) => u.role === "recruiter").length}
+            <Kpi label="Companies" value={orgList.length} icon={Building2} />
+            <Kpi
+              label="Active Jobs"
+              value={publishedJobs.data?.meta?.count ?? publishedJobs.data?.data?.length ?? "—"}
               icon={BriefcaseBusiness}
+              detail="Published on platform"
             />
-            <Metric label="Companies" value={orgList.length} icon={Building2} />
-            <Metric
+            <Kpi
               label="Pending Approvals"
               value={pending.data?.data?.length || 0}
-              tone={pending.data?.data?.length ? "brand" : "ink"}
+              tone={pending.data?.data?.length ? "warning" : "ink"}
               icon={Clock3}
+              detail={pending.data?.data?.length ? "Awaiting review" : "All clear"}
             />
-            <Metric label="AI Operations" value={totalRuns} tone="brand" icon={Sparkles} />
+            <Kpi label="AI Operations" value={totalRuns} tone="brand" icon={Sparkles} />
+            <Kpi
+              label="High-risk events"
+              value={highRisk.length}
+              tone={highRisk.length ? "danger" : "success"}
+              icon={ShieldAlert}
+              detail={highRisk.length ? "Needs review" : "No open incidents"}
+            />
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
             {quickActions.map(([label, to]) => (
@@ -146,41 +176,38 @@ export const AdminHome = () => {
             ))}
           </div>
           <div className="mt-6 grid gap-6 lg:grid-cols-2">
-            <section className="panel p-6">
-              <div className="flex items-center justify-between">
-                <h2 className="font-bold">Pending Actions</h2>
+            <SectionCard
+              title="Pending Actions"
+              description="Approvals, security and account items awaiting review"
+              action={
                 <Link
                   to="/app/admin/moderation"
-                  className="text-xs font-semibold text-brand-600 hover:text-brand-700"
+                  className="text-xs font-semibold text-brand-600 transition-colors hover:text-brand-700"
                 >
                   View all
                 </Link>
-              </div>
-              <div className="mt-4 space-y-3">
+              }
+            >
+              <div className="space-y-3">
                 {(pending.data?.data || []).slice(0, 3).map((job) => (
                   <Link
                     key={job.id}
                     to="/app/admin/moderation"
-                    className="flex items-center gap-3 rounded-xl border border-ink-100 p-4 transition-colors hover:border-brand-200"
+                    className="group flex items-center gap-3 rounded-xl border border-ink-100 p-4 transition-colors hover:border-brand-200"
                   >
                     <Clock3 className="h-4 w-4 shrink-0 text-warning-600" />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold">{job.title}</p>
+                      <p className="truncate text-sm font-semibold transition-colors group-hover:text-brand-700">
+                        {job.title}
+                      </p>
                       <p className="truncate text-xs text-ink-500">
                         {job.organization?.name || job.company} · submitted{" "}
                         {formatRelativeTime(job.createdAt)}
                       </p>
                     </div>
-                    <ArrowRight className="h-4 w-4 shrink-0 text-ink-300" />
+                    <ArrowRight className="h-4 w-4 shrink-0 text-ink-300 transition-transform group-hover:translate-x-0.5 group-hover:text-brand-500" />
                   </Link>
                 ))}
-                {(security.data?.data || []).length === 0 &&
-                  !(pending.data?.data || []).length &&
-                  suspended === 0 && (
-                    <p className="text-sm text-ink-500">
-                      Nothing needs attention — all approvals and security items are up to date.
-                    </p>
-                  )}
                 {highRisk.length > 0 && (
                   <div className="rounded-xl border border-danger-500/20 bg-danger-50 p-4">
                     <p className="text-sm font-semibold text-danger-700">
@@ -209,54 +236,57 @@ export const AdminHome = () => {
                 {suspended > 0 && (
                   <Link
                     to="/app/admin/users"
-                    className="flex items-center gap-3 rounded-xl border border-ink-100 p-4 transition-colors hover:border-brand-200"
+                    className="group flex items-center gap-3 rounded-xl border border-ink-100 p-4 transition-colors hover:border-brand-200"
                   >
                     <UserRound className="h-4 w-4 shrink-0 text-ink-400" />
                     <p className="text-sm font-semibold">
                       {suspended} suspended account{suspended > 1 ? "s" : ""}
                     </p>
-                    <ArrowRight className="ml-auto h-4 w-4 shrink-0 text-ink-300" />
+                    <ArrowRight className="ml-auto h-4 w-4 shrink-0 text-ink-300 transition-transform group-hover:translate-x-0.5 group-hover:text-brand-500" />
                   </Link>
                 )}
-              </div>
-            </section>
-            <section className="panel p-6">
-              <h2 className="font-bold">Recent Activity</h2>
-              <div className="mt-4 space-y-3">
-                {(audit.data?.data || []).slice(0, 8).map((a) => (
-                  <div key={a._id} className="flex items-start gap-3">
-                    <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-brand-400" />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold">{humanizeAction(a.action)}</p>
-                      <p className="text-xs text-ink-500">
-                        {a.resourceType} · {a.outcome} · {formatRelativeTime(a.createdAt)}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-                {audit.data?.data?.length === 0 && (
+                {!(pending.data?.data || []).length && !highRisk.length && suspended === 0 && (
                   <p className="text-sm text-ink-500">
-                    No recorded activity yet. Administrative actions appear here as they happen.
+                    Nothing needs attention — all approvals and security items are up to date.
                   </p>
                 )}
               </div>
-            </section>
-          </div>
-          <section className="mt-6 rounded-2xl bg-ink-950 p-6 text-white">
-            <h2 className="font-bold">Platform Health</h2>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {Object.entries(ready.data?.data?.checks || {}).map(([k, v]) => (
-                <div
-                  key={k}
-                  className="flex items-center justify-between rounded-xl bg-white/6 p-4"
+            </SectionCard>
+            <SectionCard
+              title="Recent Activity"
+              description="System events from the audit log"
+              action={
+                <Link
+                  to="/app/admin/security"
+                  className="text-xs font-semibold text-brand-600 transition-colors hover:text-brand-700"
                 >
-                  <span className="text-sm">{humanizeAction(k)}</span>
-                  <StatusPill status={v} />
-                </div>
-              ))}
-              {ready.isLoading && <p className="text-sm text-ink-400">Checking…</p>}
-            </div>
-          </section>
+                  Audit log
+                </Link>
+              }
+            >
+              <ActivityFeed
+                items={activityItems}
+                emptyText="No recorded activity yet. Administrative actions appear here as they happen."
+              />
+            </SectionCard>
+          </div>
+          <SectionCard title="Platform Health" tone="dark" className="mt-6">
+            {ready.isLoading ? (
+              <p className="text-sm text-ink-400">Checking…</p>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {Object.entries(ready.data?.data?.checks || {}).map(([k, v]) => (
+                  <div
+                    key={k}
+                    className="flex items-center justify-between rounded-xl bg-white/6 p-4"
+                  >
+                    <span className="text-sm text-ink-100">{humanizeAction(k)}</span>
+                    <StatusPill status={v} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </SectionCard>
         </>
       )}
     </div>

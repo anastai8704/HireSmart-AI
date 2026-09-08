@@ -37,9 +37,11 @@ export const Skeleton = ({ className }) => (
 );
 
 /** Skeleton shaped like a list of cards - used on the jobs and applicants lists. */
-export const SkeletonList = ({ count = 3, className }) => (
-  <div className={cn("flex flex-col gap-4", className)} aria-hidden="true">
-    {Array.from({ length: count }).map((_, index) => (
+export const SkeletonList = ({ count, rows, className }) => {
+  const total = count ?? rows ?? 3;
+  return (
+    <div className={cn("flex flex-col gap-4", className)} aria-hidden="true">
+      {Array.from({ length: total }).map((_, index) => (
       <Card key={index} className="p-5">
         <div className="flex items-start gap-4">
           <Skeleton className="h-12 w-12 shrink-0 rounded-lg" />
@@ -57,9 +59,10 @@ export const SkeletonList = ({ count = 3, className }) => (
           <Skeleton className="h-9 w-24 rounded-lg" />
         </div>
       </Card>
-    ))}
-  </div>
-);
+      ))}
+    </div>
+  );
+};
 
 /** Skeleton for the dashboard stat row. */
 export const SkeletonStats = ({ count = 4 }) => (

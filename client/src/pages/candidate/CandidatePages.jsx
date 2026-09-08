@@ -5,10 +5,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import {
   ArrowRight,
+  Bell,
+  BriefcaseBusiness,
   Check,
+  Eye,
   FileSearch,
   FileText,
   RefreshCw,
+  Search,
   Sparkles,
   Upload,
   Video,
@@ -18,7 +22,13 @@ import Button from "../../components/ui/Button";
 import Input, { Textarea } from "../../components/ui/Input";
 import Badge from "../../components/ui/Badge";
 import Modal from "../../components/ui/Modal";
-import { EmptyState, ErrorState, LoadingState, SkeletonList } from "../../components/ui/States";
+import ConfirmModal from "../../components/ui/ConfirmModal";
+import Kpi from "../../components/ui/Kpi";
+import SectionCard from "../../components/ui/SectionCard";
+import CompletionRing from "../../components/ui/CompletionRing";
+import PipelineFunnel from "../../components/ui/PipelineFunnel";
+import QuickActions from "../../components/ui/QuickActions";
+import { EmptyState, ErrorState, LoadingState, Skeleton, SkeletonList } from "../../components/ui/States";
 import {
   AIProvenance,
   ErrorCallout,
@@ -49,13 +59,19 @@ const CANDIDATE_SUGGESTIONS = [
   "What should I prepare before my interview?",
   "Summarize my strongest job matches.",
 ];
+const normalizeAppStatus = (status) => {
+  const s = String(status || "").toLowerCase();
+  return { applied: "submitted", selected: "hired" }[s] || s;
+};
+
 export const CandidateDashboard = () => {
   const profile = useQuery({ queryKey: ["candidate-profile"], queryFn: candidateApi.profile }),
     resumes = useResumes(),
     apps = useQuery({
       queryKey: ["applications-candidate", {}],
-      queryFn: () => candidateApi.applications({ limit: 20 }),
+      queryFn: () => candidateApi.applications({ limit: 50 }),
     }),
+    interviews = useQuery({ queryKey: ["candidate-interviews"], queryFn: candidateApi.interviews }),
     recs = useQuery({
       queryKey: ["recommendations", 5],
       queryFn: () => candidateApi.recommendations(5),
@@ -68,121 +84,297 @@ export const CandidateDashboard = () => {
       enabled: Boolean(latestReadyId),
     });
   if (profile.isLoading || resumes.isLoading) return <LoadingState />;
-  const versions = getVersions(resumes.data),
+  const user = profile.data?.data?.user || {},
+    candidateProfile = profile.data?.data?.profile || {},
+    versions = getVersions(resumes.data),
     ready = versions.find((v) => v.processingStatus === "ready"),
+    readyCount = versions.filter((v) => v.processingStatus === "ready").length,
     applications = apps.data?.data || [],
-    next = !ready
+    statusCount = (key) => applications.filter((a) => normalizeAppStatus(a.status) === key).length;
+
+  // Profile completion — computed only from fields actually saved on the profile.
+  const checklist = [
+    ["Professional headline", Boolean(user.headline)],
+    ["Location", Boolean(user.location)],
+    ["Summary", Boolean(user.bio)],
+    ["Skills", (user.skills || []).length > 0],
+    ["Onboarding", Boolean(user.onboardingCompleted)],
+    ["Education", (candidateProfile.education || []).length > 0],
+    ["Experience", (candidateProfile.experience || []).length > 0],
+  ],
+    doneCount = checklist.filter(([, value]) => value).length,
+    completion = Math.round((doneCount / checklist.length) * 100),
+    missing = checklist.filter(([, value]) => !value).map(([label]) => label);
+
+  const pipelineStages = [
+    { label: "Submitted", value: statusCount("submitted"), tone: "ink" },
+    { label: "Under review", value: statusCount("under_review"), tone: "ink" },
+    { label: "Shortlisted", value: statusCount("shortlisted"), tone: "warning" },
+    { label: "Interview", value: statusCount("interview"), tone: "brand" },
+    { label: "Offer", value: statusCount("offer"), tone: "success" },
+  ];
+
+  const upcomingInterviews = (interviews.data?.data || [])
+    .filter((i) => ["invited", "confirmed"].includes(i.status))
+    .sort((a, b) => new Date(a.scheduledStart || 0) - new Date(b.scheduledStart || 0))
+    .slice(0, 3);
+
+  const next = !ready
+    ? {
+        title: "Upload your first resume",
+        copy: "We’ll validate, parse and analyze it privately.",
+        to: "/app/candidate/resumes",
+        icon: Upload,
+      }
+    : !user.onboardingCompleted
       ? {
-          title: "Upload your first resume",
-          copy: "We’ll validate, parse and analyze it privately.",
-          to: "/app/candidate/resumes",
-          icon: Upload,
+          title: "Complete your profile",
+          copy: "Add the context employers need to evaluate your experience.",
+          to: "/app/candidate/onboarding",
+          icon: FileSearch,
         }
-      : !profile.data?.data?.user?.onboardingCompleted
+      : applications.some((a) => normalizeAppStatus(a.status) === "interview")
         ? {
-            title: "Complete your profile",
-            copy: "Add the context employers need to evaluate your experience.",
-            to: "/app/candidate/onboarding",
-            icon: FileSearch,
+            title: "Prepare for your interview",
+            copy: "Practice against the role’s actual requirements.",
+            to: "/app/candidate/interviews",
+            icon: Video,
           }
-        : applications.some((a) => a.status === "interview")
-          ? {
-              title: "Prepare for your interview",
-              copy: "Practice against the role’s actual requirements.",
-              to: "/app/candidate/interviews",
-              icon: Video,
-            }
-          : {
-              title: "Review your best job fits",
-              copy: "Start with roles backed by evidence from your latest resume.",
-              to: "/app/candidate/recommendations",
-              icon: Sparkles,
-            };
-  const Icon = next.icon;
+        : {
+            title: "Review your best job fits",
+            copy: "Start with roles backed by evidence from your latest resume.",
+            to: "/app/candidate/recommendations",
+            icon: Sparkles,
+          };
+  const NextIcon = next.icon;
   return (
     <div className="page-wrap">
       <PageHeader
         eyebrow="Candidate workspace"
-        title={`Good to see you, ${profile.data?.data?.user?.displayName?.split(" ")[0] || "there"}.`}
-        description="Focus on the next action that moves your search forward."
+        title={`Good to see you, ${user.displayName?.split(" ")[0] || "there"}.`}
+        description="Your search at a glance — recommended roles, application progress and what to do next."
       />
-      <section className="grid gap-6 lg:grid-cols-[1.25fr_.75fr]">
-        <div className="rounded-2xl bg-ink-950 p-7 text-white">
-          <p className="text-xs font-bold uppercase tracking-widest text-cyan-300">
-            Next best action
-          </p>
-          <Icon className="mt-8 h-8 w-8 text-cyan-300" />
-          <h2 className="mt-4 text-2xl font-bold">{next.title}</h2>
-          <p className="mt-2 text-ink-300">{next.copy}</p>
-          <Button as={Link} to={next.to} className="mt-6" variant="secondary">
-            Continue <ArrowRight className="h-4 w-4" />
-          </Button>
-        </div>
-        <div className="panel grid grid-cols-2 gap-5 p-6">
-          <Metric label="Resume versions" value={versions.length} />
-          <Metric
-            label="Ready"
-            value={versions.filter((v) => v.processingStatus === "ready").length}
-            tone="success"
-          />
-          <Metric label="Applications" value={applications.length} />
-          <Metric
-            label="Interviews"
-            value={applications.filter((a) => a.status === "interview").length}
-            tone="brand"
-          />
-        </div>
-      </section>
-      {ready && (
-        <section className="panel mt-6 flex flex-col gap-5 p-6 sm:flex-row sm:items-center">
-          <Metric
-            label="Resume readiness"
-            value={resumeDetail.data?.data?.parsedResume?.analysis?.atsScore ?? "—"}
-            detail="Latest processed version"
-            tone="brand"
-          />
-          <div className="sm:border-l sm:pl-6">
-            <p className="text-xs font-bold uppercase tracking-wider text-ink-400">
-              Priority skill gaps
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <Kpi
+          label="Applications"
+          value={applications.length}
+          icon={BriefcaseBusiness}
+          detail={`${statusCount("submitted")} submitted`}
+        />
+        <Kpi
+          label="In active review"
+          value={statusCount("under_review") + statusCount("shortlisted")}
+          tone="brand"
+          icon={Eye}
+          detail="Under review or shortlisted"
+        />
+        <Kpi
+          label="Interviews"
+          value={statusCount("interview")}
+          tone="warning"
+          icon={Video}
+          detail={`${upcomingInterviews.length} upcoming`}
+        />
+        <Kpi
+          label="Resume versions"
+          value={versions.length}
+          tone={readyCount ? "success" : "ink"}
+          icon={FileText}
+          detail={`${readyCount} ready`}
+        />
+      </div>
+      <QuickActions
+        className="mt-6"
+        actions={[
+          { icon: Search, label: "Discover jobs", to: "/app/candidate/jobs", hint: "Search roles" },
+          { icon: Upload, label: "Upload resume", to: "/app/candidate/resumes", hint: "Add a version" },
+          { icon: BriefcaseBusiness, label: "My applications", to: "/app/candidate/applications", hint: "Track status" },
+          { icon: Sparkles, label: "Career assistant", to: "/app/candidate/copilot", hint: "Ask AI" },
+        ]}
+      />
+      <section className="mt-6 grid gap-6 lg:grid-cols-[1.35fr_.75fr]">
+        <div className="min-w-0 space-y-6">
+          <div className="ai-panel relative overflow-hidden p-7">
+            <p className="text-xs font-bold uppercase tracking-widest text-cyan-300">
+              Next best action
             </p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {(recs.data?.data?.[0]?.match?.missingRequiredSkills || [])
-                .slice(0, 6)
-                .map((skill) => (
-                  <Badge key={skill} variant="warning">
-                    {skill}
-                  </Badge>
-                ))}
-              {!recs.data?.data?.[0]?.match?.missingRequiredSkills?.length && (
-                <span className="text-sm text-ink-500">
-                  Run a job fit to identify role-specific gaps.
-                </span>
+            <NextIcon className="mt-8 h-8 w-8 text-cyan-300" />
+            <h2 className="mt-4 text-2xl font-bold">{next.title}</h2>
+            <p className="mt-2 max-w-md text-sm leading-6 text-ink-300">{next.copy}</p>
+            <Button as={Link} to={next.to} className="mt-6" variant="secondary">
+              Continue <ArrowRight className="h-4 w-4" />
+            </Button>
+          </div>
+          <section>
+            <div className="flex items-end justify-between">
+              <div>
+                <p className="eyebrow">Recommended for you</p>
+                <h2 className="mt-1 text-xl font-bold">Opportunities matched to you</h2>
+              </div>
+              <Link
+                className="text-sm font-semibold text-brand-600 transition-colors hover:text-brand-700"
+                to="/app/candidate/recommendations"
+              >
+                View all
+              </Link>
+            </div>
+            <div className="mt-4 grid gap-4 lg:grid-cols-2">
+              {recs.isLoading ? (
+                <SkeletonList />
+              ) : (
+                (recs.data?.data || [])
+                  .slice(0, 4)
+                  .map((x) => <JobTile key={x.job.id} job={x.job} match={x.match} />)
+              )}
+              {!recs.isLoading && !(recs.data?.data || []).length && (
+                <div className="lg:col-span-2">
+                  <EmptyState
+                    icon={Sparkles}
+                    title={ready ? "No strong matches yet" : "No matches ready yet"}
+                    description={
+                      ready
+                        ? "New roles are scored against your latest resume as they are published. Keep searching — your best fits will land here."
+                        : "Upload and process a resume version first, then your best-fit roles appear here."
+                    }
+                    action={
+                      <Button
+                        as={Link}
+                        to={ready ? "/app/candidate/jobs" : "/app/candidate/resumes"}
+                        variant="secondary"
+                        size="sm"
+                      >
+                        {ready ? "Browse all jobs" : "Upload resume"}
+                      </Button>
+                    }
+                  />
+                </div>
               )}
             </div>
-          </div>
-        </section>
-      )}
-      <section className="mt-10">
-        <div className="flex items-end justify-between">
-          <div>
-            <p className="eyebrow">Recommended for you</p>
-            <h2 className="mt-1 text-xl font-bold">Opportunities matched to you</h2>
-          </div>
-          <Link
-            className="text-sm font-semibold text-brand-600"
-            to="/app/candidate/recommendations"
-          >
-            View all
-          </Link>
-        </div>
-        <div className="mt-4 grid gap-4 lg:grid-cols-2">
-          {recs.isLoading ? (
-            <SkeletonList />
-          ) : (
-            (recs.data?.data || [])
-              .slice(0, 4)
-              .map((x) => <JobTile key={x.job.id} job={x.job} match={x.match} />)
+          </section>
+          {ready && (
+            <SectionCard
+              title="Resume readiness"
+              description={`Latest processed version · ${
+                resumeDetail.data?.data?.parsedResume?.analysis?.atsScore ?? "—"
+              }/100 ATS score`}
+            >
+              <div className="flex flex-wrap items-center gap-4">
+                <span className="text-xs font-bold uppercase tracking-wider text-ink-400">
+                  Priority skill gaps
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {(recs.data?.data?.[0]?.match?.missingRequiredSkills || [])
+                    .slice(0, 6)
+                    .map((skill) => (
+                      <Badge key={skill} variant="warning">
+                        {skill}
+                      </Badge>
+                    ))}
+                  {!(recs.data?.data?.[0]?.match?.missingRequiredSkills || []).length && (
+                    <span className="text-sm text-ink-500">
+                      No gaps detected against your top match.
+                    </span>
+                  )}
+                </div>
+              </div>
+            </SectionCard>
           )}
+        </div>
+        <div className="space-y-6">
+          <SectionCard
+            title="Profile completion"
+            action={
+              <Link
+                to="/app/candidate/onboarding"
+                className="text-xs font-semibold text-brand-600 transition-colors hover:text-brand-700"
+              >
+                {doneCount === checklist.length ? "Review" : "Complete now"}
+              </Link>
+            }
+          >
+            <CompletionRing
+              value={completion}
+              label={`${doneCount} of ${checklist.length} sections`}
+              tone={completion === 100 ? "success" : completion >= 60 ? "brand" : "warning"}
+              sublabel={
+                doneCount === checklist.length
+                  ? "Your profile is complete — recruiters see the full picture."
+                  : `Add: ${missing.slice(0, 3).join(", ")}${missing.length > 3 ? ` +${missing.length - 3} more` : ""}`
+              }
+            />
+          </SectionCard>
+          <SectionCard
+            title="Application progress"
+            description="Where your applications stand"
+            action={
+              <Link
+                to="/app/candidate/applications"
+                className="text-xs font-semibold text-brand-600 transition-colors hover:text-brand-700"
+              >
+                View all
+              </Link>
+            }
+          >
+            {applications.length ? (
+              <PipelineFunnel stages={pipelineStages} />
+            ) : (
+              <EmptyState
+                icon={BriefcaseBusiness}
+                title="No applications yet"
+                description="Apply to a role and track every stage here."
+                action={
+                  <Button as={Link} to="/app/candidate/jobs" size="sm">
+                    Find jobs
+                  </Button>
+                }
+              />
+            )}
+          </SectionCard>
+          <SectionCard
+            title="Upcoming interviews"
+            action={
+              <Link
+                to="/app/candidate/interviews"
+                className="text-xs font-semibold text-brand-600 transition-colors hover:text-brand-700"
+              >
+                View all
+              </Link>
+            }
+          >
+            {interviews.isLoading ? (
+              <div className="space-y-3">
+                {Array.from({ length: 2 }).map((_, i) => (
+                  <Skeleton key={i} className="h-14 w-full" />
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {upcomingInterviews.map((i) => (
+                  <Link
+                    key={i._id}
+                    to={`/app/candidate/interviews/${i._id}`}
+                    className="group block rounded-xl border border-ink-100 p-3.5 transition-all hover:border-brand-200 hover:bg-brand-50/40"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="truncate text-sm font-semibold text-ink-900 transition-colors group-hover:text-brand-700">
+                        {i.title}
+                      </p>
+                      <StatusPill status={i.status} />
+                    </div>
+                    <p className="mt-1 text-xs text-ink-500">
+                      {i.application?.job?.title || "Job"} ·{" "}
+                      {i.scheduledStart ? formatDate(i.scheduledStart) : "Schedule pending"}
+                    </p>
+                  </Link>
+                ))}
+                {!upcomingInterviews.length && (
+                  <p className="text-sm text-ink-500">
+                    Nothing scheduled. Interviews appear here once a recruiter invites you.
+                  </p>
+                )}
+              </div>
+            )}
+          </SectionCard>
         </div>
       </section>
     </div>
@@ -698,28 +890,16 @@ export const ResumeDetail = () => {
           </section>
         </>
       )}
-      <Modal
+      <ConfirmModal
         isOpen={deleteOpen}
         onClose={() => setDeleteOpen(false)}
+        onConfirm={() => removeVersion.mutate()}
         title="Delete this resume version?"
-        description="Applications that reference it retain a private copy according to policy."
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setDeleteOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="danger"
-              isLoading={removeVersion.isPending}
-              onClick={() => removeVersion.mutate()}
-            >
-              Delete version
-            </Button>
-          </>
-        }
-      >
-        This removes the version from your resume manager. It cannot be undone.
-      </Modal>
+        description="This removes the version from your resume manager. Applications that reference it retain a private copy according to policy. This cannot be undone."
+        confirmLabel="Delete version"
+        tone="danger"
+        isLoading={removeVersion.isPending}
+      />
     </div>
   );
 };
@@ -1070,7 +1250,8 @@ export const ApplicationDetail = () => {
   const { applicationId } = useParams(),
     qc = useQueryClient(),
     toast = useToast(),
-    [reason, setReason] = useState("");
+    [reason, setReason] = useState(""),
+    [withdrawOpen, setWithdrawOpen] = useState(false);
   const q = useQuery({
       queryKey: ["application", "candidate", applicationId],
       queryFn: () => candidateApi.application(applicationId),
@@ -1130,10 +1311,9 @@ export const ApplicationDetail = () => {
           <Button
             className="mt-3"
             variant="danger"
-            onClick={() => withdraw.mutate()}
-            isLoading={withdraw.isPending}
+            onClick={() => setWithdrawOpen(true)}
           >
-            Withdraw
+            Withdraw application
           </Button>
           {withdraw.error && (
             <div className="mt-3">
@@ -1142,6 +1322,16 @@ export const ApplicationDetail = () => {
           )}
         </section>
       )}
+      <ConfirmModal
+        isOpen={withdrawOpen}
+        onClose={() => setWithdrawOpen(false)}
+        onConfirm={() => withdraw.mutate()}
+        title="Withdraw this application?"
+        description="The employer keeps the audit history, but you can't reapply through this application afterwards."
+        confirmLabel="Withdraw"
+        tone="danger"
+        isLoading={withdraw.isPending}
+      />
     </div>
   );
 };
@@ -1325,10 +1515,12 @@ export const CareerCopilot = () => {
 export const AlertsPage = () => {
   const toast = useToast(),
     qc = useQueryClient(),
+    [alertToDelete, setAlertToDelete] = useState(null),
     q = useQuery({ queryKey: ["alerts"], queryFn: alertsApi.list }),
     remove = useMutation({
       mutationFn: (id) => alertsApi.remove(id),
       onSuccess: () => {
+        setAlertToDelete(null);
         qc.invalidateQueries({ queryKey: ["alerts"] });
         toast.success("Alert deleted");
       },
@@ -1387,9 +1579,8 @@ export const AlertsPage = () => {
               <Button
                 size="sm"
                 variant="ghost"
-                className="text-red-600"
-                isLoading={remove.isPending && remove.variables === a.id}
-                onClick={() => remove.mutate(a.id)}
+                className="text-danger-700 hover:bg-danger-50"
+                onClick={() => setAlertToDelete(a)}
               >
                 Delete
               </Button>
@@ -1397,12 +1588,23 @@ export const AlertsPage = () => {
           ))}
           {!q.data.data.length && (
             <EmptyState
+              icon={Bell}
               title="No alerts yet"
               description='Open the public job search, refine your filters and press "Create alert".'
             />
           )}
         </div>
       )}
+      <ConfirmModal
+        isOpen={Boolean(alertToDelete)}
+        onClose={() => setAlertToDelete(null)}
+        onConfirm={() => alertToDelete && remove.mutate(alertToDelete.id)}
+        title="Delete this job alert?"
+        description={`“${alertToDelete?.name || "This alert"}” will stop matching new jobs and won't email you again.`}
+        confirmLabel="Delete alert"
+        tone="danger"
+        isLoading={remove.isPending}
+      />
     </div>
   );
 };

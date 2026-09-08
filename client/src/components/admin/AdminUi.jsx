@@ -76,25 +76,39 @@ export const DataTable = ({
   children,
   empty = false,
   emptyLabel = "Nothing to show yet.",
+  zebra = false,
+  className,
 }) => (
-  <div className="panel overflow-x-auto">
+  <div className={cn("panel overflow-x-auto", className)}>
     <table className="w-full min-w-[40rem] text-left text-sm">
-      <thead>
-        <tr className="border-b border-ink-100">
+      <thead className="bg-ink-50/70">
+        <tr>
           {headers.map((h) => (
             <th
               key={h}
               scope="col"
-              className="whitespace-nowrap px-5 py-3 text-[11px] font-bold uppercase tracking-wider text-ink-400"
+              className="whitespace-nowrap border-b border-ink-100 px-5 py-3 text-[11px] font-bold uppercase tracking-wider text-ink-500"
             >
               {h}
             </th>
           ))}
         </tr>
       </thead>
-      <tbody className="divide-y divide-ink-100">{children}</tbody>
+      <tbody
+        className={cn(
+          "divide-y divide-ink-100",
+          "[&_tr]:transition-colors [&_tr:hover]:bg-brand-50/40",
+          zebra && "[&_tr:nth-child(even)]:bg-ink-50/50",
+        )}
+      >
+        {children}
+      </tbody>
     </table>
-    {empty && <div className="px-5 py-8 text-center text-sm text-ink-500">{emptyLabel}</div>}
+    {empty && (
+      <div className="border-t border-ink-100 px-5 py-10 text-center text-sm text-ink-500">
+        {emptyLabel}
+      </div>
+    )}
   </div>
 );
 
