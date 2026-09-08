@@ -34,7 +34,6 @@ import {
   ErrorCallout,
   HybridMatch,
   JobTile,
-  Metric,
   PageHeader,
   StatusPill,
 } from "../../components/Product";
@@ -50,7 +49,7 @@ import {
 import { useAuth } from "../../context/useAuth";
 import { useToast } from "../../components/ui/useToast";
 import { formatDate, formatJobSalary, formatRelativeTime } from "../../lib/utils";
-import { useDebouncedValue } from "../../hooks/useApi";
+import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 const getVersions = (response) => response?.meta?.versions || [];
 const useResumes = () => useQuery({ queryKey: ["resumes"], queryFn: resumeApi.list });
 const CANDIDATE_SUGGESTIONS = [
@@ -700,12 +699,12 @@ export const ResumeDetail = () => {
                 </div>
               </div>
               <div className="mt-6 grid gap-4 sm:grid-cols-2">
-                <Metric
+                <Kpi
                   label="Experience"
                   value={p?.experienceYears ?? "Uncertain"}
                   detail={p?.experienceYears != null ? "years detected" : "Review manually"}
                 />
-                <Metric
+                <Kpi
                   label="Readiness"
                   value={p?.analysis?.atsScore ?? "—"}
                   detail={p?.analysis?.grade ? `Grade ${p.analysis.grade}` : "Analysis available"}

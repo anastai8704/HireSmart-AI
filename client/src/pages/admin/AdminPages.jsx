@@ -18,7 +18,7 @@ import Input, { Select } from "../../components/ui/Input";
 import Badge from "../../components/ui/Badge";
 import Modal from "../../components/ui/Modal";
 import { ErrorState, LoadingState, SkeletonList } from "../../components/ui/States";
-import { PageHeader, Metric, StatusPill } from "../../components/Product";
+import { PageHeader, StatusPill } from "../../components/Product";
 import Kpi from "../../components/ui/Kpi";
 import SectionCard from "../../components/ui/SectionCard";
 import ActivityFeed from "../../components/ui/ActivityFeed";
@@ -32,7 +32,7 @@ import {
 } from "../../components/admin/AdminUi";
 import { adminApi, jobsApi } from "../../lib/api";
 import { useToast } from "../../components/ui/useToast";
-import { useDebouncedValue } from "../../hooks/useApi";
+import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { formatDate, formatRelativeTime, humanizeAction, initials, shortId } from "../../lib/utils";
 
 const ROLE_OPTIONS = ["candidate", "recruiter", "admin"].map((x) => ({
@@ -964,20 +964,20 @@ export const AdminAIUsage = () => {
         description="How often AI features ran across the platform. Fallback responses are labeled separately from AI completions."
       />
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-        <Metric label="Total AI Runs" value={totals.runs} icon={Cpu} />
-        <Metric
+        <Kpi label="Total AI Runs" value={totals.runs} icon={Cpu} />
+        <Kpi
           label="Successful Runs"
           value={totals.runs - totals.fallbacks}
           tone="success"
           icon={Sparkles}
         />
-        <Metric label="Fallbacks" value={totals.fallbacks} icon={ShieldAlert} />
-        <Metric
+        <Kpi label="Fallbacks" value={totals.fallbacks} icon={ShieldAlert} />
+        <Kpi
           label="Tokens Used"
           value={tokens > 0 ? tokens.toLocaleString("en-IN") : "Not available"}
           icon={Cpu}
         />
-        <Metric
+        <Kpi
           label="Estimated Cost"
           value={totals.cost > 0 ? `$${totals.cost.toFixed(4)}` : "Not available"}
           tone="brand"

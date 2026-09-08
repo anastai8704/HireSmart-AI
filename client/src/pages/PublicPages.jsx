@@ -20,7 +20,7 @@ import { jobsApi, companiesApi, alertsApi, aiApi } from "../lib/api";
 import { formatJobSalary, formatRelativeTime } from "../lib/utils";
 import { useAuth } from "../context/useAuth";
 import { usePageMeta } from "../lib/usePageMeta";
-import { useDebouncedValue } from "../hooks/useApi";
+import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { useToast } from "../components/ui/useToast";
 
 /* ----------------------------- shared bits ----------------------------- */

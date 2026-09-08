@@ -36,7 +36,6 @@ import {
   AIProvenance,
   ErrorCallout,
   HybridMatch,
-  Metric,
   PageHeader,
   StatusPill,
 } from "../../components/Product";
@@ -52,7 +51,7 @@ import {
 import { useAuth } from "../../context/useAuth";
 import { useToast } from "../../components/ui/useToast";
 import { formatDate, formatRelativeTime, initials } from "../../lib/utils";
-import { useDebouncedValue } from "../../hooks/useApi";
+import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 const greeting = () => {
   const hour = new Date().getHours();
   return hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
@@ -1741,7 +1740,7 @@ export const CandidateSearch = () => {
                   ))}
                 </div>
               </div>
-              <Metric label="Experience" value={x.experienceYears ?? "?"} />
+              <Kpi label="Experience" value={x.experienceYears ?? "?"} />
               {x.applicationIds?.[0] && (
                 <Button
                   as={Link}

@@ -31,40 +31,7 @@ export const PageHeader = ({ eyebrow, title, description, action }) => (
   </header>
 );
 
-export const Metric = ({ label, value, detail, tone = "ink", icon: Icon }) => (
-  <div className="rounded-xl border border-ink-100 bg-ink-50/60 p-4">
-    <div className="flex items-center gap-2">
-      {Icon && (
-        <span
-          className={cn(
-            "grid h-7 w-7 place-items-center rounded-lg",
-            tone === "brand"
-              ? "bg-brand-50 text-brand-600"
-              : tone === "success"
-                ? "bg-success-50 text-success-500"
-                : "bg-white text-ink-400",
-          )}
-        >
-          <Icon className="h-3.5 w-3.5" />
-        </span>
-      )}
-      <p className="text-[11px] font-bold uppercase tracking-wider text-ink-400">{label}</p>
-    </div>
-    <p
-      className={cn(
-        "mt-2 text-[26px] font-extrabold leading-none tabular-nums tracking-tight",
-        tone === "brand"
-          ? "text-brand-700"
-          : tone === "success"
-            ? "text-success-700"
-            : "text-ink-950",
-      )}
-    >
-      {value}
-    </p>
-    {detail && <p className="mt-1.5 text-xs text-ink-500">{detail}</p>}
-  </div>
-);
+
 
 const DETAILS_OPEN_ATTR = "group-open:rotate-90";
 export const AIProvenance = ({ metadata, confidence, limitations = [], tone = "dark" }) => {
