@@ -1,24 +1,18 @@
-/**
- * useAuth.js
- * -----------------------------------------------------------------------------
- * The hook for reading auth state.
- *
- * Kept separate from AuthContext.jsx so that file exports only the
- * <AuthProvider> component, which keeps Vite's Fast Refresh working.
- */
+// Auth state hook. Kept separate from AuthContext.jsx so that file exports
+// only the provider component, keeping Vite Fast Refresh working.
 
 import { useContext } from "react";
 
 import AuthContext from "./AuthContext";
 
 export const useAuth = () => {
-    const context = useContext(AuthContext);
+  const context = useContext(AuthContext);
 
-    if (!context) {
-        throw new Error("useAuth must be used inside an <AuthProvider>");
-    }
+  if (!context) {
+    throw new Error("useAuth must be used inside an <AuthProvider>");
+  }
 
-    return context;
+  return context;
 };
 
 export default useAuth;

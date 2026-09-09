@@ -12,11 +12,6 @@ const requestLogger = require("./middleware/requestLogger");
 const errorHandler = require("./middleware/errorHandler");
 const AppError = require("./utils/AppError");
 
-const authRoutes = require("./routes/authRoutes");
-const userRoutes = require("./routes/userRoutes");
-const jobRoutes = require("./routes/jobRoutes");
-const candidateProfileRoutes = require("./routes/candidateProfileRoutes");
-const matchingRoutes = require("./routes/matchingRoutes");
 const v1Routes = require("./routes/v1Routes");
 const requestContext = require("./middleware/requestContext");
 
@@ -26,41 +21,61 @@ app.disable("x-powered-by");
 if (config.isProduction) app.set("trust proxy", 1);
 
 const corsOptions = {
-    origin(origin, callback) {
-        const isAllowed =
-            !origin ||
-            (!config.isProduction && config.corsOrigins.length === 0) ||
-            config.corsOrigins.includes(origin);
+  origin(origin, callback) {
+    const isAllowed =
+      !origin ||
+      (!config.isProduction && config.corsOrigins.length === 0) ||
+      config.corsOrigins.includes(origin);
 
-        if (isAllowed) {
-            return callback(null, true);
-        }
+    if (isAllowed) {
+      return callback(null, true);
+    }
 
-        return callback(new AppError("Origin is not allowed by CORS", 403));
-    },
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
-    allowedHeaders: ["Authorization", "Content-Type", "Idempotency-Key", "X-Organization-Id", "X-Request-Id", "X-CSRF-Token"],
-    maxAge: 86400,
-    credentials: true,
+    return callback(new AppError("Origin is not allowed by CORS", 403));
+  },
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
+  allowedHeaders: [
+    "Authorization",
+    "Content-Type",
+    "Idempotency-Key",
+    "X-Organization-Id",
+    "X-Request-Id",
+    "X-CSRF-Token",
+  ],
+  maxAge: 86400,
+  credentials: true,
 };
 
 const apiLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    limit: config.isProduction ? 300 : 1000,
-    standardHeaders: "draft-8",
-    legacyHeaders: false,
-    skip: () => config.isTest,
-    handler: (req, res) => res.status(429).json(req.originalUrl.startsWith("/api/v1") ? { success: false, status: "fail", code: "RATE_LIMITED", message: "Too many requests. Please try again later.", requestId: req.id } : { success: false, message: "Too many requests. Please try again later." }),
+  windowMs: 15 * 60 * 1000,
+  limit: config.isProduction ? 300 : 1000,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  skip: () => config.isTest,
+  handler: (req, res) =>
+    res
+      .status(429)
+      .json(
+        req.originalUrl.startsWith("/api/v1")
+          ? {
+              success: false,
+              status: "fail",
+              code: "RATE_LIMITED",
+              message: "Too many requests. Please try again later.",
+              requestId: req.id,
+            }
+          : { success: false, message: "Too many requests. Please try again later." },
+      ),
 });
 
 const sanitizeRequest = (req, res, next) => {
-    for (const value of [req.body, req.params, req.query]) {
-        if (value) {
-            mongoSanitize.sanitize(value);
-        }
+  for (const value of [req.body, req.params, req.query]) {
+    if (value) {
+      mongoSanitize.sanitize(value);
     }
+  }
 
-    next();
+  next();
 };
 
 app.use(requestContext);
@@ -77,36 +92,45 @@ app.use(requestLogger);
 app.use("/api", apiLimiter);
 
 app.use("/api/v1", v1Routes);
-if (config.enableLegacyApi) {
-    app.use("/api/auth", authRoutes);
-    app.use("/api/user", userRoutes);
-    app.use("/api/jobs", jobRoutes);
-    app.use("/api/candidate", candidateProfileRoutes);
-    app.use("/api/matching", matchingRoutes);
-}
 
 app.get("/", (req, res) => {
-    res.send("Welcome to HireSmart AI");
+  res.send("Welcome to HireSmart AI");
 });
 
 app.get("/health", (req, res) => {
-    res.status(200).json({
-        success: true,
-        status: "ok",
-        environment: config.nodeEnv,
-    });
+  res.status(200).json({
+    success: true,
+    status: "ok",
+    environment: config.nodeEnv,
+  });
 });
 
 if (!config.isProduction) {
-    app.get("/test-error", (req, res, next) => {
-        next(new AppError("Testing Global Error Handler", 400));
-    });
+  app.get("/test-error", (req, res, next) => {
+    next(new AppError("Testing Global Error Handler", 400));
+  });
 }
 
 app.use((req, res, next) => {
-    next(new AppError(`Route ${req.method} ${req.originalUrl} was not found`, 404));
+  next(new AppError(`Route ${req.method} ${req.originalUrl} was not found`, 404));
 });
 
 app.use(errorHandler);
+
+// Job-alert scans run from the API process too, so deployments without a
+// separate worker still deliver alerts. The service throttles to one scan
+// per 60s and claims each alert atomically, so overlapping runs are safe.
+if (config.nodeEnv !== "test") {
+  const { tickAlertScan } = require("./services/alertScanService");
+  const { tickRecommendationRefresh } = require("./services/recommendationSnapshotService");
+  const interval = setInterval(
+    () => {
+      tickAlertScan().catch(() => {});
+      tickRecommendationRefresh().catch(() => {});
+    },
+    5 * 60 * 1000,
+  );
+  if (typeof interval.unref === "function") interval.unref();
+}
 
 module.exports = app;

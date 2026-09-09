@@ -7,3 +7,6 @@ server/node_modules/
 server/.env
 server/logs/*.log
 server/uploads/**
+
+# local email template previews (generated)
+email-previews/

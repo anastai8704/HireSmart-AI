@@ -3,7 +3,62 @@ const assert = require("node:assert/strict");
 const http = require("node:http");
 const test = require("node:test");
 const { OpenAICompatibleProvider, AIProviderError } = require("../services/ai/provider");
-const withServer = async (handler, run) => { const server = http.createServer(handler); await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve)); try { await run(`http://127.0.0.1:${server.address().port}`); } finally { await new Promise((resolve) => server.close(resolve)); } };
-test("AI provider rejects malformed structured HTTP output", async () => withServer((req, res) => { res.setHeader("content-type", "application/json"); res.end("not-json"); }, async (baseUrl) => { const provider = new OpenAICompatibleProvider({ baseUrl, apiKey: "test", model: "test" }); await assert.rejects(() => provider.generateStructured({ system: "safe", prompt: "{}", schemaName: "test", timeoutMs: 1000 }), (error) => error instanceof AIProviderError && /malformed/.test(error.message)); }));
-test("AI provider timeout is retryable and does not return success", async () => withServer((req, res) => { setTimeout(() => res.end("{}"), 100); }, async (baseUrl) => { const provider = new OpenAICompatibleProvider({ baseUrl, apiKey: "test", model: "test" }); await assert.rejects(() => provider.generateStructured({ system: "safe", prompt: "{}", schemaName: "test", timeoutMs: 10 }), (error) => error instanceof AIProviderError && error.retryable === true); }));
-test("embedding provider rejects non-finite vectors", async () => withServer((req, res) => { res.setHeader("content-type", "application/json"); res.end(JSON.stringify({ data: [{ embedding: [1, "not-a-number"] }] })); }, async (baseUrl) => { const provider = new OpenAICompatibleProvider({ baseUrl, apiKey: "test", model: "embed" }); await assert.rejects(() => provider.embed("resume", 1000), /invalid vector/); }));
+const withServer = async (handler, run) => {
+  const server = http.createServer(handler);
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  try {
+    await run(`http://127.0.0.1:${server.address().port}`);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+};
+test("AI provider rejects malformed structured HTTP output", async () =>
+  withServer(
+    (req, res) => {
+      res.setHeader("content-type", "application/json");
+      res.end("not-json");
+    },
+    async (baseUrl) => {
+      const provider = new OpenAICompatibleProvider({ baseUrl, apiKey: "test", model: "test" });
+      await assert.rejects(
+        () =>
+          provider.generateStructured({
+            system: "safe",
+            prompt: "{}",
+            schemaName: "test",
+            timeoutMs: 1000,
+          }),
+        (error) => error instanceof AIProviderError && /malformed/.test(error.message),
+      );
+    },
+  ));
+test("AI provider timeout is retryable and does not return success", async () =>
+  withServer(
+    (req, res) => {
+      setTimeout(() => res.end("{}"), 100);
+    },
+    async (baseUrl) => {
+      const provider = new OpenAICompatibleProvider({ baseUrl, apiKey: "test", model: "test" });
+      await assert.rejects(
+        () =>
+          provider.generateStructured({
+            system: "safe",
+            prompt: "{}",
+            schemaName: "test",
+            timeoutMs: 10,
+          }),
+        (error) => error instanceof AIProviderError && error.retryable === true,
+      );
+    },
+  ));
+test("embedding provider rejects non-finite vectors", async () =>
+  withServer(
+    (req, res) => {
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify({ data: [{ embedding: [1, "not-a-number"] }] }));
+    },
+    async (baseUrl) => {
+      const provider = new OpenAICompatibleProvider({ baseUrl, apiKey: "test", model: "embed" });
+      await assert.rejects(() => provider.embed("resume", 1000), /invalid vector/);
+    },
+  ));

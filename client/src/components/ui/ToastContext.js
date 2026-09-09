@@ -1,9 +1,4 @@
-/**
- * ToastContext.js
- * -----------------------------------------------------------------------------
- * The React context object shared by <ToastProvider> and useToast().
- * It lives alone so neither of those files has to export a non-component.
- */
+// Shared context object so Toast.jsx and useToast.js export only components.
 
 import { createContext } from "react";
 
