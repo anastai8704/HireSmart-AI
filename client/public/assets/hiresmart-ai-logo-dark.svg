@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 540 140" width="540" height="140" role="img" aria-label="HireSmart AI — Hire Smarter • Build Better">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 140" width="560" height="140" role="img" aria-label="HireSmart AI — Hire Smarter • Build Better">
   <defs>
     <linearGradient id="hs-full-facet-cyan-top-dark" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#bae6fd" />
@@ -31,46 +31,46 @@
   </defs>
 
   <g id="hiresmart-logo-content">
-    <!-- HireSmart wordmark -->
-    <text x="32" y="76" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="64" font-weight="800" letter-spacing="-1.8" fill="#0f172a">HireSmart</text>
+    <!-- HireSmart wordmark (properly spaced before diamond) -->
+    <text x="32" y="74" font-family="Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="58" font-weight="800" letter-spacing="-1.2" fill="#0f172a">HireSmart</text>
 
-    <!-- 3D Geometric Faceted Cube -->
+    <!-- 3D Geometric Faceted Diamond/Cube -->
     <g id="faceted-cube">
       <!-- Top Section -->
-      <polygon points="384,20.00 369.28,28.50 384,37.00" fill="url(#hs-full-facet-cyan-top-dark)" />
-      <polygon points="384,20.00 398.72,28.50 384,37.00" fill="url(#hs-full-facet-cyan-mid-dark)" />
-      <polygon points="369.28,28.50 354.56,37.00 384,54.00 384,37.00" fill="url(#hs-full-facet-cyan-glow-dark)" />
-      <polygon points="398.72,28.50 413.44,37.00 384,54.00 384,37.00" fill="url(#hs-full-facet-cyan-top-dark)" />
+      <polygon points="402,22.00 389.01,29.50 402,37.00" fill="url(#hs-full-facet-cyan-top-dark)" />
+      <polygon points="402,22.00 414.99,29.50 402,37.00" fill="url(#hs-full-facet-cyan-mid-dark)" />
+      <polygon points="389.01,29.50 376.02,37.00 402,52.00 402,37.00" fill="url(#hs-full-facet-cyan-glow-dark)" />
+      <polygon points="414.99,29.50 427.98,37.00 402,52.00 402,37.00" fill="url(#hs-full-facet-cyan-top-dark)" />
 
       <!-- Left Section -->
-      <polygon points="354.56,37.00 354.56,54.00 384,54.00" fill="url(#hs-full-facet-cyan-mid-dark)" />
-      <polygon points="354.56,54.00 354.56,71.00 369.28,62.50 384,54.00" fill="url(#hs-full-facet-blue-left-dark)" />
-      <polygon points="354.56,71.00 369.28,79.50 384,54.00" fill="url(#hs-full-facet-blue-deep-dark)" />
-      <polygon points="369.28,79.50 384,88.00 384,54.00" fill="url(#hs-full-facet-blue-left-dark)" />
+      <polygon points="376.02,37.00 376.02,52.00 402,52.00" fill="url(#hs-full-facet-cyan-mid-dark)" />
+      <polygon points="376.02,52.00 376.02,67.00 389.01,59.50 402,52.00" fill="url(#hs-full-facet-blue-left-dark)" />
+      <polygon points="376.02,67.00 389.01,74.50 402,52.00" fill="url(#hs-full-facet-blue-deep-dark)" />
+      <polygon points="389.01,74.50 402,82.00 402,52.00" fill="url(#hs-full-facet-blue-left-dark)" />
 
       <!-- Right Section -->
-      <polygon points="413.44,37.00 413.44,54.00 384,54.00" fill="url(#hs-full-facet-blue-right-dark)" />
-      <polygon points="413.44,54.00 413.44,71.00 398.72,62.50 384,54.00" fill="url(#hs-full-facet-blue-right-dark)" />
-      <polygon points="413.44,71.00 398.72,79.50 384,54.00" fill="url(#hs-full-facet-blue-dark-dark)" />
-      <polygon points="398.72,79.50 384,88.00 384,54.00" fill="url(#hs-full-facet-blue-right-dark)" />
+      <polygon points="427.98,37.00 427.98,52.00 402,52.00" fill="url(#hs-full-facet-blue-right-dark)" />
+      <polygon points="427.98,52.00 427.98,67.00 414.99,59.50 402,52.00" fill="url(#hs-full-facet-blue-right-dark)" />
+      <polygon points="427.98,67.00 414.99,74.50 402,52.00" fill="url(#hs-full-facet-blue-dark-dark)" />
+      <polygon points="414.99,74.50 402,82.00 402,52.00" fill="url(#hs-full-facet-blue-right-dark)" />
 
       <!-- High-gloss Highlights -->
-      <polygon points="384,37.00 384,54.00 369.28,28.50" fill="#ffffff" opacity="0.45" />
-      <polygon points="384,37.00 384,54.00 398.72,28.50" fill="#bae6fd" opacity="0.3" />
+      <polygon points="402,37.00 402,52.00 389.01,29.50" fill="#ffffff" opacity="0.45" />
+      <polygon points="402,37.00 402,52.00 414.99,29.50" fill="#bae6fd" opacity="0.3" />
 
       <!-- Crisp Structural Facet Edges -->
-      <line x1="384" y1="20.00" x2="384" y2="54.00" stroke="#ffffff" stroke-width="1.2" stroke-opacity="0.5" />
-      <line x1="354.56" y1="37.00" x2="384" y2="54.00" stroke="#ffffff" stroke-width="0.9" stroke-opacity="0.35" />
-      <line x1="413.44" y1="37.00" x2="384" y2="54.00" stroke="#ffffff" stroke-width="0.9" stroke-opacity="0.35" />
-      <line x1="384" y1="88.00" x2="384" y2="54.00" stroke="#ffffff" stroke-width="0.9" stroke-opacity="0.35" />
+      <line x1="402" y1="22.00" x2="402" y2="52.00" stroke="#ffffff" stroke-width="1.2" stroke-opacity="0.5" />
+      <line x1="376.02" y1="37.00" x2="402" y2="52.00" stroke="#ffffff" stroke-width="0.9" stroke-opacity="0.35" />
+      <line x1="427.98" y1="37.00" x2="402" y2="52.00" stroke="#ffffff" stroke-width="0.9" stroke-opacity="0.35" />
+      <line x1="402" y1="82.00" x2="402" y2="52.00" stroke="#ffffff" stroke-width="0.9" stroke-opacity="0.35" />
     </g>
 
-    <!-- AI wordmark -->
-    <text x="430" y="76" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="64" font-weight="800" letter-spacing="-1.8" fill="#0f172a">AI</text>
+    <!-- AI wordmark (properly spaced after diamond) -->
+    <text x="454" y="74" font-family="Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="58" font-weight="800" letter-spacing="-1.2" fill="#0f172a">AI</text>
 
     <!-- Tagline: HIRE SMARTER • BUILD BETTER -->
-    <line x1="34" y1="112" x2="88" y2="112" stroke="rgba(15, 23, 42, 0.25)" stroke-width="1.5" stroke-linecap="round" />
-    <text x="100" y="116" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="14" font-weight="600" letter-spacing="4.5" fill="#64748b">HIRE SMARTER  •  BUILD BETTER</text>
-    <line x1="452" y1="112" x2="506" y2="112" stroke="rgba(15, 23, 42, 0.25)" stroke-width="1.5" stroke-linecap="round" />
+    <line x1="34" y1="112" x2="100" y2="112" stroke="rgba(15, 23, 42, 0.25)" stroke-width="1.5" stroke-linecap="round" />
+    <text x="112" y="116" font-family="Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" font-weight="600" letter-spacing="4.5" fill="#64748b">HIRE SMARTER  •  BUILD BETTER</text>
+    <line x1="462" y1="112" x2="528" y2="112" stroke="rgba(15, 23, 42, 0.25)" stroke-width="1.5" stroke-linecap="round" />
   </g>
 </svg>
