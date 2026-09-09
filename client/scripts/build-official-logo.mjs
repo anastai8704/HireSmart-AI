@@ -277,6 +277,63 @@ function createCubeMarkSvg() {
 </svg>`;
 }
 
+// 4. Favicon SVG (32x32 rounded dark tile with 3D faceted crystal cube mark)
+function createFaviconSvg() {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="HireSmart AI">
+  <defs>
+    <linearGradient id="hs-fav-top" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#bae6fd" />
+      <stop offset="100%" stop-color="#38bdf8" />
+    </linearGradient>
+    <linearGradient id="hs-fav-mid" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#0284c7" />
+    </linearGradient>
+    <linearGradient id="hs-fav-glow" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#67e8f9" />
+      <stop offset="100%" stop-color="#0ea5e9" />
+    </linearGradient>
+    <linearGradient id="hs-fav-blue-left" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0ea5e9" />
+      <stop offset="100%" stop-color="#0369a1" />
+    </linearGradient>
+    <linearGradient id="hs-fav-blue-deep" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0284c7" />
+      <stop offset="100%" stop-color="#0c4a6e" />
+    </linearGradient>
+    <linearGradient id="hs-fav-blue-right" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2563eb" />
+      <stop offset="100%" stop-color="#1e40af" />
+    </linearGradient>
+    <linearGradient id="hs-fav-blue-dark" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1d4ed8" />
+      <stop offset="100%" stop-color="#172554" />
+    </linearGradient>
+  </defs>
+  <rect width="32" height="32" rx="8" fill="#0b0f19" />
+  <g transform="translate(16,16) scale(0.24) translate(-50,-50)">
+    <polygon points="50,6.00 28.10,17.00 50,28.00" fill="url(#hs-fav-top)" />
+    <polygon points="50,6.00 71.90,17.00 50,28.00" fill="url(#hs-fav-mid)" />
+    <polygon points="28.10,17.00 11.89,28.00 50,50.00 50,28.00" fill="url(#hs-fav-glow)" />
+    <polygon points="71.90,17.00 88.11,28.00 50,50.00 50,28.00" fill="url(#hs-fav-top)" />
+    <polygon points="11.89,28.00 11.89,50.00 50,50.00" fill="url(#hs-fav-mid)" />
+    <polygon points="11.89,50.00 11.89,72.00 28.10,61.00 50,50.00" fill="url(#hs-fav-blue-left)" />
+    <polygon points="11.89,72.00 28.10,83.00 50,50.00" fill="url(#hs-fav-blue-deep)" />
+    <polygon points="28.10,83.00 50,94.00 50,50.00" fill="url(#hs-fav-blue-left)" />
+    <polygon points="88.11,28.00 88.11,50.00 50,50.00" fill="url(#hs-fav-blue-right)" />
+    <polygon points="88.11,50.00 88.11,72.00 71.90,61.00 50,50.00" fill="url(#hs-fav-blue-right)" />
+    <polygon points="88.11,72.00 71.90,83.00 50,50.00" fill="url(#hs-fav-blue-dark)" />
+    <polygon points="71.90,83.00 50,94.00 50,50.00" fill="url(#hs-fav-blue-right)" />
+    <polygon points="50,28.00 50,50.00 28.10,17.00" fill="#ffffff" opacity="0.45" />
+    <polygon points="50,28.00 50,50.00 71.90,17.00" fill="#bae6fd" opacity="0.3" />
+    <line x1="50" y1="6.00" x2="50" y2="50.00" stroke="#ffffff" stroke-width="1.2" stroke-opacity="0.5" />
+    <line x1="11.89" y1="28.00" x2="50" y2="50.00" stroke="#ffffff" stroke-width="0.9" stroke-opacity="0.35" />
+    <line x1="88.11" y1="28.00" x2="50" y2="50.00" stroke="#ffffff" stroke-width="0.9" stroke-opacity="0.35" />
+    <line x1="50" y1="94.00" x2="50" y2="50.00" stroke="#ffffff" stroke-width="0.9" stroke-opacity="0.35" />
+  </g>
+</svg>`;
+}
+
 // 1. Write Navbar specific SVGs (clean wordmark + diamond, natural spacing, transparent bg)
 writeFileSync(join(publicAssets, "hiresmart-logo-nav-light.svg"), createNavbarLogoSvg("light"));
 writeFileSync(join(publicAssets, "hiresmart-logo-nav-dark.svg"), createNavbarLogoSvg("dark"));
@@ -293,5 +350,6 @@ writeFileSync(join(publicAssets, "hiresmart-cube.svg"), createCubeMarkSvg());
 writeFileSync(join(publicRoot, "logo-full-light.svg"), createNavbarLogoSvg("light"));
 writeFileSync(join(publicRoot, "logo-full.svg"), createNavbarLogoSvg("dark"));
 writeFileSync(join(publicRoot, "logo-mark.svg"), createCubeMarkSvg());
+writeFileSync(join(publicRoot, "favicon.svg"), createFaviconSvg());
 
 console.log("Brand assets generated with clean non-overlapping spacing!");
