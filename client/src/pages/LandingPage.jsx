@@ -450,14 +450,6 @@ export const LandingPage = () => {
                 Search jobs, check your resume, and understand why a role matches your skills.
                 Employers can find qualified candidates faster with AI-powered hiring tools.
               </p>
-              <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
-                <Button as={Link} to="/jobs" size="lg" variant="gradient" className="w-full sm:w-auto">
-                  Find a Job <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                </Button>
-                <Button as={Link} to={employerHome} size="lg" variant="lightOutline" className="w-full sm:w-auto">
-                  Hire Talent <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                </Button>
-              </div>
               <p className="mt-5 flex items-center justify-center gap-2 text-sm text-ink-400">
                 <ShieldCheck className="h-4 w-4 shrink-0 text-cyan-300" aria-hidden="true" />
                 AI helps you understand the match — people make the final decision.
@@ -465,7 +457,7 @@ export const LandingPage = () => {
             </Reveal>
 
             {/* premium search component */}
-            <Reveal delay={120} className="relative z-10 mt-10">
+            <Reveal delay={120} className="relative z-10 mt-8">
               <form
                 onSubmit={search}
                 role="search"

@@ -17,13 +17,13 @@
 
 const TILE_GRADIENT_ID = "hs-logo-tile";
 
-export const LogoMark = ({ className, title = "HireSmart AI" }) => (
+export const LogoMark = ({ className = "h-6 w-6", title = "HireSmart AI" }) => (
   <svg
     viewBox="0 0 24 24"
     className={className}
     role={title ? "img" : undefined}
     aria-label={title || undefined}
-    aria-hidden={title ? undefined : true}
+    aria-hidden={title ? undefined : "true"}
     focusable="false"
   >
     <defs>
@@ -53,34 +53,33 @@ export const LogoMark = ({ className, title = "HireSmart AI" }) => (
 );
 
 /**
- * Full lockup: mark + wordmark.
- * tone="dark"  — wordmark on light surfaces (ink-950 + brand-600)
- * tone="light" — wordmark on dark surfaces (white + brand-300)
+ * Full lockup: official brand logo asset.
+ * tone="dark"  — brand asset on light surfaces (/logo-full.svg)
+ * tone="light" — brand asset on dark surfaces (/logo-full-light.svg)
  */
 export const Logo = ({
   tone = "dark",
-  className,
-  markClassName,
-  wordmarkClassName,
+  className = "h-8 w-auto",
+  alt = "HireSmart AI",
   showWordmark = true,
+  markClassName,
 }) => {
   if (!showWordmark) {
-    return <LogoMark className={markClassName || className} />;
+    return <LogoMark className={markClassName || className} title={alt} />;
   }
+
+  const src = tone === "light" ? "/logo-full-light.svg" : "/logo-full.svg";
+
   return (
-    <span className={`inline-flex items-center gap-2.5 ${className || ""}`}>
-      <LogoMark className={markClassName || "h-9 w-9 shrink-0"} />
-      <span
-        className={`text-[17px] font-extrabold tracking-tight ${
-          tone === "light" ? "text-white" : "text-ink-950"
-        } ${wordmarkClassName || ""}`}
-      >
-        HireSmart{" "}
-        <span className={tone === "light" ? "text-brand-300" : "text-brand-600"}>
-          AI
-        </span>
-      </span>
-    </span>
+    <img
+      src={src}
+      alt={alt}
+      className={`h-8 w-auto max-w-full object-contain ${className || ""}`}
+      height={24}
+      width={124}
+      loading="eager"
+      decoding="async"
+    />
   );
 };
 

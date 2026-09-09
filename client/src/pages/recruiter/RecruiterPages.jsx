@@ -546,6 +546,10 @@ export const RecruiterDashboard = () => {
 export const JobsPage = ({ assigned = false }) => {
   const orgId = useOrg(),
     toast = useToast(),
+    qc = useQueryClient(),
+    [jobSearch, setJobSearch] = useState(""),
+    [jobStatus, setJobStatus] = useState(""),
+    [closeTarget, setCloseTarget] = useState(null),
     q = useQuery({
       queryKey: [assigned ? "assigned-jobs" : "jobs-org", orgId, assigned ? null : jobStatus],
       queryFn: () =>
@@ -553,10 +557,6 @@ export const JobsPage = ({ assigned = false }) => {
           ? jobsApi.assigned(orgId)
           : jobsApi.orgList(orgId, { limit: 100, status: jobStatus || undefined }),
     }),
-    qc = useQueryClient(),
-    [jobSearch, setJobSearch] = useState(""),
-    [jobStatus, setJobStatus] = useState(""),
-    [closeTarget, setCloseTarget] = useState(null),
     closeJob = useMutation({
       mutationFn: (jobId) => jobsApi.close(orgId, jobId),
       onSuccess: () => {
