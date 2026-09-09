@@ -6,16 +6,16 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const publicAssets = join(root, "public", "assets");
 const publicRoot = join(root, "public");
 
-// 1. Full Logo with Tagline (viewBox 0 0 560 140)
+// 1. Full Logo with Tagline (viewBox 0 0 480 120)
 function createFullLogoSvg(tone = "light") {
   const isLight = tone === "light";
   const textColor = isLight ? "#ffffff" : "#0f172a";
   const taglineColor = isLight ? "#94a3b8" : "#64748b";
   const lineColor = isLight ? "rgba(255, 255, 255, 0.25)" : "rgba(15, 23, 42, 0.25)";
 
-  const cx = 402;
-  const cy = 52;
-  const r = 30;
+  const cx = 338;
+  const cy = 44;
+  const r = 24;
   const h = r * Math.sqrt(3) / 2;
 
   const pTop = `${cx},${(cy - r).toFixed(2)}`;
@@ -36,92 +36,83 @@ function createFullLogoSvg(tone = "light") {
   const midCenterRight = `${(cx + h * 0.5).toFixed(2)},${(cy + r * 0.25).toFixed(2)}`;
   const midCenterTop = `${cx},${(cy - r * 0.5).toFixed(2)}`;
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 140" width="560" height="140" role="img" aria-label="HireSmart AI — Hire Smarter • Build Better">
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 120" width="480" height="120" role="img" aria-label="HireSmart AI — Hire Smarter • Build Better">
   <defs>
-    <linearGradient id="hs-full-facet-cyan-top-${tone}" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="hs-full-cyan-top-${tone}" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#bae6fd" />
       <stop offset="100%" stop-color="#38bdf8" />
     </linearGradient>
-    <linearGradient id="hs-full-facet-cyan-mid-${tone}" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="hs-full-cyan-mid-${tone}" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#38bdf8" />
       <stop offset="100%" stop-color="#0284c7" />
     </linearGradient>
-    <linearGradient id="hs-full-facet-cyan-glow-${tone}" x1="100%" y1="0%" x2="0%" y2="100%">
+    <linearGradient id="hs-full-cyan-glow-${tone}" x1="100%" y1="0%" x2="0%" y2="100%">
       <stop offset="0%" stop-color="#67e8f9" />
       <stop offset="100%" stop-color="#0ea5e9" />
     </linearGradient>
-    <linearGradient id="hs-full-facet-blue-left-${tone}" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="hs-full-blue-left-${tone}" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#0ea5e9" />
       <stop offset="100%" stop-color="#0369a1" />
     </linearGradient>
-    <linearGradient id="hs-full-facet-blue-deep-${tone}" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="hs-full-blue-deep-${tone}" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#0284c7" />
       <stop offset="100%" stop-color="#0c4a6e" />
     </linearGradient>
-    <linearGradient id="hs-full-facet-blue-right-${tone}" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="hs-full-blue-right-${tone}" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#2563eb" />
       <stop offset="100%" stop-color="#1e40af" />
     </linearGradient>
-    <linearGradient id="hs-full-facet-blue-dark-${tone}" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="hs-full-blue-dark-${tone}" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#1d4ed8" />
       <stop offset="100%" stop-color="#172554" />
     </linearGradient>
   </defs>
 
-  <g id="hiresmart-logo-content">
-    <!-- HireSmart wordmark (properly spaced before diamond) -->
-    <text x="32" y="74" font-family="Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="58" font-weight="800" letter-spacing="-1.2" fill="${textColor}">HireSmart</text>
+  <g id="hiresmart-brand-artwork">
+    <!-- HireSmart wordmark -->
+    <text x="16" y="60" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="48" font-weight="800" letter-spacing="-1.2" fill="${textColor}">HireSmart</text>
 
     <!-- 3D Geometric Faceted Diamond/Cube -->
-    <g id="faceted-cube">
-      <!-- Top Section -->
-      <polygon points="${pTop} ${midTopLeft} ${midCenterTop}" fill="url(#hs-full-facet-cyan-top-${tone})" />
-      <polygon points="${pTop} ${midTopRight} ${midCenterTop}" fill="url(#hs-full-facet-cyan-mid-${tone})" />
-      <polygon points="${midTopLeft} ${pTopLeft} ${pCenter} ${midCenterTop}" fill="url(#hs-full-facet-cyan-glow-${tone})" />
-      <polygon points="${midTopRight} ${pTopRight} ${pCenter} ${midCenterTop}" fill="url(#hs-full-facet-cyan-top-${tone})" />
-
-      <!-- Left Section -->
-      <polygon points="${pTopLeft} ${midLeft} ${pCenter}" fill="url(#hs-full-facet-cyan-mid-${tone})" />
-      <polygon points="${midLeft} ${pBottomLeft} ${midCenterLeft} ${pCenter}" fill="url(#hs-full-facet-blue-left-${tone})" />
-      <polygon points="${pBottomLeft} ${midBottomLeft} ${pCenter}" fill="url(#hs-full-facet-blue-deep-${tone})" />
-      <polygon points="${midBottomLeft} ${pBottom} ${pCenter}" fill="url(#hs-full-facet-blue-left-${tone})" />
-
-      <!-- Right Section -->
-      <polygon points="${pTopRight} ${midRight} ${pCenter}" fill="url(#hs-full-facet-blue-right-${tone})" />
-      <polygon points="${midRight} ${pBottomRight} ${midCenterRight} ${pCenter}" fill="url(#hs-full-facet-blue-right-${tone})" />
-      <polygon points="${pBottomRight} ${midBottomRight} ${pCenter}" fill="url(#hs-full-facet-blue-dark-${tone})" />
-      <polygon points="${midBottomRight} ${pBottom} ${pCenter}" fill="url(#hs-full-facet-blue-right-${tone})" />
-
-      <!-- High-gloss Highlights -->
+    <g id="diamond-cube">
+      <polygon points="${pTop} ${midTopLeft} ${midCenterTop}" fill="url(#hs-full-cyan-top-${tone})" />
+      <polygon points="${pTop} ${midTopRight} ${midCenterTop}" fill="url(#hs-full-cyan-mid-${tone})" />
+      <polygon points="${midTopLeft} ${pTopLeft} ${pCenter} ${midCenterTop}" fill="url(#hs-full-cyan-glow-${tone})" />
+      <polygon points="${midTopRight} ${pTopRight} ${pCenter} ${midCenterTop}" fill="url(#hs-full-cyan-top-${tone})" />
+      <polygon points="${pTopLeft} ${midLeft} ${pCenter}" fill="url(#hs-full-cyan-mid-${tone})" />
+      <polygon points="${midLeft} ${pBottomLeft} ${midCenterLeft} ${pCenter}" fill="url(#hs-full-blue-left-${tone})" />
+      <polygon points="${pBottomLeft} ${midBottomLeft} ${pCenter}" fill="url(#hs-full-blue-deep-${tone})" />
+      <polygon points="${midBottomLeft} ${pBottom} ${pCenter}" fill="url(#hs-full-blue-left-${tone})" />
+      <polygon points="${pTopRight} ${midRight} ${pCenter}" fill="url(#hs-full-blue-right-${tone})" />
+      <polygon points="${midRight} ${pBottomRight} ${midCenterRight} ${pCenter}" fill="url(#hs-full-blue-right-${tone})" />
+      <polygon points="${pBottomRight} ${midBottomRight} ${pCenter}" fill="url(#hs-full-blue-dark-${tone})" />
+      <polygon points="${midBottomRight} ${pBottom} ${pCenter}" fill="url(#hs-full-blue-right-${tone})" />
       <polygon points="${midCenterTop} ${pCenter} ${midTopLeft}" fill="#ffffff" opacity="0.45" />
       <polygon points="${midCenterTop} ${pCenter} ${midTopRight}" fill="#bae6fd" opacity="0.3" />
-
-      <!-- Crisp Structural Facet Edges -->
-      <line x1="${cx}" y1="${(cy - r).toFixed(2)}" x2="${cx}" y2="${cy.toFixed(2)}" stroke="#ffffff" stroke-width="1.2" stroke-opacity="0.5" />
-      <line x1="${(cx - h).toFixed(2)}" y1="${(cy - r / 2).toFixed(2)}" x2="${cx}" y2="${cy.toFixed(2)}" stroke="#ffffff" stroke-width="0.9" stroke-opacity="0.35" />
-      <line x1="${(cx + h).toFixed(2)}" y1="${(cy - r / 2).toFixed(2)}" x2="${cx}" y2="${cy.toFixed(2)}" stroke="#ffffff" stroke-width="0.9" stroke-opacity="0.35" />
-      <line x1="${cx}" y1="${(cy + r).toFixed(2)}" x2="${cx}" y2="${cy.toFixed(2)}" stroke="#ffffff" stroke-width="0.9" stroke-opacity="0.35" />
+      <line x1="${cx}" y1="${(cy - r).toFixed(2)}" x2="${cx}" y2="${cy.toFixed(2)}" stroke="#ffffff" stroke-width="1.0" stroke-opacity="0.5" />
+      <line x1="${(cx - h).toFixed(2)}" y1="${(cy - r / 2).toFixed(2)}" x2="${cx}" y2="${cy.toFixed(2)}" stroke="#ffffff" stroke-width="0.8" stroke-opacity="0.35" />
+      <line x1="${(cx + h).toFixed(2)}" y1="${(cy - r / 2).toFixed(2)}" x2="${cx}" y2="${cy.toFixed(2)}" stroke="#ffffff" stroke-width="0.8" stroke-opacity="0.35" />
+      <line x1="${cx}" y1="${(cy + r).toFixed(2)}" x2="${cx}" y2="${cy.toFixed(2)}" stroke="#ffffff" stroke-width="0.8" stroke-opacity="0.35" />
     </g>
 
-    <!-- AI wordmark (properly spaced after diamond) -->
-    <text x="454" y="74" font-family="Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="58" font-weight="800" letter-spacing="-1.2" fill="${textColor}">AI</text>
+    <!-- AI wordmark -->
+    <text x="376" y="60" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="48" font-weight="800" letter-spacing="-1.2" fill="${textColor}">AI</text>
 
     <!-- Tagline: HIRE SMARTER • BUILD BETTER -->
-    <line x1="34" y1="112" x2="100" y2="112" stroke="${lineColor}" stroke-width="1.5" stroke-linecap="round" />
-    <text x="112" y="116" font-family="Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" font-weight="600" letter-spacing="4.5" fill="${taglineColor}">HIRE SMARTER  •  BUILD BETTER</text>
-    <line x1="462" y1="112" x2="528" y2="112" stroke="${lineColor}" stroke-width="1.5" stroke-linecap="round" />
+    <line x1="20" y1="94" x2="80" y2="94" stroke="${lineColor}" stroke-width="1.5" stroke-linecap="round" />
+    <text x="92" y="98" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="12" font-weight="600" letter-spacing="3.5" fill="${taglineColor}">HIRE SMARTER  •  BUILD BETTER</text>
+    <line x1="400" y1="94" x2="460" y2="94" stroke="${lineColor}" stroke-width="1.5" stroke-linecap="round" />
   </g>
 </svg>`;
 }
 
-// 2. Navbar / Header Clean Logo Lockup (viewBox 0 0 540 96 — without tagline, clean spacing)
+// 2. Navbar / Header Clean Logo Lockup (viewBox 0 0 460 76 — without tagline, clean natural spacing)
 function createNavbarLogoSvg(tone = "light") {
   const isLight = tone === "light";
   const textColor = isLight ? "#ffffff" : "#0f172a";
 
-  const cx = 392;
-  const cy = 48;
-  const r = 30;
+  const cx = 330;
+  const cy = 38;
+  const r = 24;
   const h = r * Math.sqrt(3) / 2;
 
   const pTop = `${cx},${(cy - r).toFixed(2)}`;
@@ -142,75 +133,66 @@ function createNavbarLogoSvg(tone = "light") {
   const midCenterRight = `${(cx + h * 0.5).toFixed(2)},${(cy + r * 0.25).toFixed(2)}`;
   const midCenterTop = `${cx},${(cy - r * 0.5).toFixed(2)}`;
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 540 96" width="540" height="96" role="img" aria-label="HireSmart AI">
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 460 76" width="460" height="76" role="img" aria-label="HireSmart AI">
   <defs>
-    <linearGradient id="hs-nav-facet-cyan-top-${tone}" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="hs-nav-cyan-top-${tone}" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#bae6fd" />
       <stop offset="100%" stop-color="#38bdf8" />
     </linearGradient>
-    <linearGradient id="hs-nav-facet-cyan-mid-${tone}" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="hs-nav-cyan-mid-${tone}" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#38bdf8" />
       <stop offset="100%" stop-color="#0284c7" />
     </linearGradient>
-    <linearGradient id="hs-nav-facet-cyan-glow-${tone}" x1="100%" y1="0%" x2="0%" y2="100%">
+    <linearGradient id="hs-nav-cyan-glow-${tone}" x1="100%" y1="0%" x2="0%" y2="100%">
       <stop offset="0%" stop-color="#67e8f9" />
       <stop offset="100%" stop-color="#0ea5e9" />
     </linearGradient>
-    <linearGradient id="hs-nav-facet-blue-left-${tone}" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="hs-nav-blue-left-${tone}" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#0ea5e9" />
       <stop offset="100%" stop-color="#0369a1" />
     </linearGradient>
-    <linearGradient id="hs-nav-facet-blue-deep-${tone}" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="hs-nav-blue-deep-${tone}" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#0284c7" />
       <stop offset="100%" stop-color="#0c4a6e" />
     </linearGradient>
-    <linearGradient id="hs-nav-facet-blue-right-${tone}" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="hs-nav-blue-right-${tone}" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#2563eb" />
       <stop offset="100%" stop-color="#1e40af" />
     </linearGradient>
-    <linearGradient id="hs-nav-facet-blue-dark-${tone}" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="hs-nav-blue-dark-${tone}" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#1d4ed8" />
       <stop offset="100%" stop-color="#172554" />
     </linearGradient>
   </defs>
 
-  <g id="hiresmart-nav-logo">
-    <!-- HireSmart wordmark (ends cleanly before the diamond) -->
-    <text x="24" y="68" font-family="Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="58" font-weight="800" letter-spacing="-1.2" fill="${textColor}">HireSmart</text>
+  <g id="hiresmart-brand-artwork">
+    <!-- HireSmart wordmark -->
+    <text x="12" y="54" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="48" font-weight="800" letter-spacing="-1.2" fill="${textColor}">HireSmart</text>
 
-    <!-- 3D Geometric Faceted Diamond/Cube (sits cleanly between HireSmart and AI) -->
-    <g id="faceted-cube">
-      <!-- Top Section -->
-      <polygon points="${pTop} ${midTopLeft} ${midCenterTop}" fill="url(#hs-nav-facet-cyan-top-${tone})" />
-      <polygon points="${pTop} ${midTopRight} ${midCenterTop}" fill="url(#hs-nav-facet-cyan-mid-${tone})" />
-      <polygon points="${midTopLeft} ${pTopLeft} ${pCenter} ${midCenterTop}" fill="url(#hs-nav-facet-cyan-glow-${tone})" />
-      <polygon points="${midTopRight} ${pTopRight} ${pCenter} ${midCenterTop}" fill="url(#hs-nav-facet-cyan-top-${tone})" />
-
-      <!-- Left Section -->
-      <polygon points="${pTopLeft} ${midLeft} ${pCenter}" fill="url(#hs-nav-facet-cyan-mid-${tone})" />
-      <polygon points="${midLeft} ${pBottomLeft} ${midCenterLeft} ${pCenter}" fill="url(#hs-nav-facet-blue-left-${tone})" />
-      <polygon points="${pBottomLeft} ${midBottomLeft} ${pCenter}" fill="url(#hs-nav-facet-blue-deep-${tone})" />
-      <polygon points="${midBottomLeft} ${pBottom} ${pCenter}" fill="url(#hs-nav-facet-blue-left-${tone})" />
-
-      <!-- Right Section -->
-      <polygon points="${pTopRight} ${midRight} ${pCenter}" fill="url(#hs-nav-facet-blue-right-${tone})" />
-      <polygon points="${midRight} ${pBottomRight} ${midCenterRight} ${pCenter}" fill="url(#hs-nav-facet-blue-right-${tone})" />
-      <polygon points="${pBottomRight} ${midBottomRight} ${pCenter}" fill="url(#hs-nav-facet-blue-dark-${tone})" />
-      <polygon points="${midBottomRight} ${pBottom} ${pCenter}" fill="url(#hs-nav-facet-blue-right-${tone})" />
-
-      <!-- High-gloss Highlights -->
+    <!-- 3D Geometric Faceted Diamond/Cube (cleanly spaced between HireSmart and AI) -->
+    <g id="diamond-cube">
+      <polygon points="${pTop} ${midTopLeft} ${midCenterTop}" fill="url(#hs-nav-cyan-top-${tone})" />
+      <polygon points="${pTop} ${midTopRight} ${midCenterTop}" fill="url(#hs-nav-cyan-mid-${tone})" />
+      <polygon points="${midTopLeft} ${pTopLeft} ${pCenter} ${midCenterTop}" fill="url(#hs-nav-cyan-glow-${tone})" />
+      <polygon points="${midTopRight} ${pTopRight} ${pCenter} ${midCenterTop}" fill="url(#hs-nav-cyan-top-${tone})" />
+      <polygon points="${pTopLeft} ${midLeft} ${pCenter}" fill="url(#hs-nav-cyan-mid-${tone})" />
+      <polygon points="${midLeft} ${pBottomLeft} ${midCenterLeft} ${pCenter}" fill="url(#hs-nav-blue-left-${tone})" />
+      <polygon points="${pBottomLeft} ${midBottomLeft} ${pCenter}" fill="url(#hs-nav-blue-deep-${tone})" />
+      <polygon points="${midBottomLeft} ${pBottom} ${pCenter}" fill="url(#hs-nav-blue-left-${tone})" />
+      <polygon points="${pTopRight} ${midRight} ${pCenter}" fill="url(#hs-nav-blue-right-${tone})" />
+      <polygon points="${midRight} ${pBottomRight} ${midCenterRight} ${pCenter}" fill="url(#hs-nav-blue-right-${tone})" />
+      <polygon points="${pBottomRight} ${midBottomRight} ${pCenter}" fill="url(#hs-nav-blue-dark-${tone})" />
+      <polygon points="${midBottomRight} ${pBottom} ${pCenter}" fill="url(#hs-nav-blue-right-${tone})" />
       <polygon points="${midCenterTop} ${pCenter} ${midTopLeft}" fill="#ffffff" opacity="0.45" />
       <polygon points="${midCenterTop} ${pCenter} ${midTopRight}" fill="#bae6fd" opacity="0.3" />
-
-      <!-- Crisp Structural Facet Edges -->
-      <line x1="${cx}" y1="${(cy - r).toFixed(2)}" x2="${cx}" y2="${cy.toFixed(2)}" stroke="#ffffff" stroke-width="1.2" stroke-opacity="0.5" />
-      <line x1="${(cx - h).toFixed(2)}" y1="${(cy - r / 2).toFixed(2)}" x2="${cx}" y2="${cy.toFixed(2)}" stroke="#ffffff" stroke-width="0.9" stroke-opacity="0.35" />
-      <line x1="${(cx + h).toFixed(2)}" y1="${(cy - r / 2).toFixed(2)}" x2="${cx}" y2="${cy.toFixed(2)}" stroke="#ffffff" stroke-width="0.9" stroke-opacity="0.35" />
-      <line x1="${cx}" y1="${(cy + r).toFixed(2)}" x2="${cx}" y2="${cy.toFixed(2)}" stroke="#ffffff" stroke-width="0.9" stroke-opacity="0.35" />
+      <line x1="${cx}" y1="${(cy - r).toFixed(2)}" x2="${cx}" y2="${cy.toFixed(2)}" stroke="#ffffff" stroke-width="1.0" stroke-opacity="0.5" />
+      <line x1="${(cx - h).toFixed(2)}" y1="${(cy - r / 2).toFixed(2)}" x2="${cx}" y2="${cy.toFixed(2)}" stroke="#ffffff" stroke-width="0.8" stroke-opacity="0.35" />
+      <line x1="${(cx + h).toFixed(2)}" y1="${(cy - r / 2).toFixed(2)}" x2="${cx}" y2="${cy.toFixed(2)}" stroke="#ffffff" stroke-width="0.8" stroke-opacity="0.35" />
+      <line x1="${cx}" y1="${(cy + r).toFixed(2)}" x2="${cx}" y2="${cy.toFixed(2)}" stroke="#ffffff" stroke-width="0.8" stroke-opacity="0.35" />
     </g>
 
-    <!-- AI wordmark (starts cleanly after the diamond) -->
-    <text x="444" y="68" font-family="Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="58" font-weight="800" letter-spacing="-1.2" fill="${textColor}">AI</text>
+    <!-- AI wordmark -->
+    <text x="368" y="54" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="48" font-weight="800" letter-spacing="-1.2" fill="${textColor}">AI</text>
   </g>
 </svg>`;
 }
@@ -273,29 +255,20 @@ function createCubeMarkSvg() {
   </defs>
 
   <g id="faceted-cube-mark">
-    <!-- Top Section -->
     <polygon points="${pTop} ${midTopLeft} ${midCenterTop}" fill="url(#hs-cube-top)" />
     <polygon points="${pTop} ${midTopRight} ${midCenterTop}" fill="url(#hs-cube-mid)" />
     <polygon points="${midTopLeft} ${pTopLeft} ${pCenter} ${midCenterTop}" fill="url(#hs-cube-glow)" />
     <polygon points="${midTopRight} ${pTopRight} ${pCenter} ${midCenterTop}" fill="url(#hs-cube-top)" />
-
-    <!-- Left Section -->
     <polygon points="${pTopLeft} ${midLeft} ${pCenter}" fill="url(#hs-cube-mid)" />
     <polygon points="${midLeft} ${pBottomLeft} ${midCenterLeft} ${pCenter}" fill="url(#hs-cube-blue-left)" />
     <polygon points="${pBottomLeft} ${midBottomLeft} ${pCenter}" fill="url(#hs-cube-blue-deep)" />
     <polygon points="${midBottomLeft} ${pBottom} ${pCenter}" fill="url(#hs-cube-blue-left)" />
-
-    <!-- Right Section -->
     <polygon points="${pTopRight} ${midRight} ${pCenter}" fill="url(#hs-cube-blue-right)" />
     <polygon points="${midRight} ${pBottomRight} ${midCenterRight} ${pCenter}" fill="url(#hs-cube-blue-right)" />
     <polygon points="${pBottomRight} ${midBottomRight} ${pCenter}" fill="url(#hs-cube-blue-dark)" />
     <polygon points="${midBottomRight} ${pBottom} ${pCenter}" fill="url(#hs-cube-blue-right)" />
-
-    <!-- Highlights -->
     <polygon points="${midCenterTop} ${pCenter} ${midTopLeft}" fill="#ffffff" opacity="0.45" />
     <polygon points="${midCenterTop} ${pCenter} ${midTopRight}" fill="#bae6fd" opacity="0.3" />
-
-    <!-- Facet Edges -->
     <line x1="${cx}" y1="${(cy - r).toFixed(2)}" x2="${cx}" y2="${cy.toFixed(2)}" stroke="#ffffff" stroke-width="1.2" stroke-opacity="0.5" />
     <line x1="${(cx - h).toFixed(2)}" y1="${(cy - r / 2).toFixed(2)}" x2="${cx}" y2="${cy.toFixed(2)}" stroke="#ffffff" stroke-width="0.9" stroke-opacity="0.35" />
     <line x1="${(cx + h).toFixed(2)}" y1="${(cy - r / 2).toFixed(2)}" x2="${cx}" y2="${cy.toFixed(2)}" stroke="#ffffff" stroke-width="0.9" stroke-opacity="0.35" />
@@ -304,11 +277,11 @@ function createCubeMarkSvg() {
 </svg>`;
 }
 
-// 1. Write Navbar specific SVGs (clean wordmark + cube, properly spaced)
+// 1. Write Navbar specific SVGs (clean wordmark + diamond, natural spacing, transparent bg)
 writeFileSync(join(publicAssets, "hiresmart-logo-nav-light.svg"), createNavbarLogoSvg("light"));
 writeFileSync(join(publicAssets, "hiresmart-logo-nav-dark.svg"), createNavbarLogoSvg("dark"));
 
-// 2. Write Full Logo SVGs (with tagline, properly spaced)
+// 2. Write Full Logo SVGs (with tagline, natural spacing, transparent bg)
 writeFileSync(join(publicAssets, "hiresmart-ai-logo-light.svg"), createFullLogoSvg("light"));
 writeFileSync(join(publicAssets, "hiresmart-ai-logo-dark.svg"), createFullLogoSvg("dark"));
 writeFileSync(join(publicAssets, "hiresmart-ai-logo.svg"), createNavbarLogoSvg("light"));
@@ -321,4 +294,4 @@ writeFileSync(join(publicRoot, "logo-full-light.svg"), createNavbarLogoSvg("ligh
 writeFileSync(join(publicRoot, "logo-full.svg"), createNavbarLogoSvg("dark"));
 writeFileSync(join(publicRoot, "logo-mark.svg"), createCubeMarkSvg());
 
-console.log("Official brand assets rebuilt with clean non-overlapping spacing!");
+console.log("Brand assets generated with clean non-overlapping spacing!");

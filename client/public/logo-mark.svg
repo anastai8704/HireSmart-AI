@@ -31,29 +31,20 @@
   </defs>
 
   <g id="faceted-cube-mark">
-    <!-- Top Section -->
     <polygon points="50,6.00 30.95,17.00 50,28.00" fill="url(#hs-cube-top)" />
     <polygon points="50,6.00 69.05,17.00 50,28.00" fill="url(#hs-cube-mid)" />
     <polygon points="30.95,17.00 11.89,28.00 50,50.00 50,28.00" fill="url(#hs-cube-glow)" />
     <polygon points="69.05,17.00 88.11,28.00 50,50.00 50,28.00" fill="url(#hs-cube-top)" />
-
-    <!-- Left Section -->
     <polygon points="11.89,28.00 11.89,50.00 50,50.00" fill="url(#hs-cube-mid)" />
     <polygon points="11.89,50.00 11.89,72.00 30.95,61.00 50,50.00" fill="url(#hs-cube-blue-left)" />
     <polygon points="11.89,72.00 30.95,83.00 50,50.00" fill="url(#hs-cube-blue-deep)" />
     <polygon points="30.95,83.00 50,94.00 50,50.00" fill="url(#hs-cube-blue-left)" />
-
-    <!-- Right Section -->
     <polygon points="88.11,28.00 88.11,50.00 50,50.00" fill="url(#hs-cube-blue-right)" />
     <polygon points="88.11,50.00 88.11,72.00 69.05,61.00 50,50.00" fill="url(#hs-cube-blue-right)" />
     <polygon points="88.11,72.00 69.05,83.00 50,50.00" fill="url(#hs-cube-blue-dark)" />
     <polygon points="69.05,83.00 50,94.00 50,50.00" fill="url(#hs-cube-blue-right)" />
-
-    <!-- Highlights -->
     <polygon points="50,28.00 50,50.00 30.95,17.00" fill="#ffffff" opacity="0.45" />
     <polygon points="50,28.00 50,50.00 69.05,17.00" fill="#bae6fd" opacity="0.3" />
-
-    <!-- Facet Edges -->
     <line x1="50" y1="6.00" x2="50" y2="50.00" stroke="#ffffff" stroke-width="1.2" stroke-opacity="0.5" />
     <line x1="11.89" y1="28.00" x2="50" y2="50.00" stroke="#ffffff" stroke-width="0.9" stroke-opacity="0.35" />
     <line x1="88.11" y1="28.00" x2="50" y2="50.00" stroke="#ffffff" stroke-width="0.9" stroke-opacity="0.35" />
