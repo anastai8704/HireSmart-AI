@@ -3,12 +3,17 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowRight,
-  Building2,
   BriefcaseBusiness,
+  Building2,
+  ChevronRight,
   Clock3,
   Cpu,
+  Database,
   Eye,
+  Layers,
+  ScrollText,
   ShieldAlert,
+  ShieldCheck,
   Sparkles,
   UserRound,
   UsersRound,
@@ -17,7 +22,7 @@ import Button from "../../components/ui/Button";
 import Input, { Select } from "../../components/ui/Input";
 import Badge from "../../components/ui/Badge";
 import Modal from "../../components/ui/Modal";
-import { ErrorState, LoadingState, SkeletonList } from "../../components/ui/States";
+import { EmptyState, ErrorState, LoadingState, SkeletonList } from "../../components/ui/States";
 import { PageHeader, StatusPill } from "../../components/Product";
 import Kpi from "../../components/ui/Kpi";
 import SectionCard from "../../components/ui/SectionCard";
@@ -50,14 +55,21 @@ const SEVERITY_OPTIONS = ["info", "low", "medium", "high", "critical"].map((x) =
   value: x,
   label: x.charAt(0).toUpperCase() + x.slice(1),
 }));
+/* Plain-English labels for every AI feature the platform actually runs. */
 const FEATURE_LABELS = {
-  recruiter_copilot: "AI Assistant (Recruiter)",
+  resume_extraction: "Resume parsing",
+  resume_rewrite: "Resume rewriting",
+  resume_improvement: "Resume improvement",
+  resume_analysis: "Resume analysis",
+  jd_generation: "Job description writing",
+  jd_parse: "Job description parsing",
+  jd_improvement: "Job description assist",
+  interview_questions: "Interview questions",
+  interview_preparation: "Interview preparation",
+  recruiter_copilot: "Recruiter Assistant",
   career_copilot: "Career Assistant",
-  resume_improvement: "Resume Improvement",
-  interview_preparation: "Interview Preparation",
-  jd_improvement: "Job Description Assist",
-  resume_analysis: "Resume Analysis",
-  candidate_matching: "Candidate Matching",
+  candidate_matching: "Candidate matching",
+  nl_job_search: "Smart job search",
 };
 const featureLabel = (f) => FEATURE_LABELS[f] || humanizeAction(f);
 
@@ -70,6 +82,24 @@ const UserAvatar = ({ name, size = "h-9 w-9 text-xs" }) => (
 );
 
 /* ------------------------------ overview ------------------------------ */
+
+const HEALTH_SERVICES = [
+  {
+    key: "mongodb",
+    name: "Database",
+    icon: Database,
+    description: "Stores platform accounts, companies, jobs and application data.",
+  },
+  {
+    key: "jobStore",
+    name: "Background Jobs",
+    icon: Layers,
+    description:
+      "Processes resume processing, recommendation refreshes, alerts and email delivery in the background.",
+  },
+];
+
+const isCheckUp = (value) => value === "up" || value === "ok" || value === true;
 
 export const AdminHome = () => {
   const users = useQuery({
@@ -102,6 +132,9 @@ export const AdminHome = () => {
   const loading = users.isLoading || orgs.isLoading || pending.isLoading;
   const userList = users.data?.data || [];
   const orgList = orgs.data?.data || [];
+  const userTotal = users.data?.meta?.total ?? userList.length;
+  const orgTotal = orgs.data?.meta?.total ?? orgList.length;
+  const pendingTotal = pending.data?.meta?.total ?? pending.data?.data?.length ?? 0;
   const highRisk = (security.data?.data || []).filter(
     (e) => e.severity === "high" || e.severity === "critical",
   );
@@ -111,41 +144,111 @@ export const AdminHome = () => {
   const suspended = userList.filter((u) => u.accountStatus === "suspended").length;
   const activityItems = (audit.data?.data || []).slice(0, 8).map((a) => ({
     title: humanizeAction(a.action),
-    meta: `${a.resourceType} · ${a.outcome}`,
+    meta: `${a.actor?.name || "System"} · ${a.resourceType}${
+      a.organization?.name ? ` · ${a.organization.name}` : ""
+    }`,
     tone:
       a.outcome === "failure" || a.outcome === "error"
         ? "danger"
-        : String(a.action).includes("suspend")
+        : a.outcome === "denied"
           ? "warning"
           : "brand",
     time: a.createdAt,
   }));
   const quickActions = [
-    ["Review Approvals", "/app/admin/moderation"],
-    ["Manage Users", "/app/admin/users"],
-    ["Manage Companies", "/app/admin/organizations"],
-    ["AI Activity", "/app/admin/ai-usage"],
-    ["Security Events", "/app/admin/security"],
+    ["Review Approvals", "/app/admin/moderation", Clock3],
+    ["Manage Users", "/app/admin/users", UserRound],
+    ["Review Companies", "/app/admin/organizations", Building2],
+    ["View AI Activity", "/app/admin/ai-usage", Sparkles],
+    ["Security & Audit", "/app/admin/security", ShieldCheck],
   ];
+
+  /* Platform status comes straight from the /health/ready checks — the two
+     services the backend actually reports (database + job queue). */
+  const checks = ready.data?.data?.checks || {};
+  const queue = ready.data?.data?.queue;
+  const upCount = HEALTH_SERVICES.filter((s) => isCheckUp(checks[s.key])).length;
+  const overall = ready.error
+    ? "error"
+    : ready.isLoading
+      ? "checking"
+      : upCount === HEALTH_SERVICES.length
+        ? "operational"
+        : upCount === 1
+          ? "degraded"
+          : "unavailable";
+  const overallCopy = {
+    operational: "Platform operational",
+    degraded: "Platform degraded",
+    unavailable: "Platform unavailable",
+    error: "Health check failed",
+    checking: "Checking platform status",
+  }[overall];
+  const statusDot = {
+    operational: "bg-success-500",
+    degraded: "bg-warning-500",
+    unavailable: "bg-danger-500",
+    error: "bg-danger-500",
+    checking: "bg-ink-500",
+  }[overall];
+
   return (
     <div className="page-wrap">
       <PageHeader
         eyebrow="Platform"
-        title="Admin Overview"
-        description="Monitor users, companies, recruitment activity and platform health."
+        title="Platform Overview"
+        description="Monitor hiring activity, platform health, approvals and AI usage from one place."
       />
       {loading ? (
         <SkeletonList />
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+          {/* status strip */}
+          <div className="flex flex-col gap-3 rounded-[var(--radius-card)] bg-ink-950 px-5 py-4 text-white sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <span
+                className={`h-2.5 w-2.5 shrink-0 rounded-full ${statusDot} ${
+                  overall === "operational" ? "animate-pulse" : ""
+                }`}
+                aria-hidden="true"
+              />
+              <p className="text-sm font-semibold">{overallCopy}</p>
+              {ready.dataUpdatedAt > 0 && (
+                <p className="hidden text-xs text-ink-400 sm:block">
+                  · Checked {formatRelativeTime(new Date(ready.dataUpdatedAt))}
+                </p>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {queue?.queued != null && (
+                <span className="rounded-full bg-white/10 px-2.5 py-1 text-xs font-medium text-ink-200">
+                  {queue.queued} background job{queue.queued === 1 ? "" : "s"} queued
+                </span>
+              )}
+              {pendingTotal > 0 && (
+                <span className="rounded-full bg-warning-500/15 px-2.5 py-1 text-xs font-semibold text-warning-500">
+                  {pendingTotal} approval{pendingTotal === 1 ? "" : "s"} pending
+                </span>
+              )}
+              {highRisk.length > 0 && (
+                <Link
+                  to="/app/admin/security"
+                  className="rounded-full bg-danger-500/15 px-2.5 py-1 text-xs font-semibold text-danger-500 transition-colors hover:bg-danger-500/25"
+                >
+                  {highRisk.length} high-risk event{highRisk.length === 1 ? "" : "s"}
+                </Link>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
             <Kpi
               label="Total Users"
-              value={userList.length}
+              value={userTotal}
               icon={UsersRound}
               detail={`${candidates} candidates · ${recruiters} recruiters`}
             />
-            <Kpi label="Companies" value={orgList.length} icon={Building2} />
+            <Kpi label="Companies" value={orgTotal} icon={Building2} />
             <Kpi
               label="Active Jobs"
               value={publishedJobs.data?.meta?.count ?? publishedJobs.data?.data?.length ?? "—"}
@@ -154,10 +257,10 @@ export const AdminHome = () => {
             />
             <Kpi
               label="Pending Approvals"
-              value={pending.data?.data?.length || 0}
-              tone={pending.data?.data?.length ? "warning" : "ink"}
+              value={pendingTotal}
+              tone={pendingTotal ? "warning" : "ink"}
               icon={Clock3}
-              detail={pending.data?.data?.length ? "Awaiting review" : "All clear"}
+              detail={pendingTotal ? "Awaiting review" : "All clear"}
             />
             <Kpi label="AI Operations" value={totalRuns} tone="brand" icon={Sparkles} />
             <Kpi
@@ -168,13 +271,29 @@ export const AdminHome = () => {
               detail={highRisk.length ? "Needs review" : "No open incidents"}
             />
           </div>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {quickActions.map(([label, to]) => (
-              <Button key={to} as={Link} to={to} size="sm" variant="secondary">
-                {label}
-              </Button>
+
+          {/* quick actions — operational commands, not decorative cards */}
+          <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+            {quickActions.map(([label, to, Icon]) => (
+              <Link
+                key={to}
+                to={to}
+                className="panel group flex items-center gap-3 px-4 py-3 transition-all duration-150 hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-[var(--shadow-card-hover)]"
+              >
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-600">
+                  <Icon className="h-4 w-4" aria-hidden="true" />
+                </span>
+                <span className="truncate text-sm font-semibold text-ink-800 group-hover:text-brand-700">
+                  {label}
+                </span>
+                <ChevronRight
+                  className="ml-auto h-4 w-4 shrink-0 text-ink-300 transition-all group-hover:translate-x-0.5 group-hover:text-brand-500"
+                  aria-hidden="true"
+                />
+              </Link>
             ))}
           </div>
+
           <div className="mt-6 grid gap-6 lg:grid-cols-2">
             <SectionCard
               title="Pending Actions"
@@ -184,12 +303,12 @@ export const AdminHome = () => {
                   to="/app/admin/moderation"
                   className="text-xs font-semibold text-brand-600 transition-colors hover:text-brand-700"
                 >
-                  View all
+                  Review approvals →
                 </Link>
               }
             >
               <div className="space-y-3">
-                {(pending.data?.data || []).slice(0, 3).map((job) => (
+                {(pending.data?.data || []).slice(0, 4).map((job) => (
                   <Link
                     key={job.id}
                     to="/app/admin/moderation"
@@ -205,6 +324,7 @@ export const AdminHome = () => {
                         {formatRelativeTime(job.createdAt)}
                       </p>
                     </div>
+                    <StatusPill status="pending" />
                     <ArrowRight className="h-4 w-4 shrink-0 text-ink-300 transition-transform group-hover:translate-x-0.5 group-hover:text-brand-500" />
                   </Link>
                 ))}
@@ -218,7 +338,10 @@ export const AdminHome = () => {
                       {highRisk.slice(0, 3).map((e) => (
                         <li key={e._id} className="flex items-center gap-2 text-xs text-ink-700">
                           <ShieldAlert className="h-3.5 w-3.5 shrink-0 text-danger-500" />
-                          <span className="truncate">{humanizeAction(e.type)}</span>
+                          <span className="truncate">
+                            {humanizeAction(e.type)}
+                            {e.user?.name ? ` · ${e.user.name}` : ""}
+                          </span>
                           <span className="ml-auto shrink-0 text-ink-400">
                             {formatRelativeTime(e.createdAt)}
                           </span>
@@ -270,20 +393,70 @@ export const AdminHome = () => {
               />
             </SectionCard>
           </div>
-          <SectionCard title="Platform Health" tone="dark" className="mt-6">
+
+          {/* platform health — only the services the backend actually reports */}
+          <SectionCard
+            title="Platform Health"
+            description="Database and background job queue, checked when this page loads"
+            tone="dark"
+            className="mt-6"
+          >
             {ready.isLoading ? (
               <p className="text-sm text-ink-400">Checking…</p>
             ) : (
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {Object.entries(ready.data?.data?.checks || {}).map(([k, v]) => (
-                  <div
-                    key={k}
-                    className="flex items-center justify-between rounded-xl bg-white/6 p-4"
-                  >
-                    <span className="text-sm text-ink-100">{humanizeAction(k)}</span>
-                    <StatusPill status={v} />
+              <div className="space-y-3">
+                <div className="flex items-center justify-between rounded-xl bg-white/6 px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <span
+                      className={`h-2 w-2 rounded-full ${statusDot}`}
+                      aria-hidden="true"
+                    />
+                    <p className="text-sm font-semibold">Overall status</p>
                   </div>
-                ))}
+                  <Badge
+                    variant={
+                      overall === "operational"
+                        ? "success"
+                        : overall === "degraded"
+                          ? "warning"
+                          : "danger"
+                    }
+                  >
+                    {overall === "checking"
+                      ? "Checking"
+                      : overall.charAt(0).toUpperCase() + overall.slice(1)}
+                  </Badge>
+                </div>
+                {HEALTH_SERVICES.map((service) => {
+                  const up = isCheckUp(checks[service.key]);
+                  return (
+                    <div
+                      key={service.key}
+                      className="flex flex-col gap-2 rounded-xl bg-white/6 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div className="flex items-start gap-3">
+                        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white/10 text-cyan-300">
+                          <service.icon className="h-4.5 w-4.5" aria-hidden="true" />
+                        </span>
+                        <div>
+                          <p className="text-sm font-semibold">{service.name}</p>
+                          <p className="mt-0.5 max-w-md text-xs leading-5 text-ink-400">
+                            {service.description}
+                          </p>
+                        </div>
+                      </div>
+                      <Badge variant={up ? "success" : "danger"}>
+                        {up ? "Operational" : "Unavailable"}
+                      </Badge>
+                    </div>
+                  );
+                })}
+                {queue?.staleProcessing > 0 && (
+                  <p className="rounded-xl border border-warning-500/30 bg-warning-500/10 px-4 py-2.5 text-xs font-medium text-warning-500">
+                    {queue.staleProcessing} background job{queue.staleProcessing === 1 ? " has" : "s have"}
+                    been processing for over 15 minutes.
+                  </p>
+                )}
               </div>
             )}
           </SectionCard>
@@ -626,8 +799,8 @@ export const AdminUsers = () => {
     <div className="page-wrap">
       <PageHeader
         eyebrow="Users"
-        title="Users"
-        description="Manage candidates, recruiters and platform accounts. Suspension revokes sessions immediately."
+        title="User Management"
+        description="Manage platform accounts, access and account status. Suspension revokes sessions immediately."
       />
       <FilterBar>
         <Input
@@ -739,7 +912,10 @@ export const AdminUsers = () => {
               </div>
             </div>
             <dl className="mt-5">
-              <DetailRow label="Role" value={view.role} />
+              <DetailRow
+                label="Role"
+                value={<Badge variant={view.role === "admin" ? "brand" : "default"}>{view.role}</Badge>}
+              />
               <DetailRow label="Status" value={<StatusPill status={view.accountStatus} />} />
               <DetailRow label="Email verified" value={view.emailVerified ? "Yes" : "No"} />
               <DetailRow label="Joined" value={formatDate(view.createdAt)} />
@@ -816,8 +992,8 @@ export const AdminOrganizations = () => {
     <div className="page-wrap">
       <PageHeader
         eyebrow="Companies"
-        title="Companies"
-        description="Inspect registered companies and their platform state without crossing tenant boundaries."
+        title="Company Management"
+        description="Review registered companies and their platform status without crossing tenant boundaries."
       />
       <FilterBar>
         <Input
@@ -846,7 +1022,7 @@ export const AdminOrganizations = () => {
       ) : (
         <>
           <DataTable
-            headers={["Company", "Industry", "Status", "Created", "Actions"]}
+            headers={["Company", "Industry", "Team Size", "Status", "Created", "Actions"]}
             empty={rows.length === 0}
             emptyLabel="No companies match your filters."
           >
@@ -864,6 +1040,7 @@ export const AdminOrganizations = () => {
                   </div>
                 </td>
                 <td className="max-w-48 truncate px-5 py-4 text-ink-600">{o.industry || "—"}</td>
+                <td className="whitespace-nowrap px-5 py-4 text-ink-600">{o.size || "—"}</td>
                 <td className="px-5 py-4">
                   <StatusPill status={o.status} />
                 </td>
@@ -871,10 +1048,18 @@ export const AdminOrganizations = () => {
                   {formatDate(o.createdAt)}
                 </td>
                 <td className="px-5 py-4">
-                  <Button size="sm" variant="ghost" onClick={() => setView(o)}>
-                    <Eye className="mr-1 h-3.5 w-3.5" />
-                    View
-                  </Button>
+                  <div className="flex gap-1.5">
+                    <Button size="sm" variant="ghost" onClick={() => setView(o)}>
+                      <Eye className="mr-1 h-3.5 w-3.5" />
+                      View
+                    </Button>
+                    <Link
+                      to={`/companies/${o.slug}`}
+                      className="inline-flex items-center rounded-lg px-2 py-1 text-xs font-semibold text-brand-600 transition-colors hover:text-brand-700"
+                    >
+                      Public page
+                    </Link>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -895,17 +1080,30 @@ export const AdminOrganizations = () => {
         title="Company details"
       >
         {selected && (
-          <dl>
-            <DetailRow label="Name" value={selected.name} />
-            <DetailRow label="Slug" value={`/${selected.slug}`} mono />
-            <DetailRow label="Industry" value={selected.industry || "—"} />
-            <DetailRow label="Size" value={selected.size || "—"} />
-            <DetailRow label="Timezone" value={selected.timezone || "—"} mono />
-            <DetailRow label="Status" value={<StatusPill status={selected.status} />} />
-            <DetailRow label="Created" value={formatDate(selected.createdAt)} />
-            <DetailRow label="Last updated" value={formatDate(selected.updatedAt)} />
-            <DetailRow label="Company ID" value={shortId(selected._id)} mono />
-          </dl>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-ink-400">Overview</p>
+            <dl className="mt-2">
+              <DetailRow label="Name" value={selected.name} />
+              <DetailRow label="Slug" value={`/${selected.slug}`} mono />
+              <DetailRow label="Industry" value={selected.industry || "—"} />
+              <DetailRow label="Team size" value={selected.size || "—"} />
+              <DetailRow label="Timezone" value={selected.timezone || "—"} mono />
+            </dl>
+            <p className="mt-5 text-xs font-bold uppercase tracking-wider text-ink-400">
+              Account status
+            </p>
+            <dl className="mt-2">
+              <DetailRow label="Status" value={<StatusPill status={selected.status} />} />
+              <DetailRow label="Created" value={formatDate(selected.createdAt)} />
+              <DetailRow label="Last updated" value={formatDate(selected.updatedAt)} />
+              <DetailRow label="Company ID" value={shortId(selected._id)} mono />
+            </dl>
+            <div className="mt-5">
+              <Button as={Link} to={`/companies/${selected.slug}`} variant="secondary" size="sm">
+                View public company page <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+              </Button>
+            </div>
+          </div>
         )}
       </Drawer>
     </div>
@@ -920,6 +1118,10 @@ export const AdminAIUsage = () => {
     [org, setOrg] = useState(""),
     [view, setView] = useState(null);
   const q = useQuery({ queryKey: ["admin-ai-usage"], queryFn: adminApi.aiUsage });
+  const activity = useQuery({
+    queryKey: ["admin-ai-activity"],
+    queryFn: () => adminApi.aiActivity({ limit: 8 }),
+  });
   const rows = useMemo(() => q.data?.data || [], [q.data]);
   const totals = useMemo(
     () =>
@@ -935,6 +1137,15 @@ export const AdminAIUsage = () => {
       ),
     [rows],
   );
+  const byFeature = useMemo(() => {
+    const map = new Map();
+    for (const row of rows) {
+      map.set(row._id.feature, (map.get(row._id.feature) || 0) + (row.runs || 0));
+    }
+    const list = [...map.entries()].sort((a, b) => b[1] - a[1]);
+    const max = Math.max(1, ...list.map(([, runs]) => runs));
+    return list.map(([key, runs]) => ({ key, runs, max }));
+  }, [rows]);
   const featureOptions = [...new Set(rows.map((r) => r._id.feature))].map((f) => ({
     value: f,
     label: featureLabel(f),
@@ -956,12 +1167,20 @@ export const AdminAIUsage = () => {
     )
     .sort((a, b) => b.runs - a.runs);
   const tokens = totals.inputTokens + totals.outputTokens;
+  const activityItems = (activity.data?.data || []).map((run) => ({
+    title: featureLabel(run.feature),
+    meta: `${run.user?.name || "Platform user"}${
+      run.organization?.name ? ` · ${run.organization.name}` : ""
+    } · ${run.fallbackUsed ? "fallback response" : "AI response"}`,
+    tone: run.status === "failed" ? "danger" : run.fallbackUsed ? "warning" : "success",
+    time: run.createdAt,
+  }));
   return (
     <div className="page-wrap">
       <PageHeader
         eyebrow="AI"
         title="AI Activity"
-        description="How often AI features ran across the platform. Fallback responses are labeled separately from AI completions."
+        description="Monitor how AI features are being used across HireSmart. Fallback responses are labeled separately from AI completions."
       />
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
         <Kpi label="Total AI Runs" value={totals.runs} icon={Cpu} />
@@ -984,7 +1203,55 @@ export const AdminAIUsage = () => {
           icon={Cpu}
         />
       </div>
-      <div className="mt-5">
+      <div className="mt-5 grid gap-6 lg:grid-cols-2">
+        <SectionCard title="Usage by feature" description="Share of total AI runs">
+          {q.isLoading ? (
+            <LoadingState />
+          ) : byFeature.length ? (
+            <ul className="space-y-3">
+              {byFeature.map(({ key, runs, max }) => (
+                <li key={key}>
+                  <div className="flex items-baseline justify-between gap-3 text-sm">
+                    <span className="font-medium text-ink-800">{featureLabel(key)}</span>
+                    <span className="shrink-0 text-xs tabular-nums text-ink-500">
+                      {runs} run{runs === 1 ? "" : "s"} ·{" "}
+                      {totals.runs > 0 ? Math.round((runs / totals.runs) * 100) : 0}%
+                    </span>
+                  </div>
+                  <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-ink-100" aria-hidden="true">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-brand-500 to-cyan-400"
+                      style={{ width: `${Math.max(4, (runs / max) * 100)}%` }}
+                    />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-ink-500">
+              No AI runs recorded yet. Usage appears here as AI features are used.
+            </p>
+          )}
+        </SectionCard>
+        <SectionCard title="Recent AI activity" description="Latest runs, newest first">
+          {activity.isLoading ? (
+            <LoadingState />
+          ) : activity.error ? (
+            <ErrorState
+              title="Couldn't load AI activity."
+              error={activity.error}
+              onRetry={() => activity.refetch()}
+            />
+          ) : activityItems.length ? (
+            <ActivityFeed items={activityItems} />
+          ) : (
+            <p className="text-sm text-ink-500">
+              No AI activity yet. Runs appear here as AI features are used across the platform.
+            </p>
+          )}
+        </SectionCard>
+      </div>
+      <div className="mt-6">
         <FilterBar>
           <Select
             aria-label="Filter by feature"
@@ -1137,28 +1404,35 @@ export const AdminAIUsage = () => {
 
 /* --------------------------- security & audit --------------------------- */
 
+const TAB_COPY = {
+  security: "Important account and security-related events that may require attention.",
+  audit: "A record of important actions performed across the platform.",
+};
+
 export const AdminSecurity = () => {
   const [tab, setTab] = useState("security"),
     [severity, setSeverity] = useState(""),
     [search, setSearch] = useState(""),
     [cursor, setCursor] = useState(null),
-    [view, setView] = useState(null);
+    [view, setView] = useState(null),
+    debounced = useDebouncedValue(search, 300);
   const params = useMemo(
-    () => ({ severity: severity || undefined, limit: 100, after: cursor || undefined }),
-    [severity, cursor],
+    () => ({
+      severity: tab === "security" ? severity || undefined : undefined,
+      search: debounced || undefined,
+      limit: 100,
+      after: cursor || undefined,
+    }),
+    [tab, severity, debounced, cursor],
   );
   const q = useQuery({
     queryKey: [`admin-${tab}`, params],
     queryFn: () =>
-      tab === "security"
-        ? adminApi.security(params)
-        : adminApi.audit({ limit: 100, after: cursor || undefined }),
+      tab === "security" ? adminApi.security(params) : adminApi.audit(params),
+    enabled: Boolean(tab),
   });
-  const rows = (q.data?.data || []).filter((x) => {
-    if (!search) return true;
-    const hay = `${x.type || ""} ${x.action || ""} ${x.resourceType || ""}`.toLowerCase();
-    return hay.includes(search.toLowerCase());
-  });
+  const rows = q.data?.data || [];
+  const filtered = Boolean(severity || debounced);
   return (
     <div className="page-wrap">
       <PageHeader
@@ -1166,17 +1440,29 @@ export const AdminSecurity = () => {
         title="Security & Audit"
         description="Operational evidence from platform security events and the administrative audit log."
       />
-      <div className="mb-4 flex gap-2" role="tablist" aria-label="Security views">
+      <div className="mb-3 flex gap-2" role="tablist" aria-label="Security views">
         <Button
           variant={tab === "security" ? "primary" : "secondary"}
-          onClick={() => setTab("security")}
+          onClick={() => {
+            setTab("security");
+            setCursor(null);
+          }}
         >
+          <ShieldAlert className="mr-1.5 h-4 w-4" aria-hidden="true" />
           Security Events
         </Button>
-        <Button variant={tab === "audit" ? "primary" : "secondary"} onClick={() => setTab("audit")}>
+        <Button
+          variant={tab === "audit" ? "primary" : "secondary"}
+          onClick={() => {
+            setTab("audit");
+            setCursor(null);
+          }}
+        >
+          <ScrollText className="mr-1.5 h-4 w-4" aria-hidden="true" />
           Audit Log
         </Button>
       </div>
+      <p className="mb-4 max-w-2xl text-sm text-ink-500">{TAB_COPY[tab]}</p>
       <FilterBar>
         <Input
           aria-label={tab === "security" ? "Search security events" : "Search audit log"}
@@ -1203,19 +1489,39 @@ export const AdminSecurity = () => {
         <SkeletonList />
       ) : q.error ? (
         <ErrorState error={q.error} onRetry={() => q.refetch()} />
+      ) : rows.length === 0 ? (
+        tab === "security" ? (
+          <EmptyState
+            icon={ShieldCheck}
+            title={
+              filtered
+                ? "No security events match your filters."
+                : "No security events recorded yet."
+            }
+            description={
+              filtered
+                ? "Try a different severity or search term."
+                : "Security events appear here when the platform detects important account activity — for example a failed sign-in, a password change or a reused session token."
+            }
+          />
+        ) : (
+          <EmptyState
+            icon={ScrollText}
+            title={filtered ? "No audit entries match your filters." : "No audit activity yet."}
+            description={
+              filtered
+                ? "Try a different search term."
+                : "Administrative actions — job approvals, suspensions, configuration changes — are recorded here as they happen."
+            }
+          />
+        )
       ) : (
         <>
           <DataTable
             headers={
               tab === "security"
-                ? ["Event", "Severity", "Status", "Time", ""]
-                : ["Action", "Resource", "Result", "Time", ""]
-            }
-            empty={rows.length === 0}
-            emptyLabel={
-              tab === "security"
-                ? "No security events for these filters."
-                : "No audit entries for these filters."
+                ? ["Event", "Severity", "Context", "Status", "Time", ""]
+                : ["Who", "What", "Where", "When", "Result", ""]
             }
           >
             {rows.map((x) => (
@@ -1235,6 +1541,9 @@ export const AdminSecurity = () => {
                     <td className="px-5 py-4">
                       <SeverityBadge severity={x.severity} />
                     </td>
+                    <td className="max-w-44 truncate px-5 py-4 text-ink-600">
+                      {x.user?.name || x.organization?.name || "—"}
+                    </td>
                     <td className="px-5 py-4">
                       {x.resolvedAt ? (
                         <Badge variant="success">Resolved</Badge>
@@ -1251,16 +1560,21 @@ export const AdminSecurity = () => {
                   </>
                 ) : (
                   <>
+                    <td className="max-w-40 truncate px-5 py-4 font-semibold">
+                      {x.actor?.name || "System"}
+                    </td>
                     <td className="max-w-72 px-5 py-4">
                       <p className="truncate font-semibold">{humanizeAction(x.action)}</p>
+                      <p className="truncate text-xs text-ink-400">
+                        {x.resourceType}
+                        {x.resourceId ? ` · ${shortId(x.resourceId)}` : ""}
+                      </p>
                     </td>
-                    <td className="px-5 py-4 text-ink-600">
-                      {x.resourceType}
-                      {x.resourceId ? (
-                        <span className="ml-1 font-mono text-xs text-ink-400">
-                          {shortId(x.resourceId)}
-                        </span>
-                      ) : null}
+                    <td className="max-w-40 truncate px-5 py-4 text-ink-600">
+                      {x.organization?.name || "Platform"}
+                    </td>
+                    <td className="whitespace-nowrap px-5 py-4 text-ink-500">
+                      {formatRelativeTime(x.createdAt)}
                     </td>
                     <td className="px-5 py-4">
                       <Badge
@@ -1272,11 +1586,12 @@ export const AdminSecurity = () => {
                               : "danger"
                         }
                       >
-                        {x.outcome}
+                        {x.outcome === "success"
+                          ? "Successful"
+                          : x.outcome === "denied"
+                            ? "Denied"
+                            : "Failed"}
                       </Badge>
-                    </td>
-                    <td className="whitespace-nowrap px-5 py-4 text-ink-500">
-                      {formatRelativeTime(x.createdAt)}
                     </td>
                     <td className="px-5 py-4 text-ink-300">
                       <ArrowRight className="h-4 w-4" />
@@ -1305,6 +1620,8 @@ export const AdminSecurity = () => {
                 <DetailRow label="Event" value={humanizeAction(view.type)} />
                 <DetailRow label="Severity" value={<SeverityBadge severity={view.severity} />} />
                 <DetailRow label="Status" value={view.resolvedAt ? "Resolved" : "Open"} />
+                <DetailRow label="User" value={view.user?.name || "—"} />
+                <DetailRow label="Organization" value={view.organization?.name || "—"} />
                 <DetailRow
                   label="Raised"
                   value={`${formatDate(view.createdAt)} · ${formatRelativeTime(view.createdAt)}`}
@@ -1320,7 +1637,7 @@ export const AdminSecurity = () => {
                 {view.details && Object.keys(view.details).length > 0 && (
                   <div className="mt-4">
                     <p className="text-xs font-bold uppercase tracking-wider text-ink-400">
-                      Details
+                      Technical details
                     </p>
                     <pre className="mt-2 max-h-64 overflow-auto rounded-lg bg-ink-50 p-3 text-xs text-ink-700">
                       {JSON.stringify(view.details, null, 2)}
@@ -1330,22 +1647,44 @@ export const AdminSecurity = () => {
               </>
             ) : (
               <>
-                <DetailRow label="Action" value={humanizeAction(view.action)} />
+                <DetailRow label="Who" value={view.actor?.name || "System"} />
+                {view.actor?.email && <DetailRow label="Actor email" value={view.actor.email} mono />}
+                <DetailRow label="What" value={humanizeAction(view.action)} />
                 <DetailRow
                   label="Resource"
                   value={`${view.resourceType}${view.resourceId ? ` · ${shortId(view.resourceId)}` : ""}`}
                   mono
                 />
-                <DetailRow label="Result" value={view.outcome} />
+                <DetailRow label="Where" value={view.organization?.name || "Platform"} />
                 <DetailRow
-                  label="Time"
+                  label="Result"
+                  value={
+                    <Badge
+                      variant={
+                        view.outcome === "success"
+                          ? "success"
+                          : view.outcome === "denied"
+                            ? "warning"
+                            : "danger"
+                      }
+                    >
+                      {view.outcome === "success"
+                        ? "Successful"
+                        : view.outcome === "denied"
+                          ? "Denied"
+                          : "Failed"}
+                    </Badge>
+                  }
+                />
+                <DetailRow
+                  label="When"
                   value={`${formatDate(view.createdAt)} · ${formatRelativeTime(view.createdAt)}`}
                 />
                 {view.requestId && <DetailRow label="Request ID" value={view.requestId} mono />}
                 {view.metadata && Object.keys(view.metadata).length > 0 && (
                   <div className="mt-4">
                     <p className="text-xs font-bold uppercase tracking-wider text-ink-400">
-                      Metadata
+                      Technical details
                     </p>
                     <pre className="mt-2 max-h-64 overflow-auto rounded-lg bg-ink-50 p-3 text-xs text-ink-700">
                       {JSON.stringify(view.metadata, null, 2)}

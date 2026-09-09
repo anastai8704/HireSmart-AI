@@ -853,6 +853,7 @@ router.post(
   admin.moderateJob,
 );
 router.get("/admin/ai-usage", authenticate, admin.aiUsage);
+router.get("/admin/ai-activity", authenticate, admin.aiActivity);
 router.get("/admin/audit-logs", authenticate, admin.audit);
 router.get("/admin/security-events", authenticate, admin.security);
 router.post(

@@ -88,7 +88,10 @@ exports.moderationJobs = asyncHandler(async (req, res) => {
     .populate("organization", "name slug")
     .sort({ _id: -1 })
     .limit(page.limit);
-  res.json({ data: items.map(moderationDto), meta: meta(items, page.limit) });
+  res.json({
+    data: items.map(moderationDto),
+    meta: meta(items, page.limit, await Job.countDocuments(filter)),
+  });
 });
 exports.moderateJob = asyncHandler(async (req, res) => {
   requireAdmin(req);
@@ -221,7 +224,7 @@ exports.users = asyncHandler(async (req, res) => {
     .select("name email role isActive accountStatus emailVerified createdAt updatedAt")
     .sort({ _id: -1 })
     .limit(page.limit);
-  res.json({ data: items, meta: meta(items, page.limit) });
+  res.json({ data: items, meta: meta(items, page.limit, await User.countDocuments(filter)) });
 });
 exports.organizations = asyncHandler(async (req, res) => {
   requireAdmin(req);
@@ -233,13 +236,22 @@ exports.organizations = asyncHandler(async (req, res) => {
     .select("name slug industry size timezone status settings createdAt updatedAt")
     .sort({ _id: -1 })
     .limit(page.limit);
-  res.json({ data: items, meta: meta(items, page.limit) });
+  res.json({
+    data: items,
+    meta: meta(items, page.limit, await Organization.countDocuments(filter)),
+  });
 });
 exports.audit = asyncHandler(async (req, res) => {
   requireAdmin(req);
   const page = parse(req.query);
   const filter = req.query.organizationId ? { organization: req.query.organizationId } : {};
+  if (req.query.search) {
+    const pattern = new RegExp(escapeRegex(req.query.search).slice(0, 100), "i");
+    filter.$or = [{ action: pattern }, { resourceType: pattern }, { outcome: pattern }];
+  }
   const items = await AuditLog.find(applyCursor(filter, page.after))
+    .populate("actor", "name email")
+    .populate("organization", "name")
     .sort({ _id: -1 })
     .limit(page.limit);
   res.json({ data: items, meta: meta(items, page.limit) });
@@ -249,7 +261,12 @@ exports.security = asyncHandler(async (req, res) => {
   const page = parse(req.query);
   const filter = {};
   if (req.query.severity) filter.severity = req.query.severity;
+  if (req.query.search) {
+    filter.type = new RegExp(escapeRegex(req.query.search).slice(0, 100), "i");
+  }
   const items = await SecurityEvent.find(applyCursor(filter, page.after))
+    .populate("user", "name")
+    .populate("organization", "name")
     .sort({ _id: -1 })
     .limit(page.limit);
   res.json({ data: items, meta: meta(items, page.limit) });
@@ -291,6 +308,21 @@ exports.aiUsage = asyncHandler(async (req, res) => {
     { $limit: 500 },
   ]);
   res.json({ data });
+});
+/** Recent AI runs for the activity feed — the same AIAnalysis records the
+ *  usage aggregation reads, exposed one-by-one (no `output` payload). */
+exports.aiActivity = asyncHandler(async (req, res) => {
+  requireAdmin(req);
+  const page = parse(req.query);
+  const filter = {};
+  if (req.query.feature) filter.feature = req.query.feature;
+  const items = await AIAnalysis.find(applyCursor(filter, page.after))
+    .select("user organization feature subjectType provider model status fallbackUsed createdAt")
+    .populate("user", "name")
+    .populate("organization", "name")
+    .sort({ _id: -1 })
+    .limit(page.limit);
+  res.json({ data: items, meta: meta(items, page.limit) });
 });
 exports.suspend = asyncHandler(async (req, res) => {
   requireAdmin(req);

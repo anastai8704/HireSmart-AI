@@ -40,7 +40,7 @@ vi.mock("../../lib/api", () => ({
             updatedAt: "2026-09-01T10:00:00Z",
           },
         ],
-        meta: { count: 1, hasMore: false, nextCursor: null },
+        meta: { count: 1, hasMore: false, nextCursor: null, total: 1 },
       }),
     organizations: () =>
       Promise.resolve({
@@ -57,7 +57,7 @@ vi.mock("../../lib/api", () => ({
             updatedAt: "2026-09-01T10:00:00Z",
           },
         ],
-        meta: { count: 1, hasMore: false, nextCursor: null },
+        meta: { count: 1, hasMore: false, nextCursor: null, total: 1 },
       }),
     audit: () =>
       Promise.resolve({
@@ -127,13 +127,22 @@ vi.mock("../../lib/api", () => ({
             createdAt: "2026-09-04T10:00:00Z",
           },
         ],
-        meta: { count: 1, hasMore: false, nextCursor: null },
+        meta: { count: 1, hasMore: false, nextCursor: null, total: 1 },
       }),
     moderate: () => Promise.resolve({ data: {} }),
     suspend: () => Promise.resolve({ data: { id: "u1", status: "suspended" } }),
     reactivate: () => Promise.resolve({ data: { id: "u1", status: "active" } }),
     live: () => Promise.resolve({ data: { status: "ok" } }),
-    ready: () => Promise.resolve({ data: { status: "ready", checks: { mongo: "ok" }, uptime: 1 } }),
+    ready: () =>
+      Promise.resolve({
+        data: {
+          status: "ready",
+          checks: { mongodb: "up", jobStore: "up" },
+          queue: { queued: 0, staleProcessing: 0 },
+        },
+      }),
+    aiActivity: () =>
+      Promise.resolve({ data: [], meta: { count: 0, hasMore: false, nextCursor: null } }),
   },
 }));
 
@@ -160,7 +169,7 @@ afterEach(cleanup);
 describe("Admin portal smoke", () => {
   it("renders overview with real KPIs and pending actions", async () => {
     renderPage(<AdminHome />);
-    expect(await screen.findByText("Admin Overview")).toBeInTheDocument();
+    expect(await screen.findByText("Platform Overview")).toBeInTheDocument();
     expect(await screen.findByText("Total Users")).toBeInTheDocument();
     expect(await screen.findByText("Pending Approvals")).toBeInTheDocument();
     expect(await screen.findByText("AI Operations")).toBeInTheDocument();

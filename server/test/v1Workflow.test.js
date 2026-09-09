@@ -6,6 +6,7 @@ const test = require("node:test");
 const request = require("supertest");
 const bcrypt = require("bcryptjs");
 const User = require("../models/User");
+const AIAnalysis = require("../models/AIAnalysis");
 const { startDatabase, stopDatabase, clearDatabase } = require("./setup");
 const app = require("../app");
 let candidateToken;
@@ -308,6 +309,79 @@ test("platform admin listings minimize PII and support account lifecycle", async
     .set(auth(token))
     .send({ reason: "Review completed" });
   assert.equal(reactivated.status, 200);
+});
+test("admin console endpoints expose totals, populated context and real AI activity", async () => {
+  const password = await bcrypt.hash("StrongPassword123!", 12);
+  const admin = await User.findOne({ role: "admin" }) || (await User.create({
+    name: "Console Admin",
+    email: "console@platform.example",
+    password,
+    role: "admin",
+    emailVerified: true,
+    accountStatus: "active",
+  }));
+  const login = await request(app)
+    .post("/api/v1/auth/login")
+    .send({ email: admin.email, password: "StrongPassword123!" });
+  assert.equal(login.status, 200, JSON.stringify(login.body));
+  const token = login.body.data.accessToken;
+
+  // true collection totals, not just the current page
+  const users = await request(app).get("/api/v1/admin/users?limit=1").set(auth(token));
+  assert.equal(users.status, 200);
+  assert.equal(Number.isInteger(users.body.meta.total), true);
+  assert.equal(users.body.meta.total >= users.body.data.length, true);
+  const orgs = await request(app).get("/api/v1/admin/organizations?limit=1").set(auth(token));
+  assert.equal(Number.isInteger(orgs.body.meta.total), true);
+
+  // audit log resolves who + where instead of raw object ids
+  const audit = await request(app).get("/api/v1/admin/audit-logs?limit=50").set(auth(token));
+  assert.equal(audit.status, 200);
+  for (const entry of audit.body.data) {
+    if (entry.actor) assert.equal(typeof entry.actor.name, "string");
+    if (entry.organization) assert.equal(typeof entry.organization.name, "string");
+  }
+  const suspendedEntries = await request(app)
+    .get("/api/v1/admin/audit-logs?search=admin.user_suspended")
+    .set(auth(token));
+  assert.equal(suspendedEntries.status, 200);
+  for (const entry of suspendedEntries.body.data) {
+    assert.equal(entry.action, "admin.user_suspended");
+  }
+
+  // security events list shape + populated context
+  const security = await request(app).get("/api/v1/admin/security-events").set(auth(token));
+  assert.equal(security.status, 200);
+  assert.equal(Array.isArray(security.body.data), true);
+
+  // recent AI activity: real per-run events, populated, without the output blob
+  const run = await AIAnalysis.create({
+    user: admin._id,
+    organization: null,
+    feature: "resume_analysis",
+    subjectType: "resume",
+    subjectId: "console-test-resume",
+    provider: "deterministic",
+    model: "fallback",
+    promptVersion: "1",
+    output: { privateField: "MUST NOT LEAK" },
+    fallbackUsed: true,
+    status: "completed",
+  });
+  const activity = await request(app)
+    .get("/api/v1/admin/ai-activity?feature=resume_analysis")
+    .set(auth(token));
+  assert.equal(activity.status, 200);
+  const found = activity.body.data.find((item) => String(item._id) === String(run._id));
+  assert.ok(found, "created AI run should appear in the activity feed");
+  assert.equal(found.user.name, admin.name);
+  assert.equal(Object.hasOwn(found, "output"), false);
+  assert.equal(JSON.stringify(activity.body).includes("MUST NOT LEAK"), false);
+  await AIAnalysis.deleteOne({ _id: run._id });
+
+  // platform console endpoints stay admin-only
+  const denied = await request(app).get("/api/v1/admin/ai-activity").set(auth(candidateToken));
+  assert.equal(denied.status, 404);
 });
 test("another organization cannot access the first tenant application", async () => {
   const other = await registerAndLogin({

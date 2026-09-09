@@ -10,9 +10,12 @@ const parse = (query, max = 100) => {
   return { limit, after };
 };
 const applyCursor = (filter, after) => (after ? { ...filter, _id: { $lt: after } } : filter);
-const meta = (items, limit) => ({
+const meta = (items, limit, total) => ({
   count: items.length,
   hasMore: items.length === limit,
   nextCursor: items.length === limit ? String(items[items.length - 1]._id) : null,
+  // Optional: true collection size (for KPI displays that must not count
+  // the current page only). Omitted unless the caller provides it.
+  ...(total !== undefined ? { total } : {}),
 });
 module.exports = { parse, applyCursor, meta };

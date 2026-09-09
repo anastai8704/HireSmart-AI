@@ -206,6 +206,7 @@ export const adminApi = {
   suspend: (id, reason) => api.post(`/admin/users/${id}/suspend`, { reason }),
   reactivate: (id, reason) => api.post(`/admin/users/${id}/reactivate`, { reason }),
   aiUsage: () => api.get("/admin/ai-usage"),
+  aiActivity: (params = {}) => api.get(`/admin/ai-activity${query(params)}`),
   live: () => api.get("/health/live"),
   ready: () => api.get("/health/ready"),
   moderation: (params = {}) => api.get(`/admin/moderation/jobs${query(params)}`),
