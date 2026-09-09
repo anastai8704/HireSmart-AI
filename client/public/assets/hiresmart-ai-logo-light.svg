@@ -1,30 +1,30 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 540 140" width="540" height="140" role="img" aria-label="HireSmart AI — Hire Smarter • Build Better">
   <defs>
-    <linearGradient id="hs-facet-cyan-top-light" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="hs-full-facet-cyan-top-light" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#bae6fd" />
       <stop offset="100%" stop-color="#38bdf8" />
     </linearGradient>
-    <linearGradient id="hs-facet-cyan-mid-light" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="hs-full-facet-cyan-mid-light" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#38bdf8" />
       <stop offset="100%" stop-color="#0284c7" />
     </linearGradient>
-    <linearGradient id="hs-facet-cyan-glow-light" x1="100%" y1="0%" x2="0%" y2="100%">
+    <linearGradient id="hs-full-facet-cyan-glow-light" x1="100%" y1="0%" x2="0%" y2="100%">
       <stop offset="0%" stop-color="#67e8f9" />
       <stop offset="100%" stop-color="#0ea5e9" />
     </linearGradient>
-    <linearGradient id="hs-facet-blue-left-light" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="hs-full-facet-blue-left-light" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#0ea5e9" />
       <stop offset="100%" stop-color="#0369a1" />
     </linearGradient>
-    <linearGradient id="hs-facet-blue-deep-light" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="hs-full-facet-blue-deep-light" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#0284c7" />
       <stop offset="100%" stop-color="#0c4a6e" />
     </linearGradient>
-    <linearGradient id="hs-facet-blue-right-light" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="hs-full-facet-blue-right-light" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#2563eb" />
       <stop offset="100%" stop-color="#1e40af" />
     </linearGradient>
-    <linearGradient id="hs-facet-blue-dark-light" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="hs-full-facet-blue-dark-light" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#1d4ed8" />
       <stop offset="100%" stop-color="#172554" />
     </linearGradient>
@@ -37,22 +37,22 @@
     <!-- 3D Geometric Faceted Cube -->
     <g id="faceted-cube">
       <!-- Top Section -->
-      <polygon points="384,20.00 369.28,28.50 384,37.00" fill="url(#hs-facet-cyan-top-light)" />
-      <polygon points="384,20.00 398.72,28.50 384,37.00" fill="url(#hs-facet-cyan-mid-light)" />
-      <polygon points="369.28,28.50 354.56,37.00 384,54.00 384,37.00" fill="url(#hs-facet-cyan-glow-light)" />
-      <polygon points="398.72,28.50 413.44,37.00 384,54.00 384,37.00" fill="url(#hs-facet-cyan-top-light)" />
+      <polygon points="384,20.00 369.28,28.50 384,37.00" fill="url(#hs-full-facet-cyan-top-light)" />
+      <polygon points="384,20.00 398.72,28.50 384,37.00" fill="url(#hs-full-facet-cyan-mid-light)" />
+      <polygon points="369.28,28.50 354.56,37.00 384,54.00 384,37.00" fill="url(#hs-full-facet-cyan-glow-light)" />
+      <polygon points="398.72,28.50 413.44,37.00 384,54.00 384,37.00" fill="url(#hs-full-facet-cyan-top-light)" />
 
       <!-- Left Section -->
-      <polygon points="354.56,37.00 354.56,54.00 384,54.00" fill="url(#hs-facet-cyan-mid-light)" />
-      <polygon points="354.56,54.00 354.56,71.00 369.28,62.50 384,54.00" fill="url(#hs-facet-blue-left-light)" />
-      <polygon points="354.56,71.00 369.28,79.50 384,54.00" fill="url(#hs-facet-blue-deep-light)" />
-      <polygon points="369.28,79.50 384,88.00 384,54.00" fill="url(#hs-facet-blue-left-light)" />
+      <polygon points="354.56,37.00 354.56,54.00 384,54.00" fill="url(#hs-full-facet-cyan-mid-light)" />
+      <polygon points="354.56,54.00 354.56,71.00 369.28,62.50 384,54.00" fill="url(#hs-full-facet-blue-left-light)" />
+      <polygon points="354.56,71.00 369.28,79.50 384,54.00" fill="url(#hs-full-facet-blue-deep-light)" />
+      <polygon points="369.28,79.50 384,88.00 384,54.00" fill="url(#hs-full-facet-blue-left-light)" />
 
       <!-- Right Section -->
-      <polygon points="413.44,37.00 413.44,54.00 384,54.00" fill="url(#hs-facet-blue-right-light)" />
-      <polygon points="413.44,54.00 413.44,71.00 398.72,62.50 384,54.00" fill="url(#hs-facet-blue-right-light)" />
-      <polygon points="413.44,71.00 398.72,79.50 384,54.00" fill="url(#hs-facet-blue-dark-light)" />
-      <polygon points="398.72,79.50 384,88.00 384,54.00" fill="url(#hs-facet-blue-right-light)" />
+      <polygon points="413.44,37.00 413.44,54.00 384,54.00" fill="url(#hs-full-facet-blue-right-light)" />
+      <polygon points="413.44,54.00 413.44,71.00 398.72,62.50 384,54.00" fill="url(#hs-full-facet-blue-right-light)" />
+      <polygon points="413.44,71.00 398.72,79.50 384,54.00" fill="url(#hs-full-facet-blue-dark-light)" />
+      <polygon points="398.72,79.50 384,88.00 384,54.00" fill="url(#hs-full-facet-blue-right-light)" />
 
       <!-- High-gloss Highlights -->
       <polygon points="384,37.00 384,54.00 369.28,28.50" fill="#ffffff" opacity="0.45" />

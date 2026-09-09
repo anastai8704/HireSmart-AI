@@ -1,76 +1,71 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 540 140" width="540" height="140" role="img" aria-label="HireSmart AI — Hire Smarter • Build Better">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 516 96" width="516" height="96" role="img" aria-label="HireSmart AI">
   <defs>
-    <linearGradient id="hs-facet-cyan-top-light" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="hs-nav-facet-cyan-top-light" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#bae6fd" />
       <stop offset="100%" stop-color="#38bdf8" />
     </linearGradient>
-    <linearGradient id="hs-facet-cyan-mid-light" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="hs-nav-facet-cyan-mid-light" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#38bdf8" />
       <stop offset="100%" stop-color="#0284c7" />
     </linearGradient>
-    <linearGradient id="hs-facet-cyan-glow-light" x1="100%" y1="0%" x2="0%" y2="100%">
+    <linearGradient id="hs-nav-facet-cyan-glow-light" x1="100%" y1="0%" x2="0%" y2="100%">
       <stop offset="0%" stop-color="#67e8f9" />
       <stop offset="100%" stop-color="#0ea5e9" />
     </linearGradient>
-    <linearGradient id="hs-facet-blue-left-light" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="hs-nav-facet-blue-left-light" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#0ea5e9" />
       <stop offset="100%" stop-color="#0369a1" />
     </linearGradient>
-    <linearGradient id="hs-facet-blue-deep-light" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="hs-nav-facet-blue-deep-light" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#0284c7" />
       <stop offset="100%" stop-color="#0c4a6e" />
     </linearGradient>
-    <linearGradient id="hs-facet-blue-right-light" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="hs-nav-facet-blue-right-light" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#2563eb" />
       <stop offset="100%" stop-color="#1e40af" />
     </linearGradient>
-    <linearGradient id="hs-facet-blue-dark-light" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="hs-nav-facet-blue-dark-light" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#1d4ed8" />
       <stop offset="100%" stop-color="#172554" />
     </linearGradient>
   </defs>
 
-  <g id="hiresmart-logo-content">
+  <g id="hiresmart-nav-logo">
     <!-- HireSmart wordmark -->
-    <text x="32" y="76" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="64" font-weight="800" letter-spacing="-1.8" fill="#ffffff">HireSmart</text>
+    <text x="24" y="71" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="68" font-weight="800" letter-spacing="-1.8" fill="#ffffff">HireSmart</text>
 
     <!-- 3D Geometric Faceted Cube -->
     <g id="faceted-cube">
       <!-- Top Section -->
-      <polygon points="384,20.00 369.28,28.50 384,37.00" fill="url(#hs-facet-cyan-top-light)" />
-      <polygon points="384,20.00 398.72,28.50 384,37.00" fill="url(#hs-facet-cyan-mid-light)" />
-      <polygon points="369.28,28.50 354.56,37.00 384,54.00 384,37.00" fill="url(#hs-facet-cyan-glow-light)" />
-      <polygon points="398.72,28.50 413.44,37.00 384,54.00 384,37.00" fill="url(#hs-facet-cyan-top-light)" />
+      <polygon points="378,12.00 362.41,21.00 378,30.00" fill="url(#hs-nav-facet-cyan-top-light)" />
+      <polygon points="378,12.00 393.59,21.00 378,30.00" fill="url(#hs-nav-facet-cyan-mid-light)" />
+      <polygon points="362.41,21.00 346.82,30.00 378,48.00 378,30.00" fill="url(#hs-nav-facet-cyan-glow-light)" />
+      <polygon points="393.59,21.00 409.18,30.00 378,48.00 378,30.00" fill="url(#hs-nav-facet-cyan-top-light)" />
 
       <!-- Left Section -->
-      <polygon points="354.56,37.00 354.56,54.00 384,54.00" fill="url(#hs-facet-cyan-mid-light)" />
-      <polygon points="354.56,54.00 354.56,71.00 369.28,62.50 384,54.00" fill="url(#hs-facet-blue-left-light)" />
-      <polygon points="354.56,71.00 369.28,79.50 384,54.00" fill="url(#hs-facet-blue-deep-light)" />
-      <polygon points="369.28,79.50 384,88.00 384,54.00" fill="url(#hs-facet-blue-left-light)" />
+      <polygon points="346.82,30.00 346.82,48.00 378,48.00" fill="url(#hs-nav-facet-cyan-mid-light)" />
+      <polygon points="346.82,48.00 346.82,66.00 362.41,57.00 378,48.00" fill="url(#hs-nav-facet-blue-left-light)" />
+      <polygon points="346.82,66.00 362.41,75.00 378,48.00" fill="url(#hs-nav-facet-blue-deep-light)" />
+      <polygon points="362.41,75.00 378,84.00 378,48.00" fill="url(#hs-nav-facet-blue-left-light)" />
 
       <!-- Right Section -->
-      <polygon points="413.44,37.00 413.44,54.00 384,54.00" fill="url(#hs-facet-blue-right-light)" />
-      <polygon points="413.44,54.00 413.44,71.00 398.72,62.50 384,54.00" fill="url(#hs-facet-blue-right-light)" />
-      <polygon points="413.44,71.00 398.72,79.50 384,54.00" fill="url(#hs-facet-blue-dark-light)" />
-      <polygon points="398.72,79.50 384,88.00 384,54.00" fill="url(#hs-facet-blue-right-light)" />
+      <polygon points="409.18,30.00 409.18,48.00 378,48.00" fill="url(#hs-nav-facet-blue-right-light)" />
+      <polygon points="409.18,48.00 409.18,66.00 393.59,57.00 378,48.00" fill="url(#hs-nav-facet-blue-right-light)" />
+      <polygon points="409.18,66.00 393.59,75.00 378,48.00" fill="url(#hs-nav-facet-blue-dark-light)" />
+      <polygon points="393.59,75.00 378,84.00 378,48.00" fill="url(#hs-nav-facet-blue-right-light)" />
 
       <!-- High-gloss Highlights -->
-      <polygon points="384,37.00 384,54.00 369.28,28.50" fill="#ffffff" opacity="0.45" />
-      <polygon points="384,37.00 384,54.00 398.72,28.50" fill="#bae6fd" opacity="0.3" />
+      <polygon points="378,30.00 378,48.00 362.41,21.00" fill="#ffffff" opacity="0.45" />
+      <polygon points="378,30.00 378,48.00 393.59,21.00" fill="#bae6fd" opacity="0.3" />
 
       <!-- Crisp Structural Facet Edges -->
-      <line x1="384" y1="20.00" x2="384" y2="54.00" stroke="#ffffff" stroke-width="1.2" stroke-opacity="0.5" />
-      <line x1="354.56" y1="37.00" x2="384" y2="54.00" stroke="#ffffff" stroke-width="0.9" stroke-opacity="0.35" />
-      <line x1="413.44" y1="37.00" x2="384" y2="54.00" stroke="#ffffff" stroke-width="0.9" stroke-opacity="0.35" />
-      <line x1="384" y1="88.00" x2="384" y2="54.00" stroke="#ffffff" stroke-width="0.9" stroke-opacity="0.35" />
+      <line x1="378" y1="12.00" x2="378" y2="48.00" stroke="#ffffff" stroke-width="1.2" stroke-opacity="0.5" />
+      <line x1="346.82" y1="30.00" x2="378" y2="48.00" stroke="#ffffff" stroke-width="0.9" stroke-opacity="0.35" />
+      <line x1="409.18" y1="30.00" x2="378" y2="48.00" stroke="#ffffff" stroke-width="0.9" stroke-opacity="0.35" />
+      <line x1="378" y1="84.00" x2="378" y2="48.00" stroke="#ffffff" stroke-width="0.9" stroke-opacity="0.35" />
     </g>
 
     <!-- AI wordmark -->
-    <text x="430" y="76" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="64" font-weight="800" letter-spacing="-1.8" fill="#ffffff">AI</text>
-
-    <!-- Tagline: HIRE SMARTER • BUILD BETTER -->
-    <line x1="34" y1="112" x2="88" y2="112" stroke="rgba(255, 255, 255, 0.25)" stroke-width="1.5" stroke-linecap="round" />
-    <text x="100" y="116" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="14" font-weight="600" letter-spacing="4.5" fill="#94a3b8">HIRE SMARTER  •  BUILD BETTER</text>
-    <line x1="452" y1="112" x2="506" y2="112" stroke="rgba(255, 255, 255, 0.25)" stroke-width="1.5" stroke-linecap="round" />
+    <text x="428" y="71" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="68" font-weight="800" letter-spacing="-1.8" fill="#ffffff">AI</text>
   </g>
 </svg>

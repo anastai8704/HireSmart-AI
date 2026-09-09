@@ -3,10 +3,13 @@
  *
  * Official brand logo asset implementation:
  * - Full logo: HireSmart + 3D faceted blue cube + AI + tagline ("HIRE SMARTER • BUILD BETTER")
- * - Light tone (/assets/hiresmart-ai-logo-light.svg or /logo-full-light.svg): for dark surfaces
- * - Dark tone (/assets/hiresmart-ai-logo-dark.svg or /logo-full.svg): for light surfaces
- * - Compact mark (/assets/hiresmart-cube.svg or /logo-mark.svg): 3D faceted crystal cube
+ * - Navbar logo (default): Clean "HireSmart AI" wordmark + 3D faceted blue cube (no tagline/underline), scaled for crisp navbar readability
+ * - Light tone (/assets/hiresmart-logo-nav-light.svg): for dark surfaces
+ * - Dark tone (/assets/hiresmart-logo-nav-dark.svg): for light surfaces
+ * - Compact mark (/assets/hiresmart-cube.svg): 3D faceted crystal cube
  */
+
+import { cn } from "../../lib/utils";
 
 /**
  * 3D Faceted Isometric Cube Brand Mark
@@ -86,13 +89,16 @@ export const CubeMark = ({ className = "h-6 w-6", title = "HireSmart AI" }) => (
 export const LogoMark = CubeMark;
 
 /**
- * Full official brand logo lockup asset.
- * tone="dark"  — brand asset on light surfaces (/assets/hiresmart-ai-logo-dark.svg)
- * tone="light" — brand asset on dark surfaces (/assets/hiresmart-ai-logo-light.svg)
+ * Official brand logo lockup asset.
+ * tone="dark"  — brand asset on light surfaces (/assets/hiresmart-logo-nav-dark.svg)
+ * tone="light" — brand asset on dark surfaces (/assets/hiresmart-logo-nav-light.svg)
+ * variant="navbar" (default) — clean "HireSmart AI" wordmark + 3D faceted cube (no tagline/underline)
+ * variant="full" — complete lockup including tagline and rules
  */
 export const Logo = ({
   tone = "dark",
-  className = "h-8 w-auto",
+  variant = "navbar",
+  className,
   alt = "HireSmart AI",
   showWordmark = true,
   markClassName,
@@ -101,18 +107,23 @@ export const Logo = ({
     return <LogoMark className={markClassName || className} title={alt} />;
   }
 
+  const isLight = tone === "light";
   const src =
-    tone === "light"
-      ? "/assets/hiresmart-ai-logo-light.svg"
-      : "/assets/hiresmart-ai-logo-dark.svg";
+    variant === "full"
+      ? isLight
+        ? "/assets/hiresmart-ai-logo-light.svg"
+        : "/assets/hiresmart-ai-logo-dark.svg"
+      : isLight
+        ? "/assets/hiresmart-logo-nav-light.svg"
+        : "/assets/hiresmart-logo-nav-dark.svg";
 
   return (
     <img
       src={src}
       alt={alt}
-      className={`h-8 w-auto max-w-full object-contain ${className || ""}`}
-      height={32}
-      width={124}
+      className={cn("h-9.5 w-auto max-w-full object-contain", className)}
+      height={38}
+      width={204}
       loading="eager"
       decoding="async"
     />

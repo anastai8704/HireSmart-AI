@@ -5,16 +5,23 @@ import { CubeMark, Logo, LogoMark } from "./Logo";
 afterEach(cleanup);
 
 describe("Brand Logo Component", () => {
-  it("renders dark tone official brand logo asset by default", () => {
+  it("renders dark tone navbar brand logo asset by default", () => {
     render(<Logo />);
     const img = screen.getByRole("img", { name: /hiresmart ai/i });
     expect(img).toBeInTheDocument();
-    expect(img).toHaveAttribute("src", "/assets/hiresmart-ai-logo-dark.svg");
+    expect(img).toHaveAttribute("src", "/assets/hiresmart-logo-nav-dark.svg");
     expect(img).toHaveAttribute("alt", "HireSmart AI");
   });
 
-  it("renders light tone official brand logo asset for dark surfaces", () => {
+  it("renders light tone navbar brand logo asset for dark surfaces", () => {
     render(<Logo tone="light" />);
+    const img = screen.getByRole("img", { name: /hiresmart ai/i });
+    expect(img).toBeInTheDocument();
+    expect(img).toHaveAttribute("src", "/assets/hiresmart-logo-nav-light.svg");
+  });
+
+  it("renders full brand logo with tagline when variant='full'", () => {
+    render(<Logo variant="full" tone="light" />);
     const img = screen.getByRole("img", { name: /hiresmart ai/i });
     expect(img).toBeInTheDocument();
     expect(img).toHaveAttribute("src", "/assets/hiresmart-ai-logo-light.svg");
