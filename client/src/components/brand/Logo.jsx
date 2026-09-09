@@ -1,25 +1,19 @@
 /**
  * HireSmart AI brand system.
  *
- * Concept — "the Matchpoint H":
- *   · the two verticals of the H are the two people in every hire:
- *     the candidate and the company
- *   · the crossbar is the bridge between them — what HireSmart builds
- *   · the cyan four-point spark at the crossing is the AI "match"
- *     moment: the instant skills, role and culture line up
- *
- * This component is the single source of truth for the mark in the app so
- * every surface (sidebar, auth, notifications, public site) stays
- * pixel-identical. Static files in /public (favicon, PWA, email) use the
- * same 24x24 geometry — see docs/branding.md and
- * scripts/generate-logo-assets.mjs.
+ * Official brand logo asset implementation:
+ * - Full logo: HireSmart + 3D faceted blue cube + AI + tagline ("HIRE SMARTER • BUILD BETTER")
+ * - Light tone (/assets/hiresmart-ai-logo-light.svg or /logo-full-light.svg): for dark surfaces
+ * - Dark tone (/assets/hiresmart-ai-logo-dark.svg or /logo-full.svg): for light surfaces
+ * - Compact mark (/assets/hiresmart-cube.svg or /logo-mark.svg): 3D faceted crystal cube
  */
 
-const TILE_GRADIENT_ID = "hs-logo-tile";
-
-export const LogoMark = ({ className = "h-6 w-6", title = "HireSmart AI" }) => (
+/**
+ * 3D Faceted Isometric Cube Brand Mark
+ */
+export const CubeMark = ({ className = "h-6 w-6", title = "HireSmart AI" }) => (
   <svg
-    viewBox="0 0 24 24"
+    viewBox="0 0 100 100"
     className={className}
     role={title ? "img" : undefined}
     aria-label={title || undefined}
@@ -27,35 +21,74 @@ export const LogoMark = ({ className = "h-6 w-6", title = "HireSmart AI" }) => (
     focusable="false"
   >
     <defs>
-      <linearGradient
-        id={TILE_GRADIENT_ID}
-        x1="0"
-        y1="0"
-        x2="24"
-        y2="24"
-        gradientUnits="userSpaceOnUse"
-      >
-        <stop offset="0" stopColor="#6f64e3" />
-        <stop offset="1" stopColor="#413993" />
+      <linearGradient id="hs-cube-top-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#bae6fd" />
+        <stop offset="100%" stopColor="#38bdf8" />
+      </linearGradient>
+      <linearGradient id="hs-cube-mid-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#38bdf8" />
+        <stop offset="100%" stopColor="#0284c7" />
+      </linearGradient>
+      <linearGradient id="hs-cube-glow-grad" x1="100%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stopColor="#67e8f9" />
+        <stop offset="100%" stopColor="#0ea5e9" />
+      </linearGradient>
+      <linearGradient id="hs-cube-blue-left-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#0ea5e9" />
+        <stop offset="100%" stopColor="#0369a1" />
+      </linearGradient>
+      <linearGradient id="hs-cube-blue-deep-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#0284c7" />
+        <stop offset="100%" stopColor="#0c4a6e" />
+      </linearGradient>
+      <linearGradient id="hs-cube-blue-right-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#2563eb" />
+        <stop offset="100%" stopColor="#1e40af" />
+      </linearGradient>
+      <linearGradient id="hs-cube-blue-dark-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#1d4ed8" />
+        <stop offset="100%" stopColor="#172554" />
       </linearGradient>
     </defs>
-    <rect width="24" height="24" rx="6.6" fill={`url(#${TILE_GRADIENT_ID})`} />
-    <g fill="#ffffff">
-      <rect x="6.4" y="5.4" width="2.8" height="13.2" rx="1.4" />
-      <rect x="14.8" y="5.4" width="2.8" height="13.2" rx="1.4" />
-      <rect x="6.4" y="10.6" width="11.2" height="2.8" />
+
+    <g id="faceted-cube-mark">
+      {/* Top Section */}
+      <polygon points="50,6.00 28.10,17.00 50,28.00" fill="url(#hs-cube-top-grad)" />
+      <polygon points="50,6.00 71.90,17.00 50,28.00" fill="url(#hs-cube-mid-grad)" />
+      <polygon points="28.10,17.00 11.89,28.00 50,50.00 50,28.00" fill="url(#hs-cube-glow-grad)" />
+      <polygon points="71.90,17.00 88.11,28.00 50,50.00 50,28.00" fill="url(#hs-cube-top-grad)" />
+
+      {/* Left Section */}
+      <polygon points="11.89,28.00 11.89,50.00 50,50.00" fill="url(#hs-cube-mid-grad)" />
+      <polygon points="11.89,50.00 11.89,72.00 28.10,61.00 50,50.00" fill="url(#hs-cube-blue-left-grad)" />
+      <polygon points="11.89,72.00 28.10,83.00 50,50.00" fill="url(#hs-cube-blue-deep-grad)" />
+      <polygon points="28.10,83.00 50,94.00 50,50.00" fill="url(#hs-cube-blue-left-grad)" />
+
+      {/* Right Section */}
+      <polygon points="88.11,28.00 88.11,50.00 50,50.00" fill="url(#hs-cube-blue-right-grad)" />
+      <polygon points="88.11,50.00 88.11,72.00 71.90,61.00 50,50.00" fill="url(#hs-cube-blue-right-grad)" />
+      <polygon points="88.11,72.00 71.90,83.00 50,50.00" fill="url(#hs-cube-blue-dark-grad)" />
+      <polygon points="71.90,83.00 50,94.00 50,50.00" fill="url(#hs-cube-blue-right-grad)" />
+
+      {/* Highlights */}
+      <polygon points="50,28.00 50,50.00 28.10,17.00" fill="#ffffff" opacity="0.45" />
+      <polygon points="50,28.00 50,50.00 71.90,17.00" fill="#bae6fd" opacity="0.3" />
+
+      {/* Structural Facet Edges */}
+      <line x1="50" y1="6.00" x2="50" y2="50.00" stroke="#ffffff" strokeWidth="1.2" strokeOpacity="0.5" />
+      <line x1="11.89" y1="28.00" x2="50" y2="50.00" stroke="#ffffff" strokeWidth="0.9" strokeOpacity="0.35" />
+      <line x1="88.11" y1="28.00" x2="50" y2="50.00" stroke="#ffffff" strokeWidth="0.9" strokeOpacity="0.35" />
+      <line x1="50" y1="94.00" x2="50" y2="50.00" stroke="#ffffff" strokeWidth="0.9" strokeOpacity="0.35" />
     </g>
-    <path
-      d="M12 8.4 L13.03 10.97 L15.6 12 L13.03 13.03 L12 15.6 L10.97 13.03 L8.4 12 L10.97 10.97 Z"
-      fill="#67e8f9"
-    />
   </svg>
 );
 
+export const LogoMark = CubeMark;
+
 /**
- * Full lockup: official brand logo asset.
- * tone="dark"  — brand asset on light surfaces (/logo-full.svg)
- * tone="light" — brand asset on dark surfaces (/logo-full-light.svg)
+ * Full official brand logo lockup asset.
+ * tone="dark"  — brand asset on light surfaces (/assets/hiresmart-ai-logo-dark.svg)
+ * tone="light" — brand asset on dark surfaces (/assets/hiresmart-ai-logo-light.svg)
  */
 export const Logo = ({
   tone = "dark",
@@ -68,14 +101,17 @@ export const Logo = ({
     return <LogoMark className={markClassName || className} title={alt} />;
   }
 
-  const src = tone === "light" ? "/logo-full-light.svg" : "/logo-full.svg";
+  const src =
+    tone === "light"
+      ? "/assets/hiresmart-ai-logo-light.svg"
+      : "/assets/hiresmart-ai-logo-dark.svg";
 
   return (
     <img
       src={src}
       alt={alt}
       className={`h-8 w-auto max-w-full object-contain ${className || ""}`}
-      height={24}
+      height={32}
       width={124}
       loading="eager"
       decoding="async"
