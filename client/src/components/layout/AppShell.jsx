@@ -59,7 +59,7 @@ const recruiterGroups = (org) => [
     "Insights",
     [
       [`/app/o/${org}/analytics`, "Analytics", ChartNoAxesCombined],
-      [`/app/o/${org}/copilot`, "AI Assistant", Sparkles],
+      [`/app/o/${org}/copilot`, "Hiring Assistant", Sparkles],
     ],
   ],
   ["Workspace", [[`/app/o/${org}/team`, "Team", Building2]]],
@@ -485,3 +485,4 @@ const AppShell = () => {
   );
 };
 export default AppShell;
+

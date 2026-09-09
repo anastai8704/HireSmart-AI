@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { newId } from "../../lib/id";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
@@ -56,7 +56,30 @@ const greeting = () => {
   const hour = new Date().getHours();
   return hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 };
-const STAGES = ["submitted", "under_review", "shortlisted", "interview", "hired"];
+const STAGES = ["submitted", "under_review", "shortlisted", "interview", "offer", "hired"];
+/* Presentation mirror of the server's transition rules (see
+ * v1RecruitmentController) used only to show which moves are valid —
+ * the API remains the source of truth and still rejects bad moves. */
+const STAGE_MOVES = {
+  submitted: ["under_review", "shortlisted"],
+  under_review: ["shortlisted", "interview"],
+  shortlisted: ["interview"],
+  interview: ["offer"],
+  offer: ["hired"],
+};
+const STAGE_LABELS = {
+  submitted: "Submitted",
+  under_review: "Under review",
+  shortlisted: "Shortlisted",
+  interview: "Interview",
+  offer: "Offer",
+  hired: "Hired",
+  rejected: "Not selected",
+  withdrawn: "Withdrawn",
+  closed: "Closed",
+};
+const stageLabel = (status) => STAGE_LABELS[status] || String(status || "").replaceAll("_", " ");
+const isTerminal = (status) => ["hired", "rejected", "withdrawn", "closed"].includes(status);
 const COPILOT_SUGGESTIONS = [
   "Which candidates are strongest for my open roles?",
   "Where is my hiring process slowing down?",
@@ -112,8 +135,11 @@ export const RecruiterDashboard = () => {
         tone: "warning",
       },
       { label: "Interview", value: funnelCount(funnel, ["interview", "Interview"]), tone: "brand" },
+      { label: "Offer", value: funnel.offer || 0, tone: "warning" },
       { label: "Hired", value: funnelCount(funnel, ["hired", "Selected"]), tone: "success" },
     ],
+    toReview = funnelCount(funnel, ["submitted", "Applied", "under_review"]),
+    offersOut = funnel.offer || 0,
     upcoming = (interviews.data?.data || [])
       .filter((i) => ["invited", "confirmed"].includes(i.status))
       .sort((a, b) => new Date(a.scheduledStart || 0) - new Date(b.scheduledStart || 0)),
@@ -141,7 +167,7 @@ export const RecruiterDashboard = () => {
       <PageHeader
         eyebrow="Hiring workspace"
         title={`${greeting()}, ${auth.user?.displayName?.split(" ")[0] || "there"}`}
-        description="Active jobs, approvals, pipeline and interviews — what needs your attention today."
+        description="Here\u2019s what\u2019s happening across your hiring today."
         action={
           <Button as={Link} to={`/app/o/${orgId}/jobs/new`} leftIcon={<Plus className="h-4 w-4" />}>
             Create Job
@@ -166,39 +192,59 @@ export const RecruiterDashboard = () => {
         </div>
       )}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-        <Kpi
-          label="Active jobs"
-          value={publishedJobs.length}
-          icon={BriefcaseBusiness}
-          detail={`${jobRows.length} total`}
-        />
-        <Kpi
-          label="Pending approvals"
-          value={pendingApprovals.length}
-          tone={pendingApprovals.length ? "warning" : "ink"}
-          icon={Clock3}
-          detail={pendingApprovals.length ? "Awaiting review" : "All clear"}
-        />
-        <Kpi label="Applications" value={data.applications || 0} icon={UsersRound} />
-        <Kpi
-          label="Shortlisted"
-          value={pipelineStages[2].value}
-          tone="brand"
-          icon={CheckCircle2}
-        />
-        <Kpi
-          label="Interviews"
-          value={upcoming.length}
-          tone="warning"
-          icon={Video}
-          detail="Upcoming"
-        />
-        <Kpi
-          label="Hired"
-          value={pipelineStages[4].value}
-          tone="success"
-          icon={Star}
-        />
+        <Link to={`/app/o/${orgId}/jobs`}>
+          <Kpi
+            label="Candidates to review"
+            value={toReview}
+            icon={UsersRound}
+            detail={toReview ? "New & under review" : "All caught up"}
+            tone={toReview ? "brand" : "ink"}
+          />
+        </Link>
+        <Link to={`/app/o/${orgId}/interviews`}>
+          <Kpi
+            label="Interviews"
+            value={upcoming.length}
+            tone="warning"
+            icon={Video}
+            detail={upcoming.length ? "Upcoming — on your calendar" : "None scheduled"}
+          />
+        </Link>
+        <Link to={`/app/o/${orgId}/jobs`}>
+          <Kpi
+            label="Open positions"
+            value={publishedJobs.length}
+            icon={BriefcaseBusiness}
+            detail={`${jobRows.length} total`}
+          />
+        </Link>
+        <Link to={`/app/o/${orgId}/jobs`}>
+          <Kpi
+            label="Offers out"
+            value={offersOut}
+            tone={offersOut ? "warning" : "ink"}
+            icon={Star}
+            detail="Decisions in play"
+          />
+        </Link>
+        <Link to={`/app/o/${orgId}/analytics`}>
+          <Kpi
+            label="Hired"
+            value={pipelineStages[5].value}
+            tone="success"
+            icon={Star}
+            detail="All time"
+          />
+        </Link>
+        <Link to={`/app/o/${orgId}/jobs`}>
+          <Kpi
+            label="Pending approvals"
+            value={pendingApprovals.length}
+            tone={pendingApprovals.length ? "warning" : "ink"}
+            icon={Clock3}
+            detail={pendingApprovals.length ? "Awaiting review" : "All clear"}
+          />
+        </Link>
       </div>
       <section className="mt-6 grid gap-6 lg:grid-cols-[1.35fr_.75fr]">
         <div className="min-w-0 space-y-6">
@@ -251,8 +297,8 @@ export const RecruiterDashboard = () => {
             </div>
           </SectionCard>
           <SectionCard
-            title="Candidate pipeline"
-            description="Applications by stage"
+            title="Candidate Hiring Progress"
+            description="Applications by hiring stage"
             action={
               <Link
                 to={`/app/o/${orgId}/analytics`}
@@ -490,8 +536,11 @@ export const JobsPage = ({ assigned = false }) => {
   const orgId = useOrg(),
     toast = useToast(),
     q = useQuery({
-      queryKey: [assigned ? "assigned-jobs" : "jobs-org", orgId],
-      queryFn: () => (assigned ? jobsApi.assigned(orgId) : jobsApi.orgList(orgId, { limit: 100 })),
+      queryKey: [assigned ? "assigned-jobs" : "jobs-org", orgId, assigned ? null : jobStatus],
+      queryFn: () =>
+        assigned
+          ? jobsApi.assigned(orgId)
+          : jobsApi.orgList(orgId, { limit: 100, status: jobStatus || undefined }),
     }),
     qc = useQueryClient(),
     [jobSearch, setJobSearch] = useState(""),
@@ -1154,7 +1203,7 @@ export const ApplicantsPage = () => {
           onChange={(e) => setSort(e.target.value)}
           options={[
             { value: "newest", label: "Newest" },
-            { value: "fit", label: "Highest fit" },
+            { value: "fit", label: "Highest match" },
           ]}
         />
       </div>
@@ -1200,7 +1249,8 @@ export const ApplicantsPage = () => {
                   </div>
                   <p className="mt-1 text-sm text-ink-500">
                     {candidate.headline || "Candidate"} ·{" "}
-                    {candidate.location || "Location not specified"}
+                    {candidate.location || "Location not specified"} · applied{" "}
+                    {formatRelativeTime(a.appliedAt)}
                   </p>
                   <div className="mt-2 flex flex-wrap gap-1">
                     {candidate.skills?.slice(0, 6).map((s) => (
@@ -1223,7 +1273,7 @@ export const ApplicantsPage = () => {
                       onClick={() => matchQueries[index].refetch()}
                       isLoading={matchQueries[index].isFetching}
                     >
-                      Get Match
+                      View Match
                     </Button>
                   )}
                   <Button as={Link} size="sm" to={`/app/o/${orgId}/applications/${a._id}`}>
@@ -1282,7 +1332,8 @@ export const CandidateDetail = () => {
     toast = useToast(),
     [note, setNote] = useState(""),
     [tags, setTags] = useState(""),
-    [transition, setTransition] = useState("shortlisted"),
+    [moveTarget, setMoveTarget] = useState(null),
+    [moveNote, setMoveNote] = useState(""),
     [message, setMessage] = useState({ subject: "", message: "" }),
     [previewUrl, setPreviewUrl] = useState(null);
   const detail = useQuery({
@@ -1307,14 +1358,39 @@ export const CandidateDetail = () => {
       },
       onError: (error) => toast.error(error.message),
     });
-  const move = useAction(
-      () =>
-        recruitmentApi.transition(orgId, applicationId, {
-          toStatus: transition,
-          note: "Reviewed in candidate workspace",
-        }),
-      "Stage updated",
-    ),
+  const move = useMutation({
+    mutationFn: () =>
+      recruitmentApi.transition(orgId, applicationId, {
+        toStatus: moveTarget,
+        note:
+          moveNote.trim() ||
+          (moveTarget === "hired"
+            ? "Marked as hired by the hiring team"
+            : `Moved to ${stageLabel(moveTarget)} in the candidate workspace`),
+      }),
+    onSuccess: () => {
+      toast.success(
+        moveTarget === "hired"
+          ? "Candidate marked as Hired"
+          : moveTarget === "rejected"
+            ? "Candidate marked as not selected"
+            : `Moved to ${stageLabel(moveTarget)}`,
+      );
+      setMoveTarget(null);
+      setMoveNote("");
+      qc.invalidateQueries({ queryKey: ["application", orgId, applicationId] });
+      qc.invalidateQueries({ queryKey: ["applications-job", orgId] });
+      qc.invalidateQueries({ queryKey: ["analytics-recruitment", orgId] });
+    },
+    onError: (error) => {
+      const bad = /^Cannot transition from (\w+) to (\w+)/.exec(error?.message || "");
+      toast.error(
+        bad
+          ? `That move isn't allowed — a candidate in “${stageLabel(bad[1])}” moves one stage at a time.`
+          : error.message,
+      );
+    },
+  }),
     shortlist = useAction(
       () =>
         recruitmentApi.transition(orgId, applicationId, {
@@ -1424,7 +1500,7 @@ export const CandidateDetail = () => {
           </section>
           <section className="panel p-6">
             <h2 className="font-bold">Application History</h2>
-            <ol className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-5">
+            <ol className="mt-5 grid grid-cols-3 gap-3 sm:grid-cols-6">
               {STAGES.map((stage, i) => {
                 const reached = historyStatuses.has(stage) || i === 0;
                 const current = a.status === stage;
@@ -1518,28 +1594,42 @@ export const CandidateDetail = () => {
         </main>
         <aside className="space-y-4">
           <section className="panel p-5">
-            <h2 className="font-bold">Update Application</h2>
-            <Select
-              className="mt-3"
-              value={transition}
-              onChange={(e) => setTransition(e.target.value)}
-              options={[
-                "under_review",
-                "shortlisted",
-                "interview",
-                "offer",
-                "hired",
-                "rejected",
-              ].map((x) => ({ value: x, label: x.replaceAll("_", " ") }))}
-            />
-            <Button
-              fullWidth
-              className="mt-3"
-              onClick={() => move.mutate()}
-              isLoading={move.isPending}
-            >
-              Update stage
-            </Button>
+            <h2 className="font-bold">Hiring progress</h2>
+            <div className="mt-3 flex items-center gap-2 text-sm">
+              <span className="text-ink-500">Current stage</span>
+              <StatusPill status={a.status} />
+            </div>
+            {isTerminal(a.status) ? (
+              <p className="mt-4 text-sm leading-6 text-ink-500">
+                This application has ended — no further stage changes are available. You can still
+                review the candidate, notes and history.
+              </p>
+            ) : (
+              <div className="mt-4 space-y-2">
+                {(STAGE_MOVES[a.status] || []).map((to) => (
+                  <Button
+                    key={to}
+                    fullWidth
+                    variant={to === "hired" ? "primary" : "secondary"}
+                    onClick={() => setMoveTarget(to)}
+                  >
+                    {to === "hired" ? "Mark as Hired" : `Move to ${stageLabel(to)}`}
+                  </Button>
+                ))}
+                <Button
+                  fullWidth
+                  variant="ghost"
+                  className="text-danger-600 hover:text-danger-700"
+                  onClick={() => setMoveTarget("rejected")}
+                >
+                  Mark as not selected
+                </Button>
+              </div>
+            )}
+            <p className="mt-4 text-xs leading-5 text-ink-400">
+              The candidate is notified automatically and every change is recorded in the
+              application history.
+            </p>
           </section>
           <section className="panel p-5">
             <h2 className="font-bold">Tags</h2>
@@ -1592,6 +1682,76 @@ export const CandidateDetail = () => {
           </Button>
         </aside>
       </div>
+      <Modal
+        isOpen={Boolean(moveTarget)}
+        onClose={() => setMoveTarget(null)}
+        title={
+          moveTarget === "hired"
+            ? "Mark this candidate as Hired?"
+            : moveTarget === "rejected"
+              ? "Mark as not selected?"
+              : `Move to ${stageLabel(moveTarget)}?`
+        }
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setMoveTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant={moveTarget === "rejected" ? "danger" : "primary"}
+              isLoading={move.isPending}
+              onClick={() => moveTarget && move.mutate()}
+            >
+              {moveTarget === "hired"
+                ? "Confirm Hired"
+                : moveTarget === "rejected"
+                  ? "Mark as not selected"
+                  : `Move to ${stageLabel(moveTarget)}`}
+            </Button>
+          </>
+        }
+      >
+        {moveTarget && (
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-3 rounded-xl bg-ink-50 p-4">
+              <div className="text-center">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-ink-400">
+                  Current stage
+                </p>
+                <p className="mt-1 text-sm font-bold">{stageLabel(a.status)}</p>
+              </div>
+              <ArrowRight className="h-5 w-5 shrink-0 text-ink-400" aria-hidden="true" />
+              <div className="text-center">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-ink-400">
+                  New stage
+                </p>
+                <p className="mt-1 text-sm font-bold text-brand-700">{stageLabel(moveTarget)}</p>
+              </div>
+              <div className="ml-auto min-w-0 text-right text-xs text-ink-500">
+                <p className="truncate font-semibold text-ink-800">{c.name}</p>
+                <p className="truncate">{a.job?.title || "Application"}</p>
+              </div>
+            </div>
+            <p className="text-sm leading-6 text-ink-600">
+              {moveTarget === "hired"
+                ? "You're about to mark this candidate as Hired. The candidate is notified, the job's hiring progress updates, and the decision is recorded in the audit log."
+                : moveTarget === "rejected"
+                  ? "The candidate is notified that they were not selected for this role. This closes the application."
+                  : moveTarget === "offer"
+                    ? "The candidate is notified that an offer has been made. Use this once the decision to hire is made."
+                    : "The candidate is notified and the change appears in the application history."}
+            </p>
+            <Input
+              label="Note (optional)"
+              placeholder={
+                moveTarget === "hired" ? "Hiring note — recorded in the history" : "Add context for the team"
+              }
+              value={moveNote}
+              onChange={(e) => setMoveNote(e.target.value)}
+            />
+          </div>
+        )}
+      </Modal>
       <Modal
         isOpen={Boolean(previewUrl)}
         onClose={() => {
@@ -1667,14 +1827,14 @@ export const ComparePage = () => {
 };
 export const CandidateSearch = () => {
   const orgId = useOrg(),
-    [filters, set] = useState({ skill: "", location: "", minExperience: "" }),
-    debouncedSkill = useDebouncedValue(filters.skill, 350),
+    [filters, set] = useState({ query: "", location: "", minExperience: "" }),
+    debouncedQuery = useDebouncedValue(filters.query, 350),
     debouncedLocation = useDebouncedValue(filters.location, 350),
     q = useQuery({
       queryKey: [
         "candidate-search",
         orgId,
-        debouncedSkill,
+        debouncedQuery,
         debouncedLocation,
         filters.minExperience,
       ],
@@ -1682,8 +1842,8 @@ export const CandidateSearch = () => {
         recruitmentApi.search(
           orgId,
           {
-            skill: debouncedSkill,
-            location: debouncedLocation,
+            query: debouncedQuery || undefined,
+            location: debouncedLocation || undefined,
             minExperience: filters.minExperience,
             limit: 50,
           },
@@ -1695,13 +1855,14 @@ export const CandidateSearch = () => {
       <PageHeader
         eyebrow="Find Candidates"
         title="Find the right candidates"
-        description="Search and review candidates who match your open roles."
+        description="Search candidates by skills, experience and hiring needs."
       />
       <div className="panel mb-6 grid gap-3 p-4 sm:grid-cols-3">
         <Input
+          aria-label="Search candidates"
           placeholder="Search by name or skill"
-          value={filters.skill}
-          onChange={(e) => set((f) => ({ ...f, skill: e.target.value }))}
+          value={filters.query}
+          onChange={(e) => set((f) => ({ ...f, query: e.target.value }))}
         />
         <Input
           placeholder="Location"
@@ -1763,11 +1924,11 @@ export const CandidateSearch = () => {
               : "Candidates appear here once they apply to your open jobs."
           }
           action={
-            (filters.skill || filters.location || filters.minExperience) && (
+            (filters.query || filters.location || filters.minExperience) && (
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={() => set({ skill: "", location: "", minExperience: "" })}
+                onClick={() => set({ query: "", location: "", minExperience: "" })}
               >
                 Clear filters
               </Button>
@@ -1780,42 +1941,101 @@ export const CandidateSearch = () => {
 };
 export const InterviewsPage = () => {
   const orgId = useOrg(),
-    [params] = useSearchParams(),
-    applicationId = params.get("applicationId"),
+    [params, setParams] = useSearchParams(),
+    prefilledApplicationId = params.get("applicationId") || "",
     qc = useQueryClient(),
     toast = useToast(),
     [requestKey, setRequestKey] = useState(() => newId()),
+    [appSearch, setAppSearch] = useState(""),
     [form, setForm] = useState({
-      applicationId: applicationId || "",
-      title: "Technical interview",
-      type: "technical",
+      applicationId: prefilledApplicationId,
+      title: "Interview",
+      type: "video",
       scheduledStart: "",
       scheduledEnd: "",
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      location: "",
+      meetingUrl: "",
     }),
+    [participantIds, setParticipantIds] = useState([]),
     q = useQuery({
       queryKey: ["interviews", orgId, {}],
       queryFn: () => interviewApi.list(orgId, { limit: 100 }),
     }),
-    create = useMutation({
-      mutationFn: () =>
-        interviewApi.create(
-          orgId,
-          {
-            ...form,
-            scheduledStart: new Date(form.scheduledStart),
-            scheduledEnd: new Date(form.scheduledEnd),
-          },
-          requestKey,
-        ),
-      onSuccess: () => {
-        setRequestKey(newId());
-        qc.invalidateQueries({ queryKey: ["interviews", orgId] });
-        toast.success("Interview invitation sent");
-      },
-      onError: (error) =>
-        toast.error(error.message || "Unable to send the interview invitation"),
+    jobs = useQuery({
+      queryKey: ["jobs-org", orgId, null],
+      queryFn: () => jobsApi.orgList(orgId, { limit: 50 }),
+    }),
+    members = useQuery({
+      queryKey: ["organization-members", orgId],
+      queryFn: () => organizationApi.members(orgId, { limit: 100 }),
+    }),
+    appQueries = useQueries({
+      queries: (jobs.data?.data || []).slice(0, 12).map((job) => ({
+        queryKey: ["applications-job", orgId, job.id, "interviews"],
+        queryFn: () => recruitmentApi.applications(orgId, job.id, { limit: 50 }),
+      })),
     });
+  const options = useMemo(() => {
+    const jobList = jobs.data?.data || [];
+    return appQueries.flatMap((query, index) => {
+      const job = jobList[index];
+      return (query.data?.data || []).map((a) => ({
+        id: a._id,
+        label: `${a.candidate?.name || "Candidate"} — ${job?.title || "Job"}`,
+        name: a.candidate?.name || "Candidate",
+        job: job?.title || "",
+        status: a.status,
+      }));
+    });
+  }, [appQueries, jobs.data]);
+  const visibleOptions = options.filter(
+    (o) =>
+      !appSearch ||
+      o.name.toLowerCase().includes(appSearch.toLowerCase()) ||
+      o.job.toLowerCase().includes(appSearch.toLowerCase()),
+  );
+  const selectedOption = options.find((o) => o.id === form.applicationId) || null;
+  const create = useMutation({
+    mutationFn: () => {
+      const body = {
+        applicationId: form.applicationId,
+        title: form.title,
+        type: form.type,
+        scheduledStart: form.scheduledStart ? new Date(form.scheduledStart) : undefined,
+        scheduledEnd: form.scheduledEnd ? new Date(form.scheduledEnd) : undefined,
+        timezone: form.timezone,
+      };
+      if (form.location.trim()) body.location = form.location.trim();
+      if (form.meetingUrl.trim()) body.meetingUrl = form.meetingUrl.trim();
+      if (participantIds.length) body.participants = participantIds;
+      return interviewApi.create(orgId, body, requestKey);
+    },
+    onSuccess: () => {
+      setRequestKey(newId());
+      setParams({});
+      setForm((f) => ({
+        ...f,
+        applicationId: "",
+        title: "Interview",
+        scheduledStart: "",
+        scheduledEnd: "",
+        location: "",
+        meetingUrl: "",
+      }));
+      setParticipantIds([]);
+      setAppSearch("");
+      qc.invalidateQueries({ queryKey: ["interviews", orgId] });
+      toast.success("Interview invitation sent");
+    },
+    onError: (error) => toast.error(error.message || "Unable to send the interview invitation"),
+  });
+  const start = form.scheduledStart ? new Date(form.scheduledStart) : null,
+    end = form.scheduledEnd ? new Date(form.scheduledEnd) : null,
+    duration =
+      start && end && end > start
+        ? `${Math.round((end - start) / 3600000 * 10) / 10} hours`
+        : null;
   return (
     <div className="page-wrap">
       <PageHeader
@@ -1825,25 +2045,60 @@ export const InterviewsPage = () => {
       />
       <div className="grid gap-6 lg:grid-cols-[.72fr_1.28fr]">
         <form
-          className="panel space-y-4 p-5"
+          className="panel h-fit space-y-4 p-5"
           onSubmit={(e) => {
             e.preventDefault();
             create.mutate();
           }}
         >
           <h2 className="font-bold">Schedule Interview</h2>
-          <Input
-            label="Candidate application ID"
-            hint="Found on the candidate review page."
-            required
-            value={form.applicationId}
-            onChange={(e) => setForm((f) => ({ ...f, applicationId: e.target.value }))}
-          />
+          <div>
+            <Input
+              label="Find a candidate"
+              hint="Search by candidate or job name"
+              placeholder="Search candidates"
+              value={appSearch}
+              onChange={(e) => setAppSearch(e.target.value)}
+            />
+            <Select
+              className="mt-2"
+              aria-label="Select candidate application"
+              label="Candidate"
+              required
+              placeholder={
+                options.length
+                  ? "Choose a candidate"
+                  : "No applications loaded yet — create a job first"
+              }
+              value={form.applicationId}
+              onChange={(e) => setForm((f) => ({ ...f, applicationId: e.target.value }))}
+              options={visibleOptions.map((o) => ({ value: o.id, label: o.label }))}
+            />
+            {selectedOption && (
+              <p className="mt-1.5 text-xs text-ink-400">
+                Current stage: {stageLabel(selectedOption.status)} · {selectedOption.job}
+              </p>
+            )}
+          </div>
           <Input
             label="Interview title"
             required
             value={form.title}
             onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+          />
+          <Select
+            aria-label="Interview type"
+            label="Type"
+            value={form.type}
+            onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
+            options={[
+              { value: "phone", label: "Phone screen" },
+              { value: "video", label: "Video call" },
+              { value: "onsite", label: "On-site" },
+              { value: "technical", label: "Technical round" },
+              { value: "panel", label: "Panel" },
+              { value: "hr", label: "HR round" },
+            ]}
           />
           <div className="grid gap-3 sm:grid-cols-2">
             <Input
@@ -1861,10 +2116,63 @@ export const InterviewsPage = () => {
               onChange={(e) => setForm((f) => ({ ...f, scheduledEnd: e.target.value }))}
             />
           </div>
-          <Button type="submit" fullWidth isLoading={create.isPending}>
+          {duration && (
+            <p className="text-xs font-medium text-ink-500">Duration: {duration}</p>
+          )}
+          <Input
+            label="Timezone"
+            value={form.timezone}
+            onChange={(e) => setForm((f) => ({ ...f, timezone: e.target.value }))}
+          />
+          <Input
+            label="Location or meeting link (optional)"
+            placeholder="Conference room 3 or https://meet.example.com/…"
+            value={form.location}
+            onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))}
+          />
+          <Input
+            label="Meeting link (optional)"
+            placeholder="https://"
+            value={form.meetingUrl}
+            onChange={(e) => setForm((f) => ({ ...f, meetingUrl: e.target.value }))}
+          />
+          {(members.data?.data || []).length > 0 && (
+            <div>
+              <p className="mb-1.5 text-xs font-bold uppercase tracking-wider text-ink-400">
+                Interviewers (optional)
+              </p>
+              <div className="grid gap-1.5 sm:grid-cols-2">
+                {(members.data.data || []).map((m) => (
+                  <label
+                    key={m._id}
+                    className="flex cursor-pointer items-center gap-2 rounded-lg bg-ink-50 px-3 py-2 text-sm transition-colors hover:bg-ink-100"
+                  >
+                    <input
+                      type="checkbox"
+                      className="shrink-0"
+                      checked={participantIds.includes(m._id)}
+                      onChange={(e) =>
+                        setParticipantIds((ids) =>
+                          e.target.checked ? [...ids, m._id] : ids.filter((id) => id !== m._id),
+                        )
+                      }
+                    />
+                    <span className="min-w-0 truncate">
+                      {m.user?.name || m.user?.email}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+          <Button type="submit" fullWidth disabled={!form.applicationId} isLoading={create.isPending}>
             Send invitation
           </Button>
           {create.error && <ErrorCallout error={create.error} />}
+          <p className="text-xs leading-5 text-ink-400">
+            The candidate receives the invitation by email and in-app, and can confirm or ask to
+            reschedule.
+          </p>
         </form>
         <div>
           {q.isLoading ? (
@@ -1887,7 +2195,8 @@ export const InterviewsPage = () => {
                       {i.title}
                     </h2>
                     <p className="truncate text-sm text-ink-500">
-                      {i.application?.job?.title || i.candidate?.name || "Candidate"} ·{" "}
+                      {i.application?.candidate?.name || "Candidate"} ·{" "}
+                      {i.application?.job?.title || "Job"} ·{" "}
                       {i.scheduledStart
                         ? `${formatDate(i.scheduledStart)} · ${new Date(
                             i.scheduledStart,
@@ -1915,10 +2224,18 @@ export const InterviewDetail = () => {
   const orgId = useOrg(),
     { interviewId } = useParams(),
     toast = useToast(),
+    qc = useQueryClient(),
     [questions, setQuestions] = useState(null),
-    [ratings, setRatings] = useState([{ criterion: "Role expertise", score: 3, evidence: "" }]),
+    [ratings, setRatings] = useState([
+      { criterion: "Technical skills", score: 3, evidence: "" },
+      { criterion: "Communication", score: 3, evidence: "" },
+      { criterion: "Problem solving", score: 3, evidence: "" },
+    ]),
     [summary, setSummary] = useState(""),
     [recommendation, setRecommendation] = useState("yes"),
+    [cancelOpen, setCancelOpen] = useState(false),
+    [cancelReason, setCancelReason] = useState(""),
+    [completeOpen, setCompleteOpen] = useState(false),
     q = useQuery({
       queryKey: ["interviews", orgId, {}],
       queryFn: () => interviewApi.list(orgId, { limit: 100 }),
@@ -1929,8 +2246,47 @@ export const InterviewDetail = () => {
     }),
     feedback = useMutation({
       mutationFn: () =>
-        interviewApi.feedback(orgId, interviewId, { ratings, recommendation, summary }),
-      onSuccess: () => toast.success("Feedback submitted and locked"),
+        interviewApi.feedback(
+          orgId,
+          interviewId,
+          ratings
+            .filter((r) => r.criterion.trim())
+            .map((r) => ({
+              criterion: r.criterion.trim(),
+              score: Math.min(5, Math.max(1, Number(r.score) || 1)),
+              evidence: r.evidence,
+            })),
+          recommendation,
+          summary,
+        ),
+      onSuccess: () => {
+        toast.success("Feedback submitted and locked");
+        qc.invalidateQueries({ queryKey: ["interviews", orgId] });
+      },
+      onError: (error) =>
+        toast.error(
+          /already been submitted/i.test(error?.message || "")
+            ? "You've already submitted feedback for this interview."
+            : error.message,
+        ),
+    }),
+    cancel = useMutation({
+      mutationFn: () => interviewApi.cancel(orgId, interviewId, cancelReason || "Cancelled by the hiring team"),
+      onSuccess: () => {
+        setCancelOpen(false);
+        setCancelReason("");
+        toast.success("Interview cancelled — the candidate is notified");
+        qc.invalidateQueries({ queryKey: ["interviews", orgId] });
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+    complete = useMutation({
+      mutationFn: () => interviewApi.complete(orgId, interviewId),
+      onSuccess: () => {
+        setCompleteOpen(false);
+        toast.success("Interview marked as completed");
+        qc.invalidateQueries({ queryKey: ["interviews", orgId] });
+      },
       onError: (error) => toast.error(error.message),
     });
   const interview = q.data?.data?.find((i) => i._id === interviewId);
@@ -1956,14 +2312,62 @@ export const InterviewDetail = () => {
         />
       </div>
     );
+  const canComplete =
+    interview.scheduledStart &&
+    new Date(interview.scheduledStart) <= new Date() &&
+    !["completed", "cancelled"].includes(interview.status);
+  const canCancel = !["completed", "cancelled"].includes(interview.status);
+  const teamFeedbackCount = (interview.feedback || []).length;
   return (
     <div className="page-wrap max-w-5xl">
       <PageHeader
         eyebrow="Interview workspace"
         title={interview?.title || "Interview"}
         description="Generate a grounded question kit, then submit your evaluation."
-        action={interview && <StatusPill status={interview.status} />}
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            {canComplete && (
+              <Button size="sm" variant="secondary" onClick={() => setCompleteOpen(true)}>
+                Mark as completed
+              </Button>
+            )}
+            {canCancel && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-danger-600 hover:text-danger-700"
+                onClick={() => setCancelOpen(true)}
+              >
+                Cancel interview
+              </Button>
+            )}
+            <StatusPill status={interview.status} />
+          </div>
+        }
       />
+      {interview.application?.candidate && (
+        <div className="panel mb-6 flex flex-wrap items-center gap-4 p-4">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand-50 text-xs font-bold text-brand-700">
+            {initials(interview.application.candidate.name)}
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold">{interview.application.candidate.name}</p>
+            <p className="text-xs text-ink-500">
+              {interview.application.job?.title || "Job"} · candidate stage:{" "}
+              {stageLabel(interview.application.status)}
+            </p>
+          </div>
+          {interview.scheduledStart && (
+            <p className="text-sm text-ink-500">
+              {formatDate(interview.scheduledStart)} ·{" "}
+              {new Date(interview.scheduledStart).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </p>
+          )}
+        </div>
+      )}
       <div className="grid gap-6 lg:grid-cols-2">
         <section className="ai-panel p-6">
           <h2 className="text-xl font-bold">Interview kit</h2>
@@ -1975,6 +2379,7 @@ export const InterviewDetail = () => {
           >
             Generate questions
           </Button>
+          {generate.error && <div className="mt-4"><ErrorCallout error={generate.error} /></div>}
           {questions && (
             <div className="mt-5 space-y-3">
               <AIProvenance
@@ -2005,38 +2410,86 @@ export const InterviewDetail = () => {
         >
           <h2 className="text-xl font-bold">Interview Feedback</h2>
           <p className="mt-1 text-sm text-ink-500">
-            Use observable evidence. Do not include protected attributes.
+            Rate each criterion 1–5 with observable evidence. Do not include protected
+            attributes.
           </p>
-          <Input
-            className="mt-5"
-            label="Criterion"
-            value={ratings[0].criterion}
-            onChange={(e) => setRatings([{ ...ratings[0], criterion: e.target.value }])}
-          />
-          <Input
+          <div className="mt-5 space-y-4">
+            {ratings.map((rating, index) => (
+              <div key={index} className="rounded-xl border border-ink-100 p-4">
+                <div className="flex items-center gap-2">
+                  <Input
+                    aria-label={`Criterion ${index + 1}`}
+                    label="Criterion"
+                    value={rating.criterion}
+                    onChange={(e) =>
+                      setRatings((rows) =>
+                        rows.map((r, i) => (i === index ? { ...r, criterion: e.target.value } : r)),
+                      )
+                    }
+                    className="flex-1"
+                  />
+                  <div className="pt-0.5">
+                    <Select
+                      aria-label={`Score for ${rating.criterion || `criterion ${index + 1}`}`}
+                      label="Score"
+                      value={String(rating.score)}
+                      onChange={(e) =>
+                        setRatings((rows) =>
+                          rows.map((r, i) => (i === index ? { ...r, score: Number(e.target.value) } : r)),
+                        )
+                      }
+                      className="w-24"
+                      options={[5, 4, 3, 2, 1].map((n) => ({ value: String(n), label: `${n}/5` }))}
+                    />
+                  </div>
+                  {ratings.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => setRatings((rows) => rows.filter((_, i) => i !== index))}
+                      aria-label={`Remove criterion ${index + 1}`}
+                      className="mt-6 rounded-lg p-2 text-ink-400 transition-colors hover:bg-danger-50 hover:text-danger-600"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+                <Textarea
+                  className="mt-3"
+                  label="Evidence"
+                  rows={2}
+                  value={rating.evidence}
+                  onChange={(e) =>
+                    setRatings((rows) =>
+                      rows.map((r, i) => (i === index ? { ...r, evidence: e.target.value } : r)),
+                    )
+                  }
+                />
+              </div>
+            ))}
+          </div>
+          <Button
+            type="button"
             className="mt-3"
-            label="Score (1–5)"
-            type="number"
-            min="1"
-            max="5"
-            value={ratings[0].score}
-            onChange={(e) => setRatings([{ ...ratings[0], score: Number(e.target.value) }])}
-          />
-          <Textarea
-            className="mt-3"
-            label="Evidence"
-            value={ratings[0].evidence}
-            onChange={(e) => setRatings([{ ...ratings[0], evidence: e.target.value }])}
-          />
+            variant="ghost"
+            size="sm"
+            onClick={() =>
+              setRatings((rows) => [...rows, { criterion: "", score: 3, evidence: "" }])
+            }
+          >
+            + Add criterion
+          </Button>
           <Select
-            className="mt-3"
-            label="Recommendation"
+            className="mt-5"
+            label="Overall recommendation"
             value={recommendation}
             onChange={(e) => setRecommendation(e.target.value)}
-            options={["strong_yes", "yes", "mixed", "no", "strong_no"].map((x) => ({
-              value: x,
-              label: x.replace("_", " "),
-            }))}
+            options={[
+              { value: "strong_yes", label: "Strong hire" },
+              { value: "yes", label: "Hire" },
+              { value: "mixed", label: "Mixed" },
+              { value: "no", label: "No hire" },
+              { value: "strong_no", label: "Strong no" },
+            ]}
           />
           <Textarea
             className="mt-3"
@@ -2044,6 +2497,12 @@ export const InterviewDetail = () => {
             value={summary}
             onChange={(e) => setSummary(e.target.value)}
           />
+          {teamFeedbackCount > 0 && (
+            <p className="mt-4 rounded-xl bg-ink-50 p-3 text-xs font-medium text-ink-600">
+              {teamFeedbackCount} evaluation{teamFeedbackCount === 1 ? "" : "s"} submitted by the
+              team so far. Your feedback is one per person.
+            </p>
+          )}
           <Button className="mt-4" type="submit" isLoading={feedback.isPending}>
             Submit feedback
           </Button>
@@ -2057,6 +2516,46 @@ export const InterviewDetail = () => {
           )}
         </form>
       </div>
+      <ConfirmModal
+        isOpen={completeOpen}
+        onClose={() => setCompleteOpen(false)}
+        onConfirm={() => complete.mutate()}
+        title="Mark this interview as completed?"
+        description="The interview is kept in the record with its feedback. This can't be undone."
+        confirmLabel="Mark completed"
+        isLoading={complete.isPending}
+      />
+      <Modal
+        isOpen={cancelOpen}
+        onClose={() => setCancelOpen(false)}
+        title="Cancel this interview?"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setCancelOpen(false)}>
+              Keep interview
+            </Button>
+            <Button
+              variant="danger"
+              isLoading={cancel.isPending}
+              onClick={() => cancel.mutate()}
+            >
+              Cancel interview
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-ink-600">
+            The candidate is notified that the interview was cancelled.
+          </p>
+          <Input
+            label="Reason (optional)"
+            placeholder="e.g. Role filled, schedule conflict"
+            value={cancelReason}
+            onChange={(e) => setCancelReason(e.target.value)}
+          />
+        </div>
+      </Modal>
     </div>
   );
 };
@@ -2101,7 +2600,7 @@ export const AnalyticsPage = () => {
         />
       </div>
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
-        <SectionCard title="Hiring Progress" description="Applications by pipeline stage">
+        <SectionCard title="Hiring Progress" description="Applications by hiring stage">
           {stages.length ? (
             <div className="space-y-4">
               {stages.map(([stage, count]) => (
@@ -2148,7 +2647,7 @@ export const AnalyticsPage = () => {
         </SectionCard>
       </div>
       <section className="ai-panel mt-6 p-6">
-        <h2 className="font-bold">AI Activity</h2>
+        <h2 className="font-bold">AI Usage</h2>
         <p className="mt-1 text-sm text-ink-400">
           How often the AI Assistant used each feature. These runs are decision support, never
           hiring outcomes.
@@ -2184,8 +2683,8 @@ export const RecruiterCopilot = () => {
   return (
     <div className="page-wrap max-w-5xl">
       <PageHeader
-        eyebrow="AI Assistant"
-        title="Ask your AI hiring assistant"
+        eyebrow="Hiring Assistant"
+        title="Ask your hiring assistant"
         description="Get quick insights from your jobs and candidates. AI suggestions never perform hiring actions on their own."
       />
       <div className="ai-panel p-7">
@@ -2407,7 +2906,7 @@ export const TeamPage = () => {
             label="Role"
             value={form.role}
             onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}
-            options={["recruiter", "hiring_manager", "interviewer", "viewer", "admin"].map((x) => ({
+            options={["recruiter", "hiring_manager", "interviewer", "viewer"].map((x) => ({
               value: x,
               label: x.replace("_", " "),
             }))}

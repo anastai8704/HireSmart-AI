@@ -63,7 +63,7 @@ describe("AppShell smoke", () => {
     state.membership = { role: "owner" };
     state.workspaceRole = "owner";
     renderShell("/app/o/org1");
-    expect(screen.getByText("AI Assistant")).toBeInTheDocument();
+    expect(screen.getByText("Hiring Assistant")).toBeInTheDocument();
     expect(screen.getByText("Hiring")).toBeInTheDocument();
     expect(screen.getByText("Meridian · owner")).toBeInTheDocument();
   });

@@ -310,6 +310,53 @@ test("platform admin listings minimize PII and support account lifecycle", async
     .send({ reason: "Review completed" });
   assert.equal(reactivated.status, 200);
 });
+test("hiring chain shortlisted -> interview -> offer -> hired persists (invalid jumps rejected)", async () => {
+  const base = `/api/v1/organizations/${organizationId}/applications/${applicationId}`;
+  const current = await request(app).get(base).set(auth(recruiterToken));
+  assert.equal(current.status, 200);
+  assert.equal(current.body.data.application.status, "shortlisted");
+
+  // The move the old UI offered (direct jump over offer) must be rejected.
+  const jump = await request(app).post(`${base}/transitions`).set(auth(recruiterToken)).send({ toStatus: "hired" });
+  assert.equal(jump.status, 409, JSON.stringify(jump.body));
+  assert.equal(jump.body.code, "INVALID_TRANSITION");
+
+  const toInterview = await request(app)
+    .post(`${base}/transitions`)
+    .set(auth(recruiterToken))
+    .send({ toStatus: "interview", note: "Technical round scheduled" });
+  assert.equal(toInterview.status, 200, JSON.stringify(toInterview.body));
+  assert.equal(toInterview.body.data.status, "interview");
+
+  // interview -> hired also needs the offer stage first.
+  const skipOffer = await request(app)
+    .post(`${base}/transitions`)
+    .set(auth(recruiterToken))
+    .send({ toStatus: "hired" });
+  assert.equal(skipOffer.status, 409);
+
+  const toOffer = await request(app)
+    .post(`${base}/transitions`)
+    .set(auth(recruiterToken))
+    .send({ toStatus: "offer", note: "Offer extended" });
+  assert.equal(toOffer.status, 200, JSON.stringify(toOffer.body));
+  assert.equal(toOffer.body.data.status, "offer");
+
+  const toHired = await request(app)
+    .post(`${base}/transitions`)
+    .set(auth(recruiterToken))
+    .send({ toStatus: "hired", note: "Offer accepted" });
+  assert.equal(toHired.status, 200, JSON.stringify(toHired.body));
+  assert.equal(toHired.body.data.status, "hired");
+
+  // The chain is persisted, including the history and the candidate notification.
+  const after = await request(app).get(base).set(auth(recruiterToken));
+  const history = after.body.data.application.statusHistory.map((h) => h.status);
+  assert.ok(history.includes("interview") && history.includes("offer") && history.includes("hired"));
+  const notifications = await request(app).get("/api/v1/notifications").set(auth(candidateToken));
+  const statusUpdates = notifications.body.data.filter((n) => n.type === "application_status_changed");
+  assert.ok(statusUpdates.length >= 2, "candidate should be notified of stage changes");
+});
 test("admin console endpoints expose totals, populated context and real AI activity", async () => {
   const password = await bcrypt.hash("StrongPassword123!", 12);
   const admin = await User.findOne({ role: "admin" }) || (await User.create({

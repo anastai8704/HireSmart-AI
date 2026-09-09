@@ -130,14 +130,14 @@ describe("Recruiter dashboard", () => {
     expect(await screen.findByText("Hiring workspace")).toBeInTheDocument();
 
     // Recruiter-specific KPIs (differs from the candidate view).
-    expect(await screen.findByText("Active jobs")).toBeInTheDocument();
+    expect(await screen.findByText("Open positions")).toBeInTheDocument();
     expect(screen.getAllByText("Pending approvals").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Shortlisted").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Offers out").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Hired").length).toBeGreaterThan(0);
 
     // Spec-required recruiter dashboard elements.
     expect(screen.getByText("Jobs needing attention")).toBeInTheDocument();
-    expect(screen.getByText("Candidate pipeline")).toBeInTheDocument();
+    expect(screen.getByText("Candidate Hiring Progress")).toBeInTheDocument();
     expect(screen.getByText("Upcoming interviews")).toBeInTheDocument();
     expect(screen.getByText("AI insights")).toBeInTheDocument();
     expect(screen.getByText("Team")).toBeInTheDocument();
