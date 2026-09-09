@@ -164,6 +164,7 @@ export const recruitmentApi = {
 };
 export const interviewApi = {
   list: (orgId, params) => api.get(`/organizations/${orgId}/interviews${query(params)}`),
+  get: (orgId, id) => api.get(`/organizations/${orgId}/interviews/${id}`),
   create: (orgId, body, key) =>
     api.post(`/organizations/${orgId}/interviews`, body, {
       headers: key ? { "Idempotency-Key": key } : {},
@@ -172,11 +173,16 @@ export const interviewApi = {
   cancel: (orgId, id, reason) =>
     api.post(`/organizations/${orgId}/interviews/${id}/cancel`, { reason }),
   complete: (orgId, id) => api.post(`/organizations/${orgId}/interviews/${id}/complete`),
+  candidateGet: (id) => api.get(`/interviews/${id}`),
   confirm: (id) => api.post(`/interviews/${id}/confirm`),
   reschedule: (id, reason) => api.post(`/interviews/${id}/reschedule`, { reason }),
   prep: (id) => api.post(`/interviews/${id}/preparation`),
-  feedback: (orgId, id, body) =>
-    api.post(`/organizations/${orgId}/interviews/${id}/feedback`, body),
+  feedback: (orgId, id, bodyOrRatings, recommendation, summary) => {
+    const body = Array.isArray(bodyOrRatings)
+      ? { ratings: bodyOrRatings, recommendation, summary }
+      : bodyOrRatings;
+    return api.post(`/organizations/${orgId}/interviews/${id}/feedback`, body);
+  },
   questions: (orgId, id) => api.post(`/organizations/${orgId}/interviews/${id}/questions`),
 };
 export const notificationApi = {

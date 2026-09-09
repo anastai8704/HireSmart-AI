@@ -12,10 +12,13 @@ import { Controller, useForm } from "react-hook-form";
 import {
   ArrowRight,
   BriefcaseBusiness,
+  Calendar,
   Check,
   CheckCircle2,
+  Clock,
   Clock3,
   Download,
+  MapPin,
   Plus,
   RefreshCw,
   Star,
@@ -50,7 +53,15 @@ import {
 } from "../../lib/api";
 import { useAuth } from "../../context/useAuth";
 import { useToast } from "../../components/ui/useToast";
-import { formatDate, formatRelativeTime, initials } from "../../lib/utils";
+import {
+  formatDate,
+  formatDateTime,
+  formatDuration,
+  formatRelativeTime,
+  initials,
+  isValidMeetingUrl,
+  downloadInterviewIcs,
+} from "../../lib/utils";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 const greeting = () => {
   const hour = new Date().getHours();
@@ -1947,13 +1958,15 @@ export const InterviewsPage = () => {
     toast = useToast(),
     [requestKey, setRequestKey] = useState(() => newId()),
     [appSearch, setAppSearch] = useState(""),
+    [tab, setTab] = useState("upcoming"),
+    [searchQuery, setSearchQuery] = useState(""),
     [form, setForm] = useState({
       applicationId: prefilledApplicationId,
-      title: "Interview",
+      title: "Technical Interview",
       type: "video",
       scheduledStart: "",
       scheduledEnd: "",
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
       location: "",
       meetingUrl: "",
     }),
@@ -1976,19 +1989,21 @@ export const InterviewsPage = () => {
         queryFn: () => recruitmentApi.applications(orgId, job.id, { limit: 50 }),
       })),
     });
+
   const options = useMemo(() => {
     const jobList = jobs.data?.data || [];
     return appQueries.flatMap((query, index) => {
       const job = jobList[index];
       return (query.data?.data || []).map((a) => ({
         id: a._id,
-        label: `${a.candidate?.name || "Candidate"} — ${job?.title || "Job"}`,
+        label: `${a.candidate?.name || "Candidate"} — ${job?.title || "Job"} (${stageLabel(a.status)})`,
         name: a.candidate?.name || "Candidate",
         job: job?.title || "",
         status: a.status,
       }));
     });
   }, [appQueries, jobs.data]);
+
   const visibleOptions = options.filter(
     (o) =>
       !appSearch ||
@@ -1996,6 +2011,17 @@ export const InterviewsPage = () => {
       o.job.toLowerCase().includes(appSearch.toLowerCase()),
   );
   const selectedOption = options.find((o) => o.id === form.applicationId) || null;
+
+  const applyDurationPreset = (minutes) => {
+    if (!form.scheduledStart) return;
+    const startObj = new Date(form.scheduledStart);
+    if (Number.isNaN(startObj.getTime())) return;
+    const endObj = new Date(startObj.getTime() + minutes * 60000);
+    const pad = (n) => String(n).padStart(2, "0");
+    const endStr = `${endObj.getFullYear()}-${pad(endObj.getMonth() + 1)}-${pad(endObj.getDate())}T${pad(endObj.getHours())}:${pad(endObj.getMinutes())}`;
+    setForm((f) => ({ ...f, scheduledEnd: endStr }));
+  };
+
   const create = useMutation({
     mutationFn: () => {
       const body = {
@@ -2017,7 +2043,7 @@ export const InterviewsPage = () => {
       setForm((f) => ({
         ...f,
         applicationId: "",
-        title: "Interview",
+        title: "Technical Interview",
         scheduledStart: "",
         scheduledEnd: "",
         location: "",
@@ -2026,24 +2052,73 @@ export const InterviewsPage = () => {
       setParticipantIds([]);
       setAppSearch("");
       qc.invalidateQueries({ queryKey: ["interviews", orgId] });
-      toast.success("Interview invitation sent");
+      toast.success("Interview scheduled and invitation sent to candidate");
     },
-    onError: (error) => toast.error(error.message || "Unable to send the interview invitation"),
+    onError: (error) => toast.error(error.message || "Unable to schedule the interview"),
   });
-  const start = form.scheduledStart ? new Date(form.scheduledStart) : null,
-    end = form.scheduledEnd ? new Date(form.scheduledEnd) : null,
-    duration =
-      start && end && end > start
-        ? `${Math.round((end - start) / 3600000 * 10) / 10} hours`
-        : null;
+
+  const duration = formatDuration(form.scheduledStart, form.scheduledEnd);
+  const allInterviews = q.data?.data || [];
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  const endOfThisWeek = new Date(now.getTime() + 7 * 86400000);
+
+  const filterByTab = (i) => {
+    const sDate = i.scheduledStart ? new Date(i.scheduledStart) : null;
+    if (tab === "today") {
+      return sDate && sDate >= startOfToday && sDate < endOfToday && i.status !== "cancelled";
+    }
+    if (tab === "this_week") {
+      return sDate && sDate >= now && sDate <= endOfThisWeek && i.status !== "cancelled";
+    }
+    if (tab === "upcoming") {
+      return ["invited", "confirmed", "reschedule_requested"].includes(i.status);
+    }
+    if (tab === "past") {
+      return ["completed"].includes(i.status) || (sDate && sDate < now && i.status !== "cancelled");
+    }
+    if (tab === "cancelled") {
+      return i.status === "cancelled";
+    }
+    return true;
+  };
+
+  const filteredInterviews = allInterviews.filter((i) => {
+    if (!filterByTab(i)) return false;
+    if (!searchQuery.trim()) return true;
+    const term = searchQuery.toLowerCase();
+    const title = (i.title || "").toLowerCase();
+    const candidate = (i.application?.candidate?.name || "").toLowerCase();
+    const job = (i.application?.job?.title || "").toLowerCase();
+    return title.includes(term) || candidate.includes(term) || job.includes(term);
+  });
+
+  const tabCounts = {
+    upcoming: allInterviews.filter((i) => ["invited", "confirmed", "reschedule_requested"].includes(i.status)).length,
+    today: allInterviews.filter((i) => {
+      const d = i.scheduledStart ? new Date(i.scheduledStart) : null;
+      return d && d >= startOfToday && d < endOfToday && i.status !== "cancelled";
+    }).length,
+    this_week: allInterviews.filter((i) => {
+      const d = i.scheduledStart ? new Date(i.scheduledStart) : null;
+      return d && d >= now && d <= endOfThisWeek && i.status !== "cancelled";
+    }).length,
+    past: allInterviews.filter((i) => ["completed"].includes(i.status) || (i.scheduledStart && new Date(i.scheduledStart) < now && i.status !== "cancelled")).length,
+    cancelled: allInterviews.filter((i) => i.status === "cancelled").length,
+    all: allInterviews.length,
+  };
+
   return (
-    <div className="page-wrap">
+    <div className="page-wrap space-y-6">
       <PageHeader
         eyebrow="Interviews"
         title="Schedule and manage interviews"
-        description="Plan interviews, send invitations and keep evaluation organized."
+        description="Plan interview rounds, invite candidate and interviewers, and collect structured scorecards."
       />
-      <div className="grid gap-6 lg:grid-cols-[.72fr_1.28fr]">
+
+      <div className="grid gap-6 lg:grid-cols-[.78fr_1.22fr]">
+        {/* Scheduling Form */}
         <form
           className="panel h-fit space-y-4 p-5"
           onSubmit={(e) => {
@@ -2051,168 +2126,336 @@ export const InterviewsPage = () => {
             create.mutate();
           }}
         >
-          <h2 className="font-bold">Schedule Interview</h2>
+          <div className="border-b border-ink-100 pb-3">
+            <h2 className="font-bold text-ink-950">Schedule Interview</h2>
+            <p className="text-xs text-ink-500">Candidate receives an invitation email and notification.</p>
+          </div>
+
           <div>
             <Input
               label="Find a candidate"
-              hint="Search by candidate or job name"
-              placeholder="Search candidates"
+              hint="Search by candidate name or job"
+              placeholder="Type candidate or job name..."
               value={appSearch}
               onChange={(e) => setAppSearch(e.target.value)}
             />
             <Select
               className="mt-2"
               aria-label="Select candidate application"
-              label="Candidate"
+              label="Candidate application"
               required
               placeholder={
                 options.length
-                  ? "Choose a candidate"
-                  : "No applications loaded yet — create a job first"
+                  ? "Choose candidate application"
+                  : "No applications found — create a job first"
               }
               value={form.applicationId}
               onChange={(e) => setForm((f) => ({ ...f, applicationId: e.target.value }))}
               options={visibleOptions.map((o) => ({ value: o.id, label: o.label }))}
             />
             {selectedOption && (
-              <p className="mt-1.5 text-xs text-ink-400">
-                Current stage: {stageLabel(selectedOption.status)} · {selectedOption.job}
-              </p>
+              <div className="mt-2 flex items-center gap-2 rounded-lg bg-ink-50 p-2 text-xs text-ink-700">
+                <span className="font-semibold text-ink-900">{selectedOption.name}</span>
+                <span>·</span>
+                <span>{selectedOption.job}</span>
+                <span>·</span>
+                <Badge variant="brand">{stageLabel(selectedOption.status)}</Badge>
+              </div>
             )}
           </div>
-          <Input
-            label="Interview title"
-            required
-            value={form.title}
-            onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-          />
-          <Select
-            aria-label="Interview type"
-            label="Type"
-            value={form.type}
-            onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
-            options={[
-              { value: "phone", label: "Phone screen" },
-              { value: "video", label: "Video call" },
-              { value: "onsite", label: "On-site" },
-              { value: "technical", label: "Technical round" },
-              { value: "panel", label: "Panel" },
-              { value: "hr", label: "HR round" },
-            ]}
-          />
+
           <div className="grid gap-3 sm:grid-cols-2">
             <Input
-              label="Starts"
-              type="datetime-local"
+              label="Interview title"
               required
-              value={form.scheduledStart}
-              onChange={(e) => setForm((f) => ({ ...f, scheduledStart: e.target.value }))}
+              value={form.title}
+              onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
             />
-            <Input
-              label="Ends"
-              type="datetime-local"
-              required
-              value={form.scheduledEnd}
-              onChange={(e) => setForm((f) => ({ ...f, scheduledEnd: e.target.value }))}
+            <Select
+              aria-label="Interview type"
+              label="Type"
+              value={form.type}
+              onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
+              options={[
+                { value: "phone", label: "Phone screen" },
+                { value: "video", label: "Video call" },
+                { value: "onsite", label: "On-site" },
+                { value: "technical", label: "Technical round" },
+                { value: "panel", label: "Panel" },
+                { value: "hr", label: "HR round" },
+              ]}
             />
           </div>
-          {duration && (
-            <p className="text-xs font-medium text-ink-500">Duration: {duration}</p>
-          )}
+
+          <div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Input
+                label="Starts"
+                type="datetime-local"
+                required
+                value={form.scheduledStart}
+                onChange={(e) => setForm((f) => ({ ...f, scheduledStart: e.target.value }))}
+              />
+              <Input
+                label="Ends"
+                type="datetime-local"
+                required
+                value={form.scheduledEnd}
+                onChange={(e) => setForm((f) => ({ ...f, scheduledEnd: e.target.value }))}
+              />
+            </div>
+
+            {/* Duration presets */}
+            <div className="mt-2 flex items-center justify-between">
+              <div className="flex items-center gap-1 text-xs text-ink-500">
+                <span className="font-medium">Quick duration:</span>
+                {[30, 45, 60, 90].map((mins) => (
+                  <button
+                    key={mins}
+                    type="button"
+                    onClick={() => applyDurationPreset(mins)}
+                    className="rounded bg-ink-100 px-1.5 py-0.5 text-[11px] font-semibold text-ink-700 transition hover:bg-brand-50 hover:text-brand-700"
+                  >
+                    {mins}m
+                  </button>
+                ))}
+              </div>
+              {duration && <span className="text-xs font-semibold text-brand-700">{duration}</span>}
+            </div>
+          </div>
+
           <Input
             label="Timezone"
             value={form.timezone}
             onChange={(e) => setForm((f) => ({ ...f, timezone: e.target.value }))}
           />
-          <Input
-            label="Location or meeting link (optional)"
-            placeholder="Conference room 3 or https://meet.example.com/…"
-            value={form.location}
-            onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))}
-          />
-          <Input
-            label="Meeting link (optional)"
-            placeholder="https://"
-            value={form.meetingUrl}
-            onChange={(e) => setForm((f) => ({ ...f, meetingUrl: e.target.value }))}
-          />
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Input
+              label="Meeting URL (optional)"
+              placeholder="https://meet.google.com/..."
+              value={form.meetingUrl}
+              onChange={(e) => setForm((f) => ({ ...f, meetingUrl: e.target.value }))}
+            />
+            <Input
+              label="Location / Room (optional)"
+              placeholder="e.g. Conference Room B"
+              value={form.location}
+              onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))}
+            />
+          </div>
+
           {(members.data?.data || []).length > 0 && (
             <div>
-              <p className="mb-1.5 text-xs font-bold uppercase tracking-wider text-ink-400">
-                Interviewers (optional)
+              <p className="mb-1.5 text-xs font-bold uppercase tracking-wider text-ink-500">
+                Assign Interviewers (optional)
               </p>
-              <div className="grid gap-1.5 sm:grid-cols-2">
-                {(members.data.data || []).map((m) => (
-                  <label
-                    key={m._id}
-                    className="flex cursor-pointer items-center gap-2 rounded-lg bg-ink-50 px-3 py-2 text-sm transition-colors hover:bg-ink-100"
-                  >
-                    <input
-                      type="checkbox"
-                      className="shrink-0"
-                      checked={participantIds.includes(m._id)}
-                      onChange={(e) =>
-                        setParticipantIds((ids) =>
-                          e.target.checked ? [...ids, m._id] : ids.filter((id) => id !== m._id),
-                        )
-                      }
-                    />
-                    <span className="min-w-0 truncate">
-                      {m.user?.name || m.user?.email}
-                    </span>
-                  </label>
-                ))}
+              <div className="max-h-36 overflow-y-auto space-y-1 rounded-xl border border-ink-100 p-2">
+                {(members.data.data || []).map((m) => {
+                  const memberUserId = m.user?._id || m.user?.id || m._id;
+                  const isChecked = participantIds.includes(memberUserId);
+                  return (
+                    <label
+                      key={m._id}
+                      className="flex cursor-pointer items-center justify-between gap-2 rounded-lg p-2 text-xs transition hover:bg-ink-50"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <input
+                          type="checkbox"
+                          className="shrink-0 rounded text-brand-600 focus:ring-brand-500"
+                          checked={isChecked}
+                          onChange={(e) =>
+                            setParticipantIds((ids) =>
+                              e.target.checked
+                                ? [...ids, memberUserId]
+                                : ids.filter((id) => id !== memberUserId),
+                            )
+                          }
+                        />
+                        <span className="truncate font-medium text-ink-900">
+                          {m.user?.name || m.user?.email}
+                        </span>
+                      </div>
+                      <Badge variant="outline" className="text-[10px] capitalize shrink-0">
+                        {m.role}
+                      </Badge>
+                    </label>
+                  );
+                })}
               </div>
             </div>
           )}
+
           <Button type="submit" fullWidth disabled={!form.applicationId} isLoading={create.isPending}>
-            Send invitation
+            Schedule &amp; Send Invitation
           </Button>
           {create.error && <ErrorCallout error={create.error} />}
-          <p className="text-xs leading-5 text-ink-400">
-            The candidate receives the invitation by email and in-app, and can confirm or ask to
-            reschedule.
-          </p>
         </form>
-        <div>
+
+        {/* Interviews List with Calendar Badges and Filters */}
+        <div className="space-y-4">
+          {/* Tabs and Search */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap gap-1 rounded-xl border border-ink-100 bg-ink-50/60 p-1">
+              {[
+                { id: "upcoming", label: `Upcoming (${tabCounts.upcoming})` },
+                { id: "today", label: `Today (${tabCounts.today})` },
+                { id: "this_week", label: `This Week (${tabCounts.this_week})` },
+                { id: "past", label: `Past (${tabCounts.past})` },
+                { id: "cancelled", label: `Cancelled (${tabCounts.cancelled})` },
+                { id: "all", label: `All (${tabCounts.all})` },
+              ].map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setTab(t.id)}
+                  className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                    tab === t.id ? "bg-ink-950 text-white shadow-sm" : "text-ink-600 hover:bg-white/80"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="w-full sm:w-48">
+              <Input
+                aria-label="Search interviews"
+                placeholder="Search interviews..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+          </div>
+
           {q.isLoading ? (
             <LoadingState />
           ) : q.error ? (
             <ErrorState error={q.error} onRetry={() => q.refetch()} />
-          ) : q.data?.data?.length ? (
+          ) : filteredInterviews.length ? (
             <div className="space-y-3">
-              {q.data.data.map((i) => (
-                <Link
-                  key={i._id}
-                  to={`/app/o/${orgId}/interviews/${i._id}`}
-                  className="panel group flex items-center gap-4 p-5 transition-all hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-sm"
-                >
-                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600">
-                    <Video className="h-5 w-5" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <h2 className="truncate font-bold transition-colors group-hover:text-brand-700">
-                      {i.title}
-                    </h2>
-                    <p className="truncate text-sm text-ink-500">
-                      {i.application?.candidate?.name || "Candidate"} ·{" "}
-                      {i.application?.job?.title || "Job"} ·{" "}
-                      {i.scheduledStart
-                        ? `${formatDate(i.scheduledStart)} · ${new Date(
-                            i.scheduledStart,
-                          ).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
-                        : "Unscheduled"}
-                    </p>
+              {filteredInterviews.map((i) => {
+                const startDate = i.scheduledStart ? new Date(i.scheduledStart) : null;
+                const iDuration = formatDuration(i.scheduledStart, i.scheduledEnd);
+                const hasValidLink = isValidMeetingUrl(i.meetingUrl);
+                const feedbackCount = (i.feedback || []).length;
+
+                return (
+                  <div
+                    key={i._id}
+                    className="panel group flex flex-col justify-between p-4 transition-all hover:border-brand-200 hover:shadow-sm"
+                  >
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="flex items-start gap-3">
+                        {startDate ? (
+                          <div className="flex min-w-[54px] flex-col items-center justify-center rounded-xl border border-brand-200 bg-brand-50/70 px-2 py-1.5 text-center shrink-0">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-brand-700">
+                              {startDate.toLocaleDateString("en-US", { month: "short" })}
+                            </span>
+                            <span className="text-lg font-black leading-tight text-ink-950">
+                              {startDate.getDate()}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-ink-100 text-ink-600">
+                            <Clock className="h-5 w-5" />
+                          </span>
+                        )}
+
+                        <div>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <Link
+                              to={`/app/o/${orgId}/interviews/${i._id}`}
+                              className="font-bold text-ink-950 transition hover:text-brand-700"
+                            >
+                              {i.title}
+                            </Link>
+                            {i.type && (
+                              <Badge variant="outline" className="text-[10px] capitalize">
+                                {i.type.replaceAll("_", " ")}
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="mt-0.5 text-xs text-ink-600">
+                            <span className="font-semibold text-ink-900">{i.application?.candidate?.name || "Candidate"}</span>
+                            {" · "}
+                            <span>{i.application?.job?.title || "Job"}</span>
+                          </p>
+                          <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-ink-500">
+                            <span className="flex items-center gap-1">
+                              <Calendar className="h-3.5 w-3.5 text-ink-400" />
+                              {startDate ? formatDateTime(startDate, i.timezone) : "Unscheduled"}
+                              {iDuration ? ` (${iDuration})` : ""}
+                            </span>
+                            {i.location && (
+                              <span className="flex items-center gap-1 text-ink-600">
+                                <MapPin className="h-3.5 w-3.5 text-ink-400" />
+                                {i.location}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-row sm:flex-col items-end gap-2 shrink-0">
+                        <StatusPill status={i.status} />
+                        {feedbackCount > 0 && (
+                          <Badge variant="brand" className="text-[10px]">
+                            {feedbackCount} scorecard{feedbackCount === 1 ? "" : "s"}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-ink-100 pt-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {hasValidLink && (
+                          <Button
+                            size="sm"
+                            as="a"
+                            href={i.meetingUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            leftIcon={<Video className="h-3.5 w-3.5" />}
+                          >
+                            Join video
+                          </Button>
+                        )}
+                        {startDate && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => downloadInterviewIcs(i)}
+                            leftIcon={<Download className="h-3.5 w-3.5" />}
+                          >
+                            Add to calendar
+                          </Button>
+                        )}
+                      </div>
+
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        as={Link}
+                        to={`/app/o/${orgId}/interviews/${i._id}`}
+                        rightIcon={<ArrowRight className="h-3.5 w-3.5" />}
+                      >
+                        Interview workspace
+                      </Button>
+                    </div>
                   </div>
-                  <StatusPill status={i.status} />
-                </Link>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <EmptyState
               icon={Video}
-              title="No interviews yet"
-              description="Schedule the first interview with the form — the candidate gets an invitation automatically."
+              title={searchQuery ? "No matching interviews" : tab === "upcoming" ? "No upcoming interviews" : "No interviews in this tab"}
+              description={
+                searchQuery
+                  ? `No interviews matched "${searchQuery}".`
+                  : "Schedule the first interview with the form — the candidate receives an invitation automatically."
+              }
             />
           )}
         </div>
@@ -2220,29 +2463,54 @@ export const InterviewsPage = () => {
     </div>
   );
 };
+
 export const InterviewDetail = () => {
   const orgId = useOrg(),
     { interviewId } = useParams(),
+    { user } = useAuth(),
     toast = useToast(),
     qc = useQueryClient(),
     [questions, setQuestions] = useState(null),
     [ratings, setRatings] = useState([
-      { criterion: "Technical skills", score: 3, evidence: "" },
-      { criterion: "Communication", score: 3, evidence: "" },
-      { criterion: "Problem solving", score: 3, evidence: "" },
+      { criterion: "Technical skills", score: 4, evidence: "" },
+      { criterion: "Problem solving", score: 4, evidence: "" },
+      { criterion: "Communication", score: 4, evidence: "" },
+      { criterion: "Culture & Values", score: 4, evidence: "" },
     ]),
     [summary, setSummary] = useState(""),
     [recommendation, setRecommendation] = useState("yes"),
     [cancelOpen, setCancelOpen] = useState(false),
     [cancelReason, setCancelReason] = useState(""),
     [completeOpen, setCompleteOpen] = useState(false),
+    [rescheduleOpen, setRescheduleOpen] = useState(false),
+    [editForm, setEditForm] = useState({
+      title: "",
+      type: "video",
+      scheduledStart: "",
+      scheduledEnd: "",
+      timezone: "UTC",
+      location: "",
+      meetingUrl: "",
+    }),
     q = useQuery({
-      queryKey: ["interviews", orgId, {}],
-      queryFn: () => interviewApi.list(orgId, { limit: 100 }),
+      queryKey: ["interview-detail", orgId, interviewId],
+      queryFn: async () => {
+        try {
+          return await interviewApi.get(orgId, interviewId);
+        } catch {
+          const res = await interviewApi.list(orgId, { limit: 100 });
+          const found = res?.data?.find((i) => i._id === interviewId);
+          return { data: found };
+        }
+      },
     }),
     generate = useMutation({
       mutationFn: () => interviewApi.questions(orgId, interviewId),
-      onSuccess: (r) => setQuestions(r.data),
+      onSuccess: (r) => {
+        setQuestions(r.data);
+        toast.success("AI interview questions generated");
+      },
+      onError: (err) => toast.error(err.message),
     }),
     feedback = useMutation({
       mutationFn: () =>
@@ -2260,7 +2528,8 @@ export const InterviewDetail = () => {
           summary,
         ),
       onSuccess: () => {
-        toast.success("Feedback submitted and locked");
+        toast.success("Scorecard feedback submitted and recorded");
+        qc.invalidateQueries({ queryKey: ["interview-detail", orgId, interviewId] });
         qc.invalidateQueries({ queryKey: ["interviews", orgId] });
       },
       onError: (error) =>
@@ -2275,7 +2544,8 @@ export const InterviewDetail = () => {
       onSuccess: () => {
         setCancelOpen(false);
         setCancelReason("");
-        toast.success("Interview cancelled — the candidate is notified");
+        toast.success("Interview cancelled — the candidate has been notified");
+        qc.invalidateQueries({ queryKey: ["interview-detail", orgId, interviewId] });
         qc.invalidateQueries({ queryKey: ["interviews", orgId] });
       },
       onError: (error) => toast.error(error.message),
@@ -2285,11 +2555,45 @@ export const InterviewDetail = () => {
       onSuccess: () => {
         setCompleteOpen(false);
         toast.success("Interview marked as completed");
+        qc.invalidateQueries({ queryKey: ["interview-detail", orgId, interviewId] });
         qc.invalidateQueries({ queryKey: ["interviews", orgId] });
       },
       onError: (error) => toast.error(error.message),
+    }),
+    updateInterview = useMutation({
+      mutationFn: (body) => interviewApi.update(orgId, interviewId, body),
+      onSuccess: () => {
+        setRescheduleOpen(false);
+        toast.success("Interview schedule updated");
+        qc.invalidateQueries({ queryKey: ["interview-detail", orgId, interviewId] });
+        qc.invalidateQueries({ queryKey: ["interviews", orgId] });
+      },
+      onError: (err) => toast.error(err.message),
     });
-  const interview = q.data?.data?.find((i) => i._id === interviewId);
+
+  const interview = q.data?.data;
+
+  const openRescheduleModal = () => {
+    if (!interview) return;
+    const formatLocal = (d) => {
+      if (!d) return "";
+      const date = new Date(d);
+      if (Number.isNaN(date.getTime())) return "";
+      const pad = (n) => String(n).padStart(2, "0");
+      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    };
+    setEditForm({
+      title: interview.title || "",
+      type: interview.type || "video",
+      scheduledStart: formatLocal(interview.scheduledStart),
+      scheduledEnd: formatLocal(interview.scheduledEnd),
+      timezone: interview.timezone || "UTC",
+      location: interview.location || "",
+      meetingUrl: interview.meetingUrl || "",
+    });
+    setRescheduleOpen(true);
+  };
+
   if (q.isLoading) return <LoadingState />;
   if (q.error)
     return (
@@ -2312,23 +2616,71 @@ export const InterviewDetail = () => {
         />
       </div>
     );
+
+  const startDate = interview.scheduledStart ? new Date(interview.scheduledStart) : null;
+  const duration = formatDuration(interview.scheduledStart, interview.scheduledEnd);
+  const hasValidLink = isValidMeetingUrl(interview.meetingUrl);
   const canComplete =
     interview.scheduledStart &&
     new Date(interview.scheduledStart) <= new Date() &&
     !["completed", "cancelled"].includes(interview.status);
   const canCancel = !["completed", "cancelled"].includes(interview.status);
-  const teamFeedbackCount = (interview.feedback || []).length;
+  const canReschedule = !["completed", "cancelled"].includes(interview.status);
+  const feedbackList = interview.feedback || [];
+  const hasUserSubmitted = feedbackList.some(
+    (f) => String(f.evaluator?._id || f.evaluator) === String(user?._id || user?.id),
+  );
+
+  const calculateAverageScore = () => {
+    if (!feedbackList.length) return null;
+    let totalScore = 0;
+    let totalRatings = 0;
+    feedbackList.forEach((fb) => {
+      (fb.ratings || []).forEach((r) => {
+        if (r.score) {
+          totalScore += Number(r.score);
+          totalRatings += 1;
+        }
+      });
+    });
+    return totalRatings > 0 ? (totalScore / totalRatings).toFixed(1) : null;
+  };
+
+  const avgScore = calculateAverageScore();
+
+  const RECOMMENDATION_META = {
+    strong_yes: { label: "Strong Hire", variant: "success" },
+    yes: { label: "Hire", variant: "success" },
+    mixed: { label: "Mixed / Neutral", variant: "warning" },
+    no: { label: "No Hire", variant: "danger" },
+    strong_no: { label: "Strong No Hire", variant: "danger" },
+  };
+
   return (
-    <div className="page-wrap max-w-5xl">
+    <div className="page-wrap max-w-6xl space-y-6">
+      <div className="flex items-center justify-between">
+        <Link
+          to={`/app/o/${orgId}/interviews`}
+          className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-600 hover:text-brand-700"
+        >
+          ← Back to interviews
+        </Link>
+      </div>
+
       <PageHeader
         eyebrow="Interview workspace"
-        title={interview?.title || "Interview"}
-        description="Generate a grounded question kit, then submit your evaluation."
+        title={interview.title || "Interview"}
+        description="Grounded AI question kit, candidate attendance tracking, and multi-criteria scorecard evaluations."
         action={
           <div className="flex flex-wrap items-center gap-2">
+            {canReschedule && (
+              <Button size="sm" variant="secondary" onClick={openRescheduleModal}>
+                Reschedule
+              </Button>
+            )}
             {canComplete && (
               <Button size="sm" variant="secondary" onClick={() => setCompleteOpen(true)}>
-                Mark as completed
+                Mark completed
               </Button>
             )}
             {canCancel && (
@@ -2345,41 +2697,146 @@ export const InterviewDetail = () => {
           </div>
         }
       />
-      {interview.application?.candidate && (
-        <div className="panel mb-6 flex flex-wrap items-center gap-4 p-4">
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand-50 text-xs font-bold text-brand-700">
-            {initials(interview.application.candidate.name)}
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="font-semibold">{interview.application.candidate.name}</p>
-            <p className="text-xs text-ink-500">
-              {interview.application.job?.title || "Job"} · candidate stage:{" "}
-              {stageLabel(interview.application.status)}
+
+      {/* Candidate & Logistics Context Panel */}
+      <div className="panel p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex items-start gap-3">
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-brand-50 text-sm font-bold text-brand-700">
+              {initials(interview.application?.candidate?.name || "Candidate")}
+            </span>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-lg font-bold text-ink-950">
+                  {interview.application?.candidate?.name || "Candidate"}
+                </h2>
+                {interview.application?.candidate?.email && (
+                  <span className="text-xs text-ink-400">({interview.application.candidate.email})</span>
+                )}
+              </div>
+              <p className="mt-0.5 text-xs text-ink-600">
+                Application: <span className="font-semibold text-ink-900">{interview.application?.job?.title || "Job"}</span>
+                {" · "}Stage: <Badge variant="brand">{stageLabel(interview.application?.status)}</Badge>
+              </p>
+              {interview.participants?.length > 0 && (
+                <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-ink-500">
+                  <span className="font-semibold text-ink-700">Interviewers:</span>
+                  {interview.participants.map((p) => (
+                    <Badge key={p._id || p} variant="outline" className="text-[10px]">
+                      {p.name || p.email || "Interviewer"}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {hasValidLink && (
+              <Button
+                size="sm"
+                as="a"
+                href={interview.meetingUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                leftIcon={<Video className="h-4 w-4" />}
+              >
+                Join meeting
+              </Button>
+            )}
+            {startDate && (
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => downloadInterviewIcs(interview)}
+                leftIcon={<Download className="h-4 w-4" />}
+              >
+                Add to Calendar
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Candidate Confirmation Status Banner */}
+        {interview.status === "confirmed" && (
+          <div className="mt-4 flex items-center gap-2 rounded-xl border border-success-200 bg-success-50 p-3 text-xs text-success-900">
+            <CheckCircle2 className="h-4 w-4 text-success-600 shrink-0" />
+            <span>
+              Candidate confirmed attendance on {interview.candidateConfirmedAt ? formatDate(interview.candidateConfirmedAt) : "schedule"}.
+            </span>
+          </div>
+        )}
+
+        {interview.status === "reschedule_requested" && (
+          <div className="mt-4 flex flex-col gap-2 rounded-xl border border-warning-200 bg-warning-50 p-3 text-xs text-warning-900 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-bold">Candidate requested reschedule</p>
+              <p className="mt-0.5 text-warning-700">{interview.cancelledReason ? `"${interview.cancelledReason}"` : "Candidate requested a new time."}</p>
+            </div>
+            <Button size="sm" variant="secondary" onClick={openRescheduleModal} className="shrink-0">
+              Reschedule Now
+            </Button>
+          </div>
+        )}
+
+        {interview.status === "invited" && (
+          <div className="mt-4 rounded-xl border border-warning-100 bg-warning-50/50 p-3 text-xs text-warning-800">
+            Awaiting candidate attendance confirmation. An invitation email was sent to {interview.application?.candidate?.email || "the candidate"}.
+          </div>
+        )}
+
+        {interview.status === "cancelled" && (
+          <div className="mt-4 rounded-xl border border-danger-200 bg-danger-50 p-3 text-xs text-danger-800">
+            <span className="font-bold">Interview Cancelled:</span> {interview.cancelledReason || "Cancelled by hiring team"}
+          </div>
+        )}
+
+        {/* Logistics details */}
+        <div className="mt-4 grid gap-3 sm:grid-cols-3 border-t border-ink-100 pt-3 text-xs text-ink-600">
+          <div>
+            <span className="font-semibold text-ink-900">Scheduled Time:</span>
+            <p className="mt-0.5 text-ink-600">{startDate ? formatDateTime(startDate, interview.timezone) : "Pending"}</p>
+            {duration && <p className="text-[11px] text-ink-400">Duration: {duration}</p>}
+          </div>
+          <div>
+            <span className="font-semibold text-ink-900">Timezone:</span>
+            <p className="mt-0.5 text-ink-600">{interview.timezone || "UTC"}</p>
+          </div>
+          <div>
+            <span className="font-semibold text-ink-900">Location / URL:</span>
+            <p className="mt-0.5 text-ink-600">
+              {interview.location || (hasValidLink ? "Online video meeting" : "Details pending")}
             </p>
           </div>
-          {interview.scheduledStart && (
-            <p className="text-sm text-ink-500">
-              {formatDate(interview.scheduledStart)} ·{" "}
-              {new Date(interview.scheduledStart).toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </p>
-          )}
         </div>
-      )}
+      </div>
+
+      {/* Two-Column Workspace: AI Kit & Scorecards */}
       <div className="grid gap-6 lg:grid-cols-2">
+        {/* Left Column: Grounded Question Kit */}
         <section className="ai-panel p-6">
-          <h2 className="text-xl font-bold">Interview kit</h2>
-          <Button
-            className="mt-4"
-            variant="secondary"
-            onClick={() => generate.mutate()}
-            isLoading={generate.isPending}
-          >
-            Generate questions
-          </Button>
-          {generate.error && <div className="mt-4"><ErrorCallout error={generate.error} /></div>}
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-bold text-white">Interview Question Kit</h2>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => generate.mutate()}
+              isLoading={generate.isPending}
+              leftIcon={<WandSparkles className="h-4 w-4" />}
+            >
+              {questions ? "Regenerate" : "Generate Questions"}
+            </Button>
+          </div>
+          <p className="mt-1 text-xs text-ink-300">
+            Grounded strictly in the job requirements and competency profile.
+          </p>
+
+          {generate.error && (
+            <div className="mt-4">
+              <ErrorCallout error={generate.error} />
+            </div>
+          )}
+
           {questions && (
             <div className="mt-5 space-y-3">
               <AIProvenance
@@ -2387,144 +2844,311 @@ export const InterviewDetail = () => {
                 confidence={questions.confidence}
                 limitations={questions.limitations}
               />
-              {questions.questions?.map((q) => (
-                <article className="rounded-xl bg-white/6 p-4" key={q.question}>
-                  <p className="text-xs font-bold uppercase text-cyan-300">{q.competency}</p>
-                  <p className="mt-2 text-sm">{q.question}</p>
-                  <ul className="mt-2 text-xs text-ink-400">
-                    {q.rubric?.map((r) => (
-                      <li key={r}>• {r}</li>
-                    ))}
-                  </ul>
+              {questions.questions?.map((qItem, idx) => (
+                <article className="rounded-xl bg-white/10 p-4" key={qItem.question || idx}>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-bold uppercase tracking-wider text-cyan-300">{qItem.competency}</p>
+                    <span className="text-[11px] text-ink-300">Question #{idx + 1}</span>
+                  </div>
+                  <p className="mt-2 text-sm text-white font-medium">{qItem.question}</p>
+                  {qItem.rubric?.length > 0 && (
+                    <ul className="mt-2 space-y-1 text-xs text-ink-300">
+                      {qItem.rubric.map((r, rIdx) => (
+                        <li key={rIdx}>• {r}</li>
+                      ))}
+                    </ul>
+                  )}
                 </article>
               ))}
             </div>
           )}
         </section>
-        <form
-          className="panel p-6"
-          onSubmit={(e) => {
-            e.preventDefault();
-            feedback.mutate();
-          }}
-        >
-          <h2 className="text-xl font-bold">Interview Feedback</h2>
-          <p className="mt-1 text-sm text-ink-500">
-            Rate each criterion 1–5 with observable evidence. Do not include protected
-            attributes.
-          </p>
-          <div className="mt-5 space-y-4">
-            {ratings.map((rating, index) => (
-              <div key={index} className="rounded-xl border border-ink-100 p-4">
-                <div className="flex items-center gap-2">
-                  <Input
-                    aria-label={`Criterion ${index + 1}`}
-                    label="Criterion"
-                    value={rating.criterion}
-                    onChange={(e) =>
-                      setRatings((rows) =>
-                        rows.map((r, i) => (i === index ? { ...r, criterion: e.target.value } : r)),
-                      )
-                    }
-                    className="flex-1"
-                  />
-                  <div className="pt-0.5">
-                    <Select
-                      aria-label={`Score for ${rating.criterion || `criterion ${index + 1}`}`}
-                      label="Score"
-                      value={String(rating.score)}
-                      onChange={(e) =>
-                        setRatings((rows) =>
-                          rows.map((r, i) => (i === index ? { ...r, score: Number(e.target.value) } : r)),
-                        )
-                      }
-                      className="w-24"
-                      options={[5, 4, 3, 2, 1].map((n) => ({ value: String(n), label: `${n}/5` }))}
-                    />
-                  </div>
-                  {ratings.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => setRatings((rows) => rows.filter((_, i) => i !== index))}
-                      aria-label={`Remove criterion ${index + 1}`}
-                      className="mt-6 rounded-lg p-2 text-ink-400 transition-colors hover:bg-danger-50 hover:text-danger-600"
-                    >
-                      ×
-                    </button>
-                  )}
+
+        {/* Right Column: Multi-Criteria Scorecards */}
+        <div className="space-y-6">
+          {/* Feedback Submission Form */}
+          <form
+            className="panel p-6"
+            onSubmit={(e) => {
+              e.preventDefault();
+              feedback.mutate();
+            }}
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-ink-950">Evaluation Scorecard</h2>
+                <p className="mt-1 text-xs text-ink-500">
+                  Rate each criterion 1–5 with observable evidence. Objective criteria only.
+                </p>
+              </div>
+              {avgScore && (
+                <div className="text-right">
+                  <span className="text-xs text-ink-400">Team Average</span>
+                  <p className="text-lg font-black text-brand-700">{avgScore} / 5.0</p>
                 </div>
+              )}
+            </div>
+
+            {hasUserSubmitted ? (
+              <div className="mt-5 rounded-xl border border-success-200 bg-success-50 p-4 text-xs text-success-900">
+                <div className="flex items-center gap-2 font-bold">
+                  <CheckCircle2 className="h-4 w-4 text-success-600" />
+                  <span>You have submitted feedback for this interview.</span>
+                </div>
+                <p className="mt-1 text-success-700">Your evaluation is recorded below in the team evaluation log.</p>
+              </div>
+            ) : (
+              <>
+                <div className="mt-5 space-y-4">
+                  {ratings.map((rating, index) => (
+                    <div key={index} className="rounded-xl border border-ink-100 bg-ink-50/40 p-4">
+                      <div className="flex items-center gap-2">
+                        <Input
+                          aria-label={`Criterion ${index + 1}`}
+                          label="Criterion"
+                          value={rating.criterion}
+                          onChange={(e) =>
+                            setRatings((rows) =>
+                              rows.map((r, i) => (i === index ? { ...r, criterion: e.target.value } : r)),
+                            )
+                          }
+                          className="flex-1"
+                        />
+                        <div className="pt-0.5">
+                          <Select
+                            aria-label={`Score for ${rating.criterion || `criterion ${index + 1}`}`}
+                            label="Score"
+                            value={String(rating.score)}
+                            onChange={(e) =>
+                              setRatings((rows) =>
+                                rows.map((r, i) => (i === index ? { ...r, score: Number(e.target.value) } : r)),
+                              )
+                            }
+                            className="w-24"
+                            options={[5, 4, 3, 2, 1].map((n) => ({ value: String(n), label: `${n}/5` }))}
+                          />
+                        </div>
+                        {ratings.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => setRatings((rows) => rows.filter((_, i) => i !== index))}
+                            aria-label={`Remove criterion ${index + 1}`}
+                            className="mt-6 rounded-lg p-2 text-ink-400 transition hover:bg-danger-50 hover:text-danger-600"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
+                      <Textarea
+                        className="mt-3"
+                        label="Observable evidence &amp; notes"
+                        placeholder="Specific answers or behaviors observed during the round..."
+                        rows={2}
+                        value={rating.evidence}
+                        onChange={(e) =>
+                          setRatings((rows) =>
+                            rows.map((r, i) => (i === index ? { ...r, evidence: e.target.value } : r)),
+                          )
+                        }
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      setRatings((rows) => [...rows, { criterion: "", score: 4, evidence: "" }])
+                    }
+                  >
+                    + Add criterion
+                  </Button>
+                </div>
+
+                <Select
+                  className="mt-5"
+                  label="Overall recommendation"
+                  value={recommendation}
+                  onChange={(e) => setRecommendation(e.target.value)}
+                  options={[
+                    { value: "strong_yes", label: "Strong hire" },
+                    { value: "yes", label: "Hire" },
+                    { value: "mixed", label: "Mixed / Neutral" },
+                    { value: "no", label: "No hire" },
+                    { value: "strong_no", label: "Strong no" },
+                  ]}
+                />
+
                 <Textarea
                   className="mt-3"
-                  label="Evidence"
-                  rows={2}
-                  value={rating.evidence}
-                  onChange={(e) =>
-                    setRatings((rows) =>
-                      rows.map((r, i) => (i === index ? { ...r, evidence: e.target.value } : r)),
-                    )
-                  }
+                  label="Executive evaluation summary"
+                  placeholder="Summarize key strengths, reservations, and overall fit..."
+                  rows={3}
+                  value={summary}
+                  onChange={(e) => setSummary(e.target.value)}
                 />
+
+                <Button className="mt-4" type="submit" isLoading={feedback.isPending}>
+                  Submit Scorecard
+                </Button>
+                {feedback.error && (
+                  <div className="mt-3">
+                    <ErrorCallout error={feedback.error} />
+                  </div>
+                )}
+              </>
+            )}
+          </form>
+
+          {/* Team Scorecards History */}
+          {feedbackList.length > 0 && (
+            <div className="panel p-6 space-y-4">
+              <div className="flex items-center justify-between border-b border-ink-100 pb-3">
+                <h3 className="font-bold text-ink-950">
+                  Team Scorecards ({feedbackList.length})
+                </h3>
+                {avgScore && (
+                  <span className="text-xs font-semibold text-brand-700">
+                    Avg Score: {avgScore} / 5.0
+                  </span>
+                )}
               </div>
-            ))}
-          </div>
-          <Button
-            type="button"
-            className="mt-3"
-            variant="ghost"
-            size="sm"
-            onClick={() =>
-              setRatings((rows) => [...rows, { criterion: "", score: 3, evidence: "" }])
-            }
-          >
-            + Add criterion
-          </Button>
-          <Select
-            className="mt-5"
-            label="Overall recommendation"
-            value={recommendation}
-            onChange={(e) => setRecommendation(e.target.value)}
-            options={[
-              { value: "strong_yes", label: "Strong hire" },
-              { value: "yes", label: "Hire" },
-              { value: "mixed", label: "Mixed" },
-              { value: "no", label: "No hire" },
-              { value: "strong_no", label: "Strong no" },
-            ]}
-          />
-          <Textarea
-            className="mt-3"
-            label="Summary"
-            value={summary}
-            onChange={(e) => setSummary(e.target.value)}
-          />
-          {teamFeedbackCount > 0 && (
-            <p className="mt-4 rounded-xl bg-ink-50 p-3 text-xs font-medium text-ink-600">
-              {teamFeedbackCount} evaluation{teamFeedbackCount === 1 ? "" : "s"} submitted by the
-              team so far. Your feedback is one per person.
-            </p>
-          )}
-          <Button className="mt-4" type="submit" isLoading={feedback.isPending}>
-            Submit feedback
-          </Button>
-          {feedback.error && (
-            <div className="mt-3">
-              <ErrorCallout error={feedback.error} />
+
+              <div className="space-y-4">
+                {feedbackList.map((fb, idx) => {
+                  const recMeta = RECOMMENDATION_META[fb.recommendation] || {
+                    label: fb.recommendation,
+                    variant: "outline",
+                  };
+                  return (
+                    <div key={fb._id || idx} className="rounded-xl border border-ink-100 p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="grid h-7 w-7 place-items-center rounded-full bg-brand-50 text-xs font-bold text-brand-700">
+                            {initials(fb.evaluator?.name || "Evaluator")}
+                          </span>
+                          <div>
+                            <p className="text-xs font-bold text-ink-900">{fb.evaluator?.name || "Evaluator"}</p>
+                            <p className="text-[10px] text-ink-400">
+                              {fb.submittedAt ? formatDateTime(fb.submittedAt) : "Submitted"}
+                            </p>
+                          </div>
+                        </div>
+                        <Badge variant={recMeta.variant}>{recMeta.label}</Badge>
+                      </div>
+
+                      {/* Criteria ratings list */}
+                      <div className="space-y-1.5 rounded-lg bg-ink-50/50 p-2.5">
+                        {fb.ratings?.map((r, rIdx) => (
+                          <div key={rIdx} className="text-xs">
+                            <div className="flex items-center justify-between">
+                              <span className="font-semibold text-ink-800">{r.criterion}</span>
+                              <span className="font-bold text-brand-700">{r.score} / 5</span>
+                            </div>
+                            {r.evidence && (
+                              <p className="mt-0.5 text-[11px] text-ink-500 italic">"{r.evidence}"</p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+
+                      {fb.summary && (
+                        <p className="text-xs text-ink-700 bg-white p-2 rounded border border-ink-100">
+                          {fb.summary}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
-          {feedback.isSuccess && (
-            <p className="mt-3 text-sm text-success-700">Feedback submitted and locked.</p>
-          )}
-        </form>
+        </div>
       </div>
+
+      {/* Reschedule Modal */}
+      <Modal
+        isOpen={rescheduleOpen}
+        onClose={() => setRescheduleOpen(false)}
+        title="Reschedule Interview"
+        description="Update interview time or details. An update notification will be sent to the candidate."
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setRescheduleOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() =>
+                updateInterview.mutate({
+                  title: editForm.title,
+                  type: editForm.type,
+                  scheduledStart: editForm.scheduledStart ? new Date(editForm.scheduledStart) : undefined,
+                  scheduledEnd: editForm.scheduledEnd ? new Date(editForm.scheduledEnd) : undefined,
+                  timezone: editForm.timezone,
+                  location: editForm.location,
+                  meetingUrl: editForm.meetingUrl,
+                })
+              }
+              isLoading={updateInterview.isPending}
+            >
+              Update &amp; Reschedule
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <Input
+            label="Title"
+            value={editForm.title}
+            onChange={(e) => setEditForm((f) => ({ ...f, title: e.target.value }))}
+          />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Input
+              label="Starts"
+              type="datetime-local"
+              value={editForm.scheduledStart}
+              onChange={(e) => setEditForm((f) => ({ ...f, scheduledStart: e.target.value }))}
+            />
+            <Input
+              label="Ends"
+              type="datetime-local"
+              value={editForm.scheduledEnd}
+              onChange={(e) => setEditForm((f) => ({ ...f, scheduledEnd: e.target.value }))}
+            />
+          </div>
+          <Input
+            label="Timezone"
+            value={editForm.timezone}
+            onChange={(e) => setEditForm((f) => ({ ...f, timezone: e.target.value }))}
+          />
+          <Input
+            label="Location (optional)"
+            value={editForm.location}
+            onChange={(e) => setEditForm((f) => ({ ...f, location: e.target.value }))}
+          />
+          <Input
+            label="Meeting URL (optional)"
+            value={editForm.meetingUrl}
+            onChange={(e) => setEditForm((f) => ({ ...f, meetingUrl: e.target.value }))}
+          />
+        </div>
+      </Modal>
+
+      {/* Complete Modal */}
       <ConfirmModal
         isOpen={completeOpen}
         onClose={() => setCompleteOpen(false)}
         onConfirm={() => complete.mutate()}
         title="Mark this interview as completed?"
-        description="The interview is kept in the record with its feedback. This can't be undone."
+        description="The interview is preserved in the hiring record with its feedback. This can't be undone."
         confirmLabel="Mark completed"
         isLoading={complete.isPending}
       />
+
+      {/* Cancel Modal */}
       <Modal
         isOpen={cancelOpen}
         onClose={() => setCancelOpen(false)}
@@ -2546,11 +3170,11 @@ export const InterviewDetail = () => {
       >
         <div className="space-y-3">
           <p className="text-sm text-ink-600">
-            The candidate is notified that the interview was cancelled.
+            The candidate will be notified that the interview was cancelled.
           </p>
           <Input
             label="Reason (optional)"
-            placeholder="e.g. Role filled, schedule conflict"
+            placeholder="e.g. Position filled, scheduling conflict"
             value={cancelReason}
             onChange={(e) => setCancelReason(e.target.value)}
           />
@@ -2879,7 +3503,12 @@ export const TeamPage = () => {
             <Button variant="secondary" onClick={() => setInviteOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" form="invite-form" isLoading={invite.isPending}>
+            <Button
+              type="submit"
+              form="invite-form"
+              isLoading={invite.isPending}
+              onClick={() => invite.mutate()}
+            >
               Send Invite
             </Button>
           </>
@@ -2906,9 +3535,9 @@ export const TeamPage = () => {
             label="Role"
             value={form.role}
             onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}
-            options={["recruiter", "hiring_manager", "interviewer", "viewer"].map((x) => ({
+            options={assignableRoles.map((x) => ({
               value: x,
-              label: x.replace("_", " "),
+              label: x.replace(/_/g, " "),
             }))}
           />
           {invite.error && <ErrorCallout error={invite.error} />}

@@ -1,11 +1,14 @@
 const { config } = require("../../config/env");
 
 class AIProviderError extends Error {
-  constructor(message, retryable = false) {
+  constructor(message, retryable = false, statusCode = null) {
     super(message);
+    this.name = "AIProviderError";
     this.retryable = retryable;
+    this.statusCode = statusCode;
   }
 }
+
 class OpenAICompatibleProvider {
   constructor({
     name = "openai-compatible",
@@ -18,6 +21,7 @@ class OpenAICompatibleProvider {
     this.apiKey = apiKey;
     this.model = model;
   }
+
   async generateStructured({ system, prompt, schemaName, timeoutMs = config.aiTimeoutMs }) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -44,6 +48,7 @@ class OpenAICompatibleProvider {
         throw new AIProviderError(
           `AI provider returned ${response.status}`,
           response.status === 429 || response.status >= 500,
+          response.status,
         );
       const rawBody = await response.text();
       if (rawBody.length > 2_000_000)
@@ -83,6 +88,7 @@ class OpenAICompatibleProvider {
       clearTimeout(timer);
     }
   }
+
   async embed(text, timeoutMs = config.aiTimeoutMs) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -97,6 +103,7 @@ class OpenAICompatibleProvider {
         throw new AIProviderError(
           `Embedding provider returned ${response.status}`,
           response.status === 429 || response.status >= 500,
+          response.status,
         );
       const rawBody = await response.text();
       if (rawBody.length > 10_000_000)
@@ -124,6 +131,7 @@ class OpenAICompatibleProvider {
     }
   }
 }
+
 const getProvider = (name, purpose = "primary") => {
   if (name === "deterministic") return null;
   if (purpose === "fallback")
@@ -142,4 +150,5 @@ const getProvider = (name, purpose = "primary") => {
     });
   return new OpenAICompatibleProvider({ name });
 };
+
 module.exports = { AIProviderError, OpenAICompatibleProvider, getProvider };

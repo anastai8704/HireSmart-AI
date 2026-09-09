@@ -715,11 +715,11 @@ const interviewSchema = strict({
   applicationId: z.string().length(24),
   title: z.string().min(2).max(150),
   type: z.enum(["phone", "video", "onsite", "technical", "panel", "hr"]).optional(),
-  scheduledStart: z.coerce.date().optional(),
-  scheduledEnd: z.coerce.date().optional(),
+  scheduledStart: z.coerce.date().nullable().optional(),
+  scheduledEnd: z.coerce.date().nullable().optional(),
   timezone: z.string().max(100).optional(),
-  location: z.string().max(500).optional(),
-  meetingUrl: z.string().url().max(2048).optional(),
+  location: z.string().max(500).optional().or(z.literal("")),
+  meetingUrl: z.string().url().max(2048).optional().or(z.literal("")),
   participants: z.array(z.string().length(24)).max(20).optional(),
 });
 router.get(
@@ -735,6 +735,12 @@ router.post(
   validate(interviewSchema),
   interview.create,
 );
+router.get(
+  "/organizations/:organizationId/interviews/:interviewId",
+  authenticate,
+  requireOrganization("interview.feedback"),
+  interview.get,
+);
 router.patch(
   "/organizations/:organizationId/interviews/:interviewId",
   authenticate,
@@ -746,7 +752,7 @@ router.post(
   "/organizations/:organizationId/interviews/:interviewId/cancel",
   authenticate,
   requireOrganization("interview.manage"),
-  validate(strict({ reason: z.string().min(1).max(1000) })),
+  validate(strict({ reason: z.string().max(1000).optional().or(z.literal("")) })),
   interview.cancel,
 );
 router.post(
@@ -756,6 +762,7 @@ router.post(
   interview.complete,
 );
 router.get("/candidates/me/interviews", authenticate, candidateOnly, interview.listMine);
+router.get("/interviews/:interviewId", authenticate, candidateOnly, interview.getCandidateInterview);
 router.post("/interviews/:interviewId/confirm", authenticate, candidateOnly, interview.confirm);
 router.post(
   "/interviews/:interviewId/reschedule",

@@ -5,7 +5,7 @@ const Consent = require("../models/Consent");
 const { Membership } = require("../models/Membership");
 const asyncHandler = require("../middleware/asyncHandler");
 const AppError = require("../utils/AppError");
-const { audit } = require("../services/auditService");
+const { audit, security } = require("../services/auditService");
 const { notify } = require("../services/notificationService");
 const organizationOwner = require("../utils/organizationOwner");
 const logger = require("../utils/logger");
@@ -213,6 +213,14 @@ exports.acceptExisting = asyncHandler(async (req, res) => {
   if (!pre || pre.status !== "pending") throw inviteStatusError(pre);
   if (pre.expiresAt <= new Date()) throw new AppError(INVITE_EXPIRED_MSG, 410, "INVITE_EXPIRED");
   if (String(req.user.email).toLowerCase() !== pre.email) {
+    await security({
+      req,
+      user: req.user._id,
+      organization: pre.organization,
+      type: "invitation.email_mismatch",
+      severity: "medium",
+      details: { invitedEmail: pre.email, attemptedEmail: req.user.email },
+    });
     throw new AppError(
       "This invitation was sent to a different email address.",
       403,

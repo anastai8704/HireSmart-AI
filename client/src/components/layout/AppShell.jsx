@@ -2,6 +2,7 @@ import { useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   Bell,
+  Bookmark,
   BriefcaseBusiness,
   Building2,
   ChartNoAxesCombined,
@@ -36,7 +37,9 @@ const candidateGroups = [
     [
       ["/app/candidate", "Home", LayoutDashboard],
       ["/app/candidate/jobs", "Discover", Search],
+      ["/app/candidate/recommendations", "Recommendations", Sparkles],
       ["/app/candidate/applications", "Applications", BriefcaseBusiness],
+      ["/app/candidate/saved", "Saved Jobs", Bookmark],
       ["/app/candidate/interviews", "Interviews", Video],
       ["/app/candidate/resumes", "Resumes", FileText],
       ["/app/candidate/alerts", "Alerts", Bell],
@@ -77,7 +80,10 @@ const managerGroups = (org) => [
 // A viewer only has job.read, so only the assigned-jobs view is reachable —
 // keeping a link that 404s would teach the role nothing.
 const viewerGroups = (org) => [
-  [["Hiring", [[`/app/o/${org}/assigned`, "Assigned Jobs", HeartHandshake]]]],
+  [
+    "Hiring",
+    [[`/app/o/${org}/assigned`, "Assigned Jobs", HeartHandshake]],
+  ],
 ];
 const adminGroups = [
   [

@@ -36,6 +36,7 @@ export const PageHeader = ({ eyebrow, title, description, action }) => (
 const DETAILS_OPEN_ATTR = "group-open:rotate-90";
 export const AIProvenance = ({ metadata, confidence, limitations = [], tone = "dark" }) => {
   const dark = tone === "dark";
+  const isLLM = metadata?.isLLM ?? (metadata?.provider && metadata.provider !== "deterministic" && !metadata.fallbackUsed);
   return (
     <div
       className={cn(
@@ -53,17 +54,22 @@ export const AIProvenance = ({ metadata, confidence, limitations = [], tone = "d
           <Bot className="h-3.5 w-3.5" />
         </span>
         <span className={cn("font-semibold", dark ? "text-white" : "text-ink-900")}>
-          AI Assistant Response
+          {isLLM ? "AI Assistant (LLM)" : "Rule-Based Assistant"}
         </span>
         {confidence !== undefined && confidence !== null && (
           <Badge variant={dark ? "outline" : "default"}>
             {Math.round(confidence * 100)}% confidence
           </Badge>
         )}
-        {metadata?.fallbackUsed && (
-          <Badge variant={dark ? "outline" : "default"}>Backup Response</Badge>
-        )}
+        {metadata?.fallbackUsed ? (
+          <Badge variant="warning">Fallback Rules</Badge>
+        ) : isLLM ? (
+          <Badge variant="success">Active Model</Badge>
+        ) : null}
       </div>
+      <p className={cn("mt-1.5 text-xs", dark ? "text-ink-400" : "text-ink-500")}>
+        AI insights provide decision support only. Human review is required before taking any action.
+      </p>
       <details className="group mt-3">
         <summary
           className={cn(
@@ -72,18 +78,30 @@ export const AIProvenance = ({ metadata, confidence, limitations = [], tone = "d
           )}
         >
           <ArrowRight className={cn("h-3 w-3 transition-transform", DETAILS_OPEN_ATTR)} />
-          How this answer was generated
+          Model Provenance &amp; Limits
         </summary>
         <div
           className={cn("mt-2 space-y-2", dark ? "text-xs text-ink-400" : "text-xs text-ink-500")}
         >
           {metadata && (
-            <p>
-              {metadata.provider} · {metadata.model} · {metadata.promptVersion}
-            </p>
+            <div className="space-y-0.5">
+              <p>
+                <strong className={dark ? "text-ink-300" : "text-ink-700"}>Provider:</strong> {metadata.provider || "Standard"} &middot; <strong className={dark ? "text-ink-300" : "text-ink-700"}>Model:</strong> {metadata.model || "default"}
+              </p>
+              {metadata.promptVersion && (
+                <p>
+                  <strong className={dark ? "text-ink-300" : "text-ink-700"}>Template:</strong> {metadata.promptVersion}
+                </p>
+              )}
+              {metadata.usage?.latencyMs ? (
+                <p>
+                  <strong className={dark ? "text-ink-300" : "text-ink-700"}>Latency:</strong> {metadata.usage.latencyMs}ms
+                </p>
+              ) : null}
+            </div>
           )}
           {limitations.length > 0 && (
-            <ul className="space-y-1">
+            <ul className="space-y-1 pt-1">
               {limitations.map((item) => (
                 <li key={item} className="flex gap-2">
                   <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -321,8 +339,10 @@ const STATUS_STYLES = {
   failed: [XCircle, "danger"],
   rejected: [XCircle, "danger"],
   suspended: [XCircle, "danger"],
+  cancelled: [XCircle, "danger"],
   processing: [CircleDashed, "brand"],
   invited: [Clock3, "brand"],
+  reschedule_requested: [Clock3, "warning"],
   shortlisted: [CheckCircle2, "brand"],
   offer: [Star, "brand"],
   queued: [Clock3, "warning"],

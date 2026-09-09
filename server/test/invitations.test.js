@@ -398,3 +398,18 @@ test("an invitation's role matches the invited role even for the highest assigna
   // An admin joined by invitation is still below the owner on the ladder.
   assert.ok(permissionsByRole.admin.every((p) => permissionsByRole.owner.includes(p)));
 });
+
+test("case 16: admin cannot invite another admin; only owner can invite admin", async () => {
+  const org = await createOrg(ownerToken, "Invite Co 16");
+  const admin = await registerUser("t16-admin@invite.test");
+  await addMember(ownerToken, org._id, "t16-admin@invite.test", "admin");
+
+  // Admin trying to invite admin should be rejected with 403
+  const blocked = await invite(admin.token, org._id, "t16-another-admin@invite.test", "admin");
+  assert.equal(blocked.status, 403);
+  assert.equal(blocked.body.message, "Only the company owner can invite an admin.");
+
+  // Admin can invite a recruiter
+  const allowed = await invite(admin.token, org._id, "t16-recruiter@invite.test", "recruiter");
+  assert.equal(allowed.status, 201);
+});

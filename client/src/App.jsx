@@ -34,7 +34,8 @@ const CDashboard = pick(() => import("./pages/candidate/CandidatePages"), "Candi
   CAlerts = pick(() => import("./pages/candidate/CandidatePages"), "AlertsPage"),
   CInterviews = pick(() => import("./pages/candidate/CandidatePages"), "CandidateInterviews"),
   InterviewPrep = pick(() => import("./pages/candidate/CandidatePages"), "InterviewPrep"),
-  CareerCopilot = pick(() => import("./pages/candidate/CandidatePages"), "CareerCopilot");
+  CareerCopilot = pick(() => import("./pages/candidate/CandidatePages"), "CareerCopilot"),
+  SavedJobs = pick(() => import("./pages/candidate/CandidatePages"), "SavedJobsPage");
 const RDashboard = pick(() => import("./pages/recruiter/RecruiterPages"), "RecruiterDashboard"),
   OrgJobs = pick(() => import("./pages/recruiter/RecruiterPages"), "JobsPage"),
   JobEditor = pick(() => import("./pages/recruiter/RecruiterPages"), "JobEditor"),
@@ -124,6 +125,7 @@ const App = () => (
                   path="/app/candidate/applications/:applicationId"
                   element={<ApplicationDetail />}
                 />
+                <Route path="/app/candidate/saved" element={<SavedJobs />} />
                 <Route path="/app/candidate/alerts" element={<CAlerts />} />
                 <Route path="/app/candidate/interviews" element={<CInterviews />} />
                 <Route path="/app/candidate/interviews/:interviewId" element={<InterviewPrep />} />
@@ -189,6 +191,10 @@ const App = () => (
             <Route
               path="/my-applications"
               element={<Navigate to="/app/candidate/applications" replace />}
+            />
+            <Route
+              path="/saved-jobs"
+              element={<Navigate to="/app/candidate/saved" replace />}
             />
             <Route
               path="/recommendations"

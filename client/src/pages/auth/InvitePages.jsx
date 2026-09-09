@@ -185,6 +185,12 @@ export const AcceptInvitePage = () => {
           role: null,
           alreadyMember: true,
         });
+      } else if (
+        codeOf(err) === "INVITE_EXPIRED" ||
+        codeOf(err) === "INVITE_REVOKED" ||
+        codeOf(err) === "INVITE_USED"
+      ) {
+        setTerminal(codeOf(err));
       } else setError(err);
       setBusy(false);
     }

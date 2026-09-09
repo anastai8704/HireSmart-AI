@@ -204,6 +204,14 @@ exports.updateMember = asyncHandler(async (req, res) => {
   if (role) membership.role = role;
   if (status) membership.status = status;
   await membership.save();
+  await audit({
+    req,
+    organization: req.auth.organizationId,
+    action: "membership.updated",
+    resourceType: "membership",
+    resourceId: membership._id,
+    metadata: { before, after: { role: membership.role, status: membership.status } },
+  });
   try {
     const owner = await organizationOwner(req.auth.organizationId);
     if (owner && String(owner.id) !== String(req.user._id)) {
@@ -276,6 +284,17 @@ exports.invitationLink = asyncHandler(async (req, res) => {
 exports.createInvitation = asyncHandler(async (req, res) => {
   const email = req.body.email.toLowerCase();
   const org = await Organization.findById(req.auth.organizationId);
+  const actorIsOwner =
+    req.auth.platformRole === "platform_admin" || req.membership?.role === "owner";
+  if (req.body.role === "owner")
+    throw new AppError(
+      "The owner role cannot be assigned. Ownership is set when the company is created.",
+      422,
+      "INVALID_ROLE",
+    );
+  if (req.body.role === "admin" && !actorIsOwner)
+    throw new AppError("Only the company owner can invite an admin.", 403, "FORBIDDEN");
+
   const existingUser = await User.findOne({ email }).select("_id");
   if (
     existingUser &&
