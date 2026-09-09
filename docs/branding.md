@@ -12,7 +12,7 @@ letter **H** with meaning:
   the company — drawn as equal, rounded figures.
 - **The crossbar** is the bridge between them: the offer, the match, what
   HireSmart exists to build.
-- **The amber four-point spark** sits exactly at the crossing — the AI
+- **The cyan four-point spark** sits exactly at the crossing — the AI
   "match" moment, the instant skills, role and culture line up.
 
 It is deliberately **not** a lightning bolt, a circuit, or a generic
@@ -28,7 +28,7 @@ human connection.
 | Tile         | rounded square, corner radius 6.6 (radius 0 = full-bleed)   |
 | Tile fill    | diagonal gradient `#6f64e3` (brand-500) → `#413993` (brand-800) |
 | H            | white `#ffffff`; verticals 2.8 × 13.2, rounded ends; crossbar 11.2 × 2.8 |
-| Spark        | amber `#f5a524`; four-point, outer radius 3.6, inner 1.45, centred on the crossbar |
+| Spark        | cyan `#67e8f9` (cyan-300); four-point, outer radius 3.6, inner 1.45, centred on the crossbar |
 
 Geometry lives in exactly two places (keep them in sync):
 
@@ -66,7 +66,7 @@ cd client && node scripts/generate-logo-assets.mjs
 4. **Login / Signup** — `AuthShell`: full lockup top-left on the dark panel
    (desktop), mobile bar above the form.
 5. **Email header** — drawn in pure HTML/CSS (no external images, so it
-   survives blocked images): brand tile with a white "H" and the amber spark,
+   survives blocked images): brand tile with a white "H" and the cyan spark,
    plus the "HireSmart AI" wordmark. See `server/services/email/templates.js → logo()`.
 6. **Browser favicon** — `favicon.svg` + `favicon.ico` (16/32/48).
 7. **Mobile / PWA** — `site.webmanifest`, `apple-touch-icon.png`, PWA icons
@@ -84,7 +84,7 @@ cd client && node scripts/generate-logo-assets.mjs
 | brand-600     | `#5c50d4` | primary on light surfaces, email tile  |
 | brand-800     | `#413993` | gradient end                           |
 | brand-300     | `#a8a3f6` | "AI" suffix on dark surfaces           |
-| spark         | `#f5a524` | the amber match accent — **only** used in the mark and the email logo |
+| spark         | `#67e8f9` | the cyan match accent — **only** used in the mark and the email logo |
 | ink-950       | `#0e1222` | dark rail / chrome, `theme-color`      |
 | ink-900       | `#171c30` | wordmark in email                      |
 

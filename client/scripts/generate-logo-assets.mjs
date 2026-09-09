@@ -3,7 +3,7 @@
  *
  * Renders the "Matchpoint H" mark (brand concept: two people — the two
  * verticals of an H — joined by the bridge of hiring, with the AI "match"
- * moment as the amber sparkle at the crossing) into every raster size the
+ * moment as the cyan spark at the crossing) into every raster size the
  * product needs. Pure Node (zlib only), deterministic, no dependencies.
  *
  * Usage: node scripts/generate-logo-assets.mjs
@@ -25,7 +25,7 @@ const OUT = join(dirname(fileURLToPath(import.meta.url)), "..", "public");
 const GRAD_TOP = [0x6f, 0x64, 0xe3]; // brand-500
 const GRAD_BOTTOM = [0x41, 0x39, 0x93]; // brand-800
 const WHITE = [0xff, 0xff, 0xff];
-const AMBER = [0xf5, 0xa5, 0x24]; // the "match" accent
+const SPARK = [0x67, 0xe8, 0xf9]; // the cyan "match" accent (cyan-300)
 
 /* --------------------------------- geometry --------------------------------
  * Everything is defined on the 24x24 brand grid, then scaled to the target
@@ -134,13 +134,13 @@ function render(size, { fullBleed = false } = {}) {
             cg += (WHITE[1] - cg) * cH;
             cb += (WHITE[2] - cb) * cH;
           }
-          // amber sparkle on top
+          // cyan spark on top
           const dS = sparkleSdf(gx, gy);
           const cS = smooth(dS, w);
           if (cS > 0) {
-            cr += (AMBER[0] - cr) * cS;
-            cg += (AMBER[1] - cg) * cS;
-            cb += (AMBER[2] - cb) * cS;
+            cr += (SPARK[0] - cr) * cS;
+            cg += (SPARK[1] - cg) * cS;
+            cb += (SPARK[2] - cb) * cS;
           }
           r += cr * cover;
           g += cg * cover;

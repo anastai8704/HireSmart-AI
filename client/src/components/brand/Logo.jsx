@@ -5,7 +5,7 @@
  *   · the two verticals of the H are the two people in every hire:
  *     the candidate and the company
  *   · the crossbar is the bridge between them — what HireSmart builds
- *   · the amber four-point sparkle at the crossing is the AI "match"
+ *   · the cyan four-point spark at the crossing is the AI "match"
  *     moment: the instant skills, role and culture line up
  *
  * This component is the single source of truth for the mark in the app so
@@ -47,7 +47,7 @@ export const LogoMark = ({ className, title = "HireSmart AI" }) => (
     </g>
     <path
       d="M12 8.4 L13.03 10.97 L15.6 12 L13.03 13.03 L12 15.6 L10.97 13.03 L8.4 12 L10.97 10.97 Z"
-      fill="#f5a524"
+      fill="#67e8f9"
     />
   </svg>
 );

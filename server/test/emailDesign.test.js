@@ -52,7 +52,7 @@ test("renderEmail carries the premium layout landmarks", () => {
   });
   assert.ok(out.html.includes('name="viewport"'));
   assert.ok(out.html.includes("HireSmart"));
-  assert.ok(out.html.includes("&#9670;")); // brand mark: H + amber match spark
+  assert.ok(out.html.includes("&#9670;")); // brand mark: H + cyan match spark
   assert.ok(out.html.includes("You're receiving this email because of your HireSmart AI account."));
   assert.ok(out.html.includes('href="http://localhost:5173/privacy"'));
   assert.ok(out.html.includes("https://x.test/next"));
@@ -331,7 +331,7 @@ test("unknown event types fall back to a clean generic render", () => {
   assert.equal(out.subject, "Heads up");
   assert.ok(out.html.includes("A new thing happened."));
   assert.ok(out.html.includes("HireSmart"));
-  assert.ok(out.html.includes("&#9670;")); // brand mark: H + amber match spark
+  assert.ok(out.html.includes("&#9670;")); // brand mark: H + cyan match spark
 });
 
 /* ------------------------------- integration ----------------------------- */

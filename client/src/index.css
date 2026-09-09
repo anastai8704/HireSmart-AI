@@ -35,6 +35,8 @@
   --color-danger-700: #b91c1c;
   --color-canvas: #f4f5fa;
   --color-cyan-300: #67e8f9;
+  --color-cyan-400: #22d3ee;
+  --color-cyan-500: #06b6d4;
   --color-cyan-600: #0891b2;
   --color-ai-900: #141833;
   --color-ai-800: #1e2347;
@@ -44,6 +46,7 @@
   --animate-fade-in: fade-in 0.25s ease-out both;
   --animate-pop-in: pop-in 0.45s cubic-bezier(0.22, 1.2, 0.36, 1) both;
   --animate-float-soft: float-soft 7s ease-in-out infinite;
+  --animate-glow-breathe: glow-breathe 9s ease-in-out infinite;
   --shadow-card: 0 1px 2px rgb(14 18 34 / 0.05), 0 2px 10px -2px rgb(14 18 34 / 0.06);
   --shadow-card-hover: 0 4px 16px -4px rgb(92 80 212 / 0.16), 0 2px 6px -2px rgb(14 18 34 / 0.08);
 }
@@ -82,6 +85,15 @@
   }
   50% {
     transform: translateY(-7px);
+  }
+}
+@keyframes glow-breathe {
+  0%,
+  100% {
+    opacity: 0.75;
+  }
+  50% {
+    opacity: 1;
   }
 }
 @keyframes shimmer {

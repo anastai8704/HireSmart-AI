@@ -17,6 +17,11 @@ const VARIANTS = {
   success: "bg-success-500 text-white shadow-sm hover:bg-success-700 active:bg-success-700",
   outline:
     "bg-transparent text-brand-700 border border-brand-300 hover:bg-brand-50 active:bg-brand-100",
+  /** For dark surfaces: translucent outline button (secondary action on charcoal). */
+  lightOutline:
+    "bg-white/5 text-white border border-white/20 backdrop-blur-sm hover:bg-white/10 hover:border-white/35 active:bg-white/15",
+  /** For dark surfaces: solid white primary (high-contrast conversion action). */
+  solid: "bg-white text-ink-950 shadow-sm hover:bg-ink-100 active:bg-ink-200",
 };
 
 const SIZES = {

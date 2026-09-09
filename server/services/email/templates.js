@@ -73,7 +73,7 @@ const palette = {
   ink700: "#3e455f",
   ink900: "#171c30",
   white: "#ffffff",
-  spark: "#f5a524", // brand "match" accent (the amber spark in the logo mark)
+  spark: "#67e8f9", // brand "match" accent (the cyan spark in the logo mark)
 };
 
 const NOTE_TONES = {
@@ -88,7 +88,7 @@ const style = (extra = "") => `${FONT};${extra}`;
 /**
  * Brand lockup, drawn with pure HTML/CSS so it renders even when images are
  * blocked. Mirrors the app mark: a brand tile carrying the "H" (the two
- * people + the bridge of hiring) with the amber "match" spark beside it.
+ * people + the bridge of hiring) with the cyan "match" spark beside it.
  */
 const logo = () => `
             <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:separate;">
