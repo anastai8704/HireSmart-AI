@@ -6,16 +6,16 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const publicAssets = join(root, "public", "assets");
 const publicRoot = join(root, "public");
 
-// 1. Full Logo with Tagline (viewBox 0 0 480 120)
+// 1. Full Logo with Tagline (viewBox 0 0 340 86)
 function createFullLogoSvg(tone = "light") {
   const isLight = tone === "light";
   const textColor = isLight ? "#ffffff" : "#0f172a";
   const taglineColor = isLight ? "#94a3b8" : "#64748b";
   const lineColor = isLight ? "rgba(255, 255, 255, 0.25)" : "rgba(15, 23, 42, 0.25)";
 
-  const cx = 338;
-  const cy = 44;
-  const r = 24;
+  const cx = 236;
+  const cy = 26;
+  const r = 18;
   const h = r * Math.sqrt(3) / 2;
 
   const pTop = `${cx},${(cy - r).toFixed(2)}`;
@@ -36,7 +36,7 @@ function createFullLogoSvg(tone = "light") {
   const midCenterRight = `${(cx + h * 0.5).toFixed(2)},${(cy + r * 0.25).toFixed(2)}`;
   const midCenterTop = `${cx},${(cy - r * 0.5).toFixed(2)}`;
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 120" width="480" height="120" role="img" aria-label="HireSmart AI — Hire Smarter • Build Better">
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 86" width="340" height="86" role="img" aria-label="HireSmart AI — Hire Smarter • Build Better">
   <defs>
     <linearGradient id="hs-full-cyan-top-${tone}" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#bae6fd" />
@@ -70,9 +70,9 @@ function createFullLogoSvg(tone = "light") {
 
   <g id="hiresmart-brand-artwork">
     <!-- HireSmart wordmark -->
-    <text x="16" y="60" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="48" font-weight="800" letter-spacing="-1.2" fill="${textColor}">HireSmart</text>
+    <text x="18" y="38" font-family="Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="34" font-weight="800" letter-spacing="-0.8" fill="${textColor}">HireSmart</text>
 
-    <!-- 3D Geometric Faceted Diamond/Cube -->
+    <!-- 3D Geometric Faceted Diamond/Cube (integrated seamlessly between HireSmart and AI) -->
     <g id="diamond-cube">
       <polygon points="${pTop} ${midTopLeft} ${midCenterTop}" fill="url(#hs-full-cyan-top-${tone})" />
       <polygon points="${pTop} ${midTopRight} ${midCenterTop}" fill="url(#hs-full-cyan-mid-${tone})" />
@@ -88,31 +88,31 @@ function createFullLogoSvg(tone = "light") {
       <polygon points="${midBottomRight} ${pBottom} ${pCenter}" fill="url(#hs-full-blue-right-${tone})" />
       <polygon points="${midCenterTop} ${pCenter} ${midTopLeft}" fill="#ffffff" opacity="0.45" />
       <polygon points="${midCenterTop} ${pCenter} ${midTopRight}" fill="#bae6fd" opacity="0.3" />
-      <line x1="${cx}" y1="${(cy - r).toFixed(2)}" x2="${cx}" y2="${cy.toFixed(2)}" stroke="#ffffff" stroke-width="1.0" stroke-opacity="0.5" />
-      <line x1="${(cx - h).toFixed(2)}" y1="${(cy - r / 2).toFixed(2)}" x2="${cx}" y2="${cy.toFixed(2)}" stroke="#ffffff" stroke-width="0.8" stroke-opacity="0.35" />
-      <line x1="${(cx + h).toFixed(2)}" y1="${(cy - r / 2).toFixed(2)}" x2="${cx}" y2="${cy.toFixed(2)}" stroke="#ffffff" stroke-width="0.8" stroke-opacity="0.35" />
-      <line x1="${cx}" y1="${(cy + r).toFixed(2)}" x2="${cx}" y2="${cy.toFixed(2)}" stroke="#ffffff" stroke-width="0.8" stroke-opacity="0.35" />
+      <line x1="${cx}" y1="${(cy - r).toFixed(2)}" x2="${cx}" y2="${cy.toFixed(2)}" stroke="#ffffff" stroke-width="0.9" stroke-opacity="0.5" />
+      <line x1="${(cx - h).toFixed(2)}" y1="${(cy - r / 2).toFixed(2)}" x2="${cx}" y2="${cy.toFixed(2)}" stroke="#ffffff" stroke-width="0.7" stroke-opacity="0.35" />
+      <line x1="${(cx + h).toFixed(2)}" y1="${(cy - r / 2).toFixed(2)}" x2="${cx}" y2="${cy.toFixed(2)}" stroke="#ffffff" stroke-width="0.7" stroke-opacity="0.35" />
+      <line x1="${cx}" y1="${(cy + r).toFixed(2)}" x2="${cx}" y2="${cy.toFixed(2)}" stroke="#ffffff" stroke-width="0.7" stroke-opacity="0.35" />
     </g>
 
     <!-- AI wordmark -->
-    <text x="376" y="60" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="48" font-weight="800" letter-spacing="-1.2" fill="${textColor}">AI</text>
+    <text x="260" y="38" font-family="Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="34" font-weight="800" letter-spacing="-0.8" fill="${textColor}">AI</text>
 
     <!-- Tagline: HIRE SMARTER • BUILD BETTER -->
-    <line x1="20" y1="94" x2="80" y2="94" stroke="${lineColor}" stroke-width="1.5" stroke-linecap="round" />
-    <text x="92" y="98" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="12" font-weight="600" letter-spacing="3.5" fill="${taglineColor}">HIRE SMARTER  •  BUILD BETTER</text>
-    <line x1="400" y1="94" x2="460" y2="94" stroke="${lineColor}" stroke-width="1.5" stroke-linecap="round" />
+    <line x1="18" y1="65" x2="68" y2="65" stroke="${lineColor}" stroke-width="1.2" stroke-linecap="round" />
+    <text x="76" y="68" font-family="Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="9.5" font-weight="600" letter-spacing="2.6" fill="${taglineColor}">HIRE SMARTER  •  BUILD BETTER</text>
+    <line x1="272" y1="65" x2="322" y2="65" stroke="${lineColor}" stroke-width="1.2" stroke-linecap="round" />
   </g>
 </svg>`;
 }
 
-// 2. Navbar / Header Clean Logo Lockup (viewBox 0 0 460 76 — without tagline, clean natural spacing)
+// 2. Navbar / Header Clean Logo Lockup (viewBox 0 0 300 56 — without tagline, unified continuous wordmark)
 function createNavbarLogoSvg(tone = "light") {
   const isLight = tone === "light";
   const textColor = isLight ? "#ffffff" : "#0f172a";
 
-  const cx = 330;
-  const cy = 38;
-  const r = 24;
+  const cx = 224;
+  const cy = 28;
+  const r = 18;
   const h = r * Math.sqrt(3) / 2;
 
   const pTop = `${cx},${(cy - r).toFixed(2)}`;
@@ -133,7 +133,7 @@ function createNavbarLogoSvg(tone = "light") {
   const midCenterRight = `${(cx + h * 0.5).toFixed(2)},${(cy + r * 0.25).toFixed(2)}`;
   const midCenterTop = `${cx},${(cy - r * 0.5).toFixed(2)}`;
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 460 76" width="460" height="76" role="img" aria-label="HireSmart AI">
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 56" width="300" height="56" role="img" aria-label="HireSmart AI">
   <defs>
     <linearGradient id="hs-nav-cyan-top-${tone}" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#bae6fd" />
@@ -167,9 +167,9 @@ function createNavbarLogoSvg(tone = "light") {
 
   <g id="hiresmart-brand-artwork">
     <!-- HireSmart wordmark -->
-    <text x="12" y="54" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="48" font-weight="800" letter-spacing="-1.2" fill="${textColor}">HireSmart</text>
+    <text x="14" y="40" font-family="Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="36" font-weight="800" letter-spacing="-0.8" fill="${textColor}">HireSmart</text>
 
-    <!-- 3D Geometric Faceted Diamond/Cube (cleanly spaced between HireSmart and AI) -->
+    <!-- 3D Geometric Faceted Diamond/Cube (integrated seamlessly between HireSmart and AI) -->
     <g id="diamond-cube">
       <polygon points="${pTop} ${midTopLeft} ${midCenterTop}" fill="url(#hs-nav-cyan-top-${tone})" />
       <polygon points="${pTop} ${midTopRight} ${midCenterTop}" fill="url(#hs-nav-cyan-mid-${tone})" />
@@ -185,14 +185,14 @@ function createNavbarLogoSvg(tone = "light") {
       <polygon points="${midBottomRight} ${pBottom} ${pCenter}" fill="url(#hs-nav-blue-right-${tone})" />
       <polygon points="${midCenterTop} ${pCenter} ${midTopLeft}" fill="#ffffff" opacity="0.45" />
       <polygon points="${midCenterTop} ${pCenter} ${midTopRight}" fill="#bae6fd" opacity="0.3" />
-      <line x1="${cx}" y1="${(cy - r).toFixed(2)}" x2="${cx}" y2="${cy.toFixed(2)}" stroke="#ffffff" stroke-width="1.0" stroke-opacity="0.5" />
-      <line x1="${(cx - h).toFixed(2)}" y1="${(cy - r / 2).toFixed(2)}" x2="${cx}" y2="${cy.toFixed(2)}" stroke="#ffffff" stroke-width="0.8" stroke-opacity="0.35" />
-      <line x1="${(cx + h).toFixed(2)}" y1="${(cy - r / 2).toFixed(2)}" x2="${cx}" y2="${cy.toFixed(2)}" stroke="#ffffff" stroke-width="0.8" stroke-opacity="0.35" />
-      <line x1="${cx}" y1="${(cy + r).toFixed(2)}" x2="${cx}" y2="${cy.toFixed(2)}" stroke="#ffffff" stroke-width="0.8" stroke-opacity="0.35" />
+      <line x1="${cx}" y1="${(cy - r).toFixed(2)}" x2="${cx}" y2="${cy.toFixed(2)}" stroke="#ffffff" stroke-width="0.9" stroke-opacity="0.5" />
+      <line x1="${(cx - h).toFixed(2)}" y1="${(cy - r / 2).toFixed(2)}" x2="${cx}" y2="${cy.toFixed(2)}" stroke="#ffffff" stroke-width="0.7" stroke-opacity="0.35" />
+      <line x1="${(cx + h).toFixed(2)}" y1="${(cy - r / 2).toFixed(2)}" x2="${cx}" y2="${cy.toFixed(2)}" stroke="#ffffff" stroke-width="0.7" stroke-opacity="0.35" />
+      <line x1="${cx}" y1="${(cy + r).toFixed(2)}" x2="${cx}" y2="${cy.toFixed(2)}" stroke="#ffffff" stroke-width="0.7" stroke-opacity="0.35" />
     </g>
 
     <!-- AI wordmark -->
-    <text x="368" y="54" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="48" font-weight="800" letter-spacing="-1.2" fill="${textColor}">AI</text>
+    <text x="248" y="40" font-family="Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="36" font-weight="800" letter-spacing="-0.8" fill="${textColor}">AI</text>
   </g>
 </svg>`;
 }
@@ -352,4 +352,4 @@ writeFileSync(join(publicRoot, "logo-full.svg"), createNavbarLogoSvg("dark"));
 writeFileSync(join(publicRoot, "logo-mark.svg"), createCubeMarkSvg());
 writeFileSync(join(publicRoot, "favicon.svg"), createFaviconSvg());
 
-console.log("Brand assets generated with clean non-overlapping spacing!");
+console.log("Brand assets generated with clean seamless integrated wordmark lockup!");
