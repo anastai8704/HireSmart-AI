@@ -6,14 +6,14 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const publicAssets = join(root, "public", "assets");
 const publicRoot = join(root, "public");
 
-// 1. Full Logo with Tagline (viewBox 0 0 300 80 — tight, balanced spacing around diamond)
+// 1. Full Logo with Tagline (viewBox 0 0 300 80 — small compact gap, zero overlap)
 function createFullLogoSvg(tone = "light") {
   const isLight = tone === "light";
   const textColor = isLight ? "#ffffff" : "#0f172a";
   const taglineColor = isLight ? "#94a3b8" : "#64748b";
   const lineColor = isLight ? "rgba(255, 255, 255, 0.25)" : "rgba(15, 23, 42, 0.25)";
 
-  const cx = 195;
+  const cx = 202;
   const cy = 25;
   const r = 16.5;
   const h = r * Math.sqrt(3) / 2;
@@ -72,7 +72,7 @@ function createFullLogoSvg(tone = "light") {
     <!-- HireSmart wordmark -->
     <text x="14" y="36" font-family="Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="34" font-weight="800" letter-spacing="-0.6" fill="${textColor}">HireSmart</text>
 
-    <!-- 3D Geometric Faceted Diamond/Cube (tight, close, balanced integration) -->
+    <!-- 3D Geometric Faceted Diamond/Cube (small gap, zero overlap) -->
     <g id="diamond-cube">
       <polygon points="${pTop} ${midTopLeft} ${midCenterTop}" fill="url(#hs-full-cyan-top-${tone})" />
       <polygon points="${pTop} ${midTopRight} ${midCenterTop}" fill="url(#hs-full-cyan-mid-${tone})" />
@@ -95,7 +95,7 @@ function createFullLogoSvg(tone = "light") {
     </g>
 
     <!-- AI wordmark -->
-    <text x="214" y="36" font-family="Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="34" font-weight="800" letter-spacing="-0.6" fill="${textColor}">AI</text>
+    <text x="222" y="36" font-family="Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="34" font-weight="800" letter-spacing="-0.6" fill="${textColor}">AI</text>
 
     <!-- Tagline: HIRE SMARTER • BUILD BETTER -->
     <line x1="14" y1="60" x2="58" y2="60" stroke="${lineColor}" stroke-width="1.2" stroke-linecap="round" />
@@ -105,12 +105,12 @@ function createFullLogoSvg(tone = "light") {
 </svg>`;
 }
 
-// 2. Navbar / Header Clean Logo Lockup (viewBox 0 0 256 52 — single unified wordmark, reduced space around diamond)
+// 2. Navbar / Header Clean Logo Lockup (viewBox 0 0 270 52 — single unified wordmark, small clean gap, zero overlap)
 function createNavbarLogoSvg(tone = "light") {
   const isLight = tone === "light";
   const textColor = isLight ? "#ffffff" : "#0f172a";
 
-  const cx = 195;
+  const cx = 205;
   const cy = 26;
   const r = 16.5;
   const h = r * Math.sqrt(3) / 2;
@@ -133,7 +133,7 @@ function createNavbarLogoSvg(tone = "light") {
   const midCenterRight = `${(cx + h * 0.5).toFixed(2)},${(cy + r * 0.25).toFixed(2)}`;
   const midCenterTop = `${cx},${(cy - r * 0.5).toFixed(2)}`;
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 52" width="256" height="52" role="img" aria-label="HireSmart AI">
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 270 52" width="270" height="52" role="img" aria-label="HireSmart AI">
   <defs>
     <linearGradient id="hs-nav-cyan-top-${tone}" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#bae6fd" />
@@ -167,9 +167,9 @@ function createNavbarLogoSvg(tone = "light") {
 
   <g id="hiresmart-brand-artwork">
     <!-- HireSmart wordmark -->
-    <text x="10" y="37" font-family="Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="35" font-weight="800" letter-spacing="-0.6" fill="${textColor}">HireSmart</text>
+    <text x="12" y="37" font-family="Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="35" font-weight="800" letter-spacing="-0.6" fill="${textColor}">HireSmart</text>
 
-    <!-- 3D Geometric Faceted Diamond/Cube (tight, reduced spacing, no overlap) -->
+    <!-- 3D Geometric Faceted Diamond/Cube (small gap, NO overlap with 't' or 'A') -->
     <g id="diamond-cube">
       <polygon points="${pTop} ${midTopLeft} ${midCenterTop}" fill="url(#hs-nav-cyan-top-${tone})" />
       <polygon points="${pTop} ${midTopRight} ${midCenterTop}" fill="url(#hs-nav-cyan-mid-${tone})" />
@@ -191,8 +191,8 @@ function createNavbarLogoSvg(tone = "light") {
       <line x1="${cx}" y1="${(cy + r).toFixed(2)}" x2="${cx}" y2="${cy.toFixed(2)}" stroke="#ffffff" stroke-width="0.7" stroke-opacity="0.35" />
     </g>
 
-    <!-- AI wordmark (tight spacing, right next to diamond) -->
-    <text x="212" y="37" font-family="Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="35" font-weight="800" letter-spacing="-0.6" fill="${textColor}">AI</text>
+    <!-- AI wordmark (small gap, NO overlap) -->
+    <text x="224" y="37" font-family="Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="35" font-weight="800" letter-spacing="-0.6" fill="${textColor}">AI</text>
   </g>
 </svg>`;
 }
@@ -334,11 +334,11 @@ function createFaviconSvg() {
 </svg>`;
 }
 
-// 1. Write Navbar specific SVGs (clean wordmark + diamond, reduced spacing around diamond, transparent bg)
+// 1. Write Navbar specific SVGs (clean wordmark + diamond, small compact gap, zero overlap, transparent bg)
 writeFileSync(join(publicAssets, "hiresmart-logo-nav-light.svg"), createNavbarLogoSvg("light"));
 writeFileSync(join(publicAssets, "hiresmart-logo-nav-dark.svg"), createNavbarLogoSvg("dark"));
 
-// 2. Write Full Logo SVGs (with tagline, reduced spacing around diamond, transparent bg)
+// 2. Write Full Logo SVGs (with tagline, small compact gap, zero overlap, transparent bg)
 writeFileSync(join(publicAssets, "hiresmart-ai-logo-light.svg"), createFullLogoSvg("light"));
 writeFileSync(join(publicAssets, "hiresmart-ai-logo-dark.svg"), createFullLogoSvg("dark"));
 writeFileSync(join(publicAssets, "hiresmart-ai-logo.svg"), createNavbarLogoSvg("light"));
@@ -352,4 +352,4 @@ writeFileSync(join(publicRoot, "logo-full.svg"), createNavbarLogoSvg("dark"));
 writeFileSync(join(publicRoot, "logo-mark.svg"), createCubeMarkSvg());
 writeFileSync(join(publicRoot, "favicon.svg"), createFaviconSvg());
 
-console.log("Brand assets regenerated with reduced spacing around the diamond!");
+console.log("Brand assets regenerated with small compact gap and zero overlap!");

@@ -34,30 +34,30 @@
     <!-- HireSmart wordmark -->
     <text x="14" y="36" font-family="Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="34" font-weight="800" letter-spacing="-0.6" fill="#0f172a">HireSmart</text>
 
-    <!-- 3D Geometric Faceted Diamond/Cube (tight, close, balanced integration) -->
+    <!-- 3D Geometric Faceted Diamond/Cube (small gap, zero overlap) -->
     <g id="diamond-cube">
-      <polygon points="195,8.50 187.86,12.63 195,16.75" fill="url(#hs-full-cyan-top-dark)" />
-      <polygon points="195,8.50 202.14,12.63 195,16.75" fill="url(#hs-full-cyan-mid-dark)" />
-      <polygon points="187.86,12.63 180.71,16.75 195,25.00 195,16.75" fill="url(#hs-full-cyan-glow-dark)" />
-      <polygon points="202.14,12.63 209.29,16.75 195,25.00 195,16.75" fill="url(#hs-full-cyan-top-dark)" />
-      <polygon points="180.71,16.75 180.71,25.00 195,25.00" fill="url(#hs-full-cyan-mid-dark)" />
-      <polygon points="180.71,25.00 180.71,33.25 187.86,29.13 195,25.00" fill="url(#hs-full-blue-left-dark)" />
-      <polygon points="180.71,33.25 187.86,37.38 195,25.00" fill="url(#hs-full-blue-deep-dark)" />
-      <polygon points="187.86,37.38 195,41.50 195,25.00" fill="url(#hs-full-blue-left-dark)" />
-      <polygon points="209.29,16.75 209.29,25.00 195,25.00" fill="url(#hs-full-blue-right-dark)" />
-      <polygon points="209.29,25.00 209.29,33.25 202.14,29.13 195,25.00" fill="url(#hs-full-blue-right-dark)" />
-      <polygon points="209.29,33.25 202.14,37.38 195,25.00" fill="url(#hs-full-blue-dark-dark)" />
-      <polygon points="202.14,37.38 195,41.50 195,25.00" fill="url(#hs-full-blue-right-dark)" />
-      <polygon points="195,16.75 195,25.00 187.86,12.63" fill="#ffffff" opacity="0.45" />
-      <polygon points="195,16.75 195,25.00 202.14,12.63" fill="#bae6fd" opacity="0.3" />
-      <line x1="195" y1="8.50" x2="195" y2="25.00" stroke="#ffffff" stroke-width="0.9" stroke-opacity="0.5" />
-      <line x1="180.71" y1="16.75" x2="195" y2="25.00" stroke="#ffffff" stroke-width="0.7" stroke-opacity="0.35" />
-      <line x1="209.29" y1="16.75" x2="195" y2="25.00" stroke="#ffffff" stroke-width="0.7" stroke-opacity="0.35" />
-      <line x1="195" y1="41.50" x2="195" y2="25.00" stroke="#ffffff" stroke-width="0.7" stroke-opacity="0.35" />
+      <polygon points="202,8.50 194.86,12.63 202,16.75" fill="url(#hs-full-cyan-top-dark)" />
+      <polygon points="202,8.50 209.14,12.63 202,16.75" fill="url(#hs-full-cyan-mid-dark)" />
+      <polygon points="194.86,12.63 187.71,16.75 202,25.00 202,16.75" fill="url(#hs-full-cyan-glow-dark)" />
+      <polygon points="209.14,12.63 216.29,16.75 202,25.00 202,16.75" fill="url(#hs-full-cyan-top-dark)" />
+      <polygon points="187.71,16.75 187.71,25.00 202,25.00" fill="url(#hs-full-cyan-mid-dark)" />
+      <polygon points="187.71,25.00 187.71,33.25 194.86,29.13 202,25.00" fill="url(#hs-full-blue-left-dark)" />
+      <polygon points="187.71,33.25 194.86,37.38 202,25.00" fill="url(#hs-full-blue-deep-dark)" />
+      <polygon points="194.86,37.38 202,41.50 202,25.00" fill="url(#hs-full-blue-left-dark)" />
+      <polygon points="216.29,16.75 216.29,25.00 202,25.00" fill="url(#hs-full-blue-right-dark)" />
+      <polygon points="216.29,25.00 216.29,33.25 209.14,29.13 202,25.00" fill="url(#hs-full-blue-right-dark)" />
+      <polygon points="216.29,33.25 209.14,37.38 202,25.00" fill="url(#hs-full-blue-dark-dark)" />
+      <polygon points="209.14,37.38 202,41.50 202,25.00" fill="url(#hs-full-blue-right-dark)" />
+      <polygon points="202,16.75 202,25.00 194.86,12.63" fill="#ffffff" opacity="0.45" />
+      <polygon points="202,16.75 202,25.00 209.14,12.63" fill="#bae6fd" opacity="0.3" />
+      <line x1="202" y1="8.50" x2="202" y2="25.00" stroke="#ffffff" stroke-width="0.9" stroke-opacity="0.5" />
+      <line x1="187.71" y1="16.75" x2="202" y2="25.00" stroke="#ffffff" stroke-width="0.7" stroke-opacity="0.35" />
+      <line x1="216.29" y1="16.75" x2="202" y2="25.00" stroke="#ffffff" stroke-width="0.7" stroke-opacity="0.35" />
+      <line x1="202" y1="41.50" x2="202" y2="25.00" stroke="#ffffff" stroke-width="0.7" stroke-opacity="0.35" />
     </g>
 
     <!-- AI wordmark -->
-    <text x="214" y="36" font-family="Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="34" font-weight="800" letter-spacing="-0.6" fill="#0f172a">AI</text>
+    <text x="222" y="36" font-family="Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="34" font-weight="800" letter-spacing="-0.6" fill="#0f172a">AI</text>
 
     <!-- Tagline: HIRE SMARTER • BUILD BETTER -->
     <line x1="14" y1="60" x2="58" y2="60" stroke="rgba(15, 23, 42, 0.25)" stroke-width="1.2" stroke-linecap="round" />
