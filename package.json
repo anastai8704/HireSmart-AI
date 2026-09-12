@@ -1,0 +1,15 @@
+{
+  "name": "hiresmart-ai",
+  "version": "1.0.0",
+  "description": "HireSmart-AI: Intelligent Recruitment & Candidate Assessment Platform",
+  "private": true,
+  "scripts": {
+    "demo": "npm --prefix server run demo",
+    "seed:demo": "npm --prefix server run seed:demo",
+    "seed": "npm --prefix server run seed",
+    "pro": "npm --prefix server run pro",
+    "bootstrap:admin": "npm --prefix server run bootstrap:admin",
+    "dev:server": "npm --prefix server run dev",
+    "dev:client": "npm --prefix client run dev"
+  }
+}
