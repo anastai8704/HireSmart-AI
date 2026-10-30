@@ -178,7 +178,7 @@ export const RecruiterDashboard = () => {
       <PageHeader
         eyebrow="Hiring workspace"
         title={`${greeting()}, ${auth.user?.displayName?.split(" ")[0] || "there"}`}
-        description="Here\u2019s what\u2019s happening across your hiring today."
+        description="Here's what's happening across your hiring today."
         action={
           <Button as={Link} to={`/app/o/${orgId}/jobs/new`} leftIcon={<Plus className="h-4 w-4" />}>
             Create Job
