@@ -207,6 +207,17 @@ export const analyticsApi = {
 export const adminApi = {
   users: (params) => api.get(`/admin/users${query(params)}`),
   organizations: (params) => api.get(`/admin/organizations${query(params)}`),
+  overviewAnalytics: (params) => api.get(`/admin/analytics/overview${query(params)}`),
+  revenueAnalytics: () => api.get("/admin/analytics/revenue"),
+  orgVerificationDetails: (orgId) => api.get(`/admin/organizations/${orgId}/verification`),
+  verifyOrg: (orgId, notes) => api.post(`/admin/organizations/${orgId}/verify`, { notes }),
+  rejectOrg: (orgId, reason) => api.post(`/admin/organizations/${orgId}/reject`, { reason }),
+  requestMoreInfoOrg: (orgId, notes) =>
+    api.post(`/admin/organizations/${orgId}/request-info`, { notes }),
+  suspendOrg: (orgId, reason) => api.post(`/admin/organizations/${orgId}/suspend`, { reason }),
+  placements: (params) => api.get(`/admin/placements${query(params)}`),
+  verifyPlacement: (placementId, body) =>
+    api.post(`/admin/placements/${placementId}/verify`, body),
   audit: (params) => api.get(`/admin/audit-logs${query(params)}`),
   security: (params) => api.get(`/admin/security-events${query(params)}`),
   suspend: (id, reason) => api.post(`/admin/users/${id}/suspend`, { reason }),
@@ -218,6 +229,29 @@ export const adminApi = {
   moderation: (params = {}) => api.get(`/admin/moderation/jobs${query(params)}`),
   moderate: (jobId, action, reason) =>
     api.post(`/admin/moderation/jobs/${jobId}/${action}`, reason ? { reason } : {}),
+};
+
+export const placementApi = {
+  myPlacements: (params) => api.get(`/candidates/me/placements${query(params)}`),
+  confirmJoining: (placementId, body) =>
+    api.post(`/candidates/me/placements/${placementId}/confirm-joining`, body),
+  orgPlacements: (orgId, params) => api.get(`/organizations/${orgId}/placements${query(params)}`),
+  updateEmploymentStatus: (placementId, body) =>
+    api.patch(`/placements/${placementId}/employment-status`, body),
+};
+
+export const verificationApi = {
+  get: (orgId) => api.get(`/organizations/${orgId}/verification`),
+  submit: (orgId, body) => api.post(`/organizations/${orgId}/verification`, body),
+};
+
+export const subscriptionApi = {
+  plans: () => api.get("/subscriptions/plans"),
+  current: () => api.get("/subscriptions/current"),
+  checkout: (body) => api.post("/subscriptions/checkout", body),
+  verifyPayment: (body) => api.post("/subscriptions/verify-payment", body),
+  cancel: () => api.post("/subscriptions/cancel"),
+  invoices: (params) => api.get(`/subscriptions/invoices${query(params)}`),
 };
 export const downloadBlob = (blob, name) => {
   const url = URL.createObjectURL(blob);

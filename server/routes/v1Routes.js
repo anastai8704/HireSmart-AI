@@ -27,6 +27,8 @@ const admin = require("../controllers/v1AdminController");
 const health = require("../controllers/v1HealthController");
 const users = require("../controllers/v1UserController");
 const invites = require("../controllers/v1InviteController");
+const placement = require("../controllers/v1PlacementController");
+const subscription = require("../controllers/v1SubscriptionController");
 const { config } = require("../config/env");
 
 const router = express.Router();
@@ -852,6 +854,54 @@ router.get(
 );
 router.get("/admin/users", authenticate, admin.users);
 router.get("/admin/organizations", authenticate, admin.organizations);
+router.get("/admin/analytics/overview", authenticate, admin.overviewAnalytics);
+router.get("/admin/analytics/revenue", authenticate, subscription.adminRevenueAnalytics);
+router.get("/admin/organizations/:organizationId/verification", authenticate, org.adminGetOrgDetails);
+router.post("/admin/organizations/:organizationId/verify", authenticate, org.adminVerifyOrg);
+router.post("/admin/organizations/:organizationId/reject", authenticate, org.adminRejectOrg);
+router.post("/admin/organizations/:organizationId/request-info", authenticate, org.adminRequestMoreInfoOrg);
+router.post("/admin/organizations/:organizationId/suspend", authenticate, org.adminSuspendOrg);
+router.get("/admin/placements", authenticate, placement.listAdminPlacements);
+router.post("/admin/placements/:placementId/verify", authenticate, placement.adminVerifyPlacement);
+
+// Company verification for recruiters
+router.get(
+  "/organizations/:organizationId/verification",
+  authenticate,
+  requireOrganization("organization.manage"),
+  org.getVerification,
+);
+router.post(
+  "/organizations/:organizationId/verification",
+  authenticate,
+  requireOrganization("organization.manage"),
+  org.submitVerification,
+);
+router.get(
+  "/organizations/:organizationId/placements",
+  authenticate,
+  requireOrganization("application.manage"),
+  placement.listOrganizationPlacements,
+);
+
+// Placement lifecycle for candidate & recruiters
+router.get("/candidates/me/placements", authenticate, candidateOnly, placement.listCandidatePlacements);
+router.post(
+  "/candidates/me/placements/:placementId/confirm-joining",
+  authenticate,
+  candidateOnly,
+  placement.candidateConfirmJoining,
+);
+router.patch("/placements/:placementId/employment-status", authenticate, placement.updateEmploymentStatus);
+
+// Subscriptions & Billing
+router.get("/subscriptions/plans", subscription.getPlans);
+router.get("/subscriptions/current", authenticate, subscription.getCurrentSubscription);
+router.post("/subscriptions/checkout", authenticate, subscription.checkout);
+router.post("/subscriptions/verify-payment", authenticate, subscription.verifyPayment);
+router.post("/subscriptions/cancel", authenticate, subscription.cancelSubscription);
+router.get("/subscriptions/invoices", authenticate, subscription.getInvoices);
+
 router.get("/admin/moderation/jobs", authenticate, admin.moderationJobs);
 router.post(
   "/admin/moderation/jobs/:jobId/:action",

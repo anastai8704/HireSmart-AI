@@ -35,7 +35,8 @@ const CDashboard = pick(() => import("./pages/candidate/CandidatePages"), "Candi
   CInterviews = pick(() => import("./pages/candidate/CandidatePages"), "CandidateInterviews"),
   InterviewPrep = pick(() => import("./pages/candidate/CandidatePages"), "InterviewPrep"),
   CareerCopilot = pick(() => import("./pages/candidate/CandidatePages"), "CareerCopilot"),
-  SavedJobs = pick(() => import("./pages/candidate/CandidatePages"), "SavedJobsPage");
+  SavedJobs = pick(() => import("./pages/candidate/CandidatePages"), "SavedJobsPage"),
+  CBilling = pick(() => import("./pages/candidate/CandidateBilling"), "CandidateBilling");
 const RDashboard = pick(() => import("./pages/recruiter/RecruiterPages"), "RecruiterDashboard"),
   OrgJobs = pick(() => import("./pages/recruiter/RecruiterPages"), "JobsPage"),
   JobEditor = pick(() => import("./pages/recruiter/RecruiterPages"), "JobEditor"),
@@ -48,7 +49,8 @@ const RDashboard = pick(() => import("./pages/recruiter/RecruiterPages"), "Recru
   Analytics = pick(() => import("./pages/recruiter/RecruiterPages"), "AnalyticsPage"),
   RecruiterCopilot = pick(() => import("./pages/recruiter/RecruiterPages"), "RecruiterCopilot"),
   Team = pick(() => import("./pages/recruiter/RecruiterPages"), "TeamPage"),
-  Assigned = pick(() => import("./pages/recruiter/RecruiterPages"), "JobsPage");
+  Assigned = pick(() => import("./pages/recruiter/RecruiterPages"), "JobsPage"),
+  RBilling = pick(() => import("./pages/recruiter/RecruiterBilling"), "RecruiterBilling");
 const Notifications = pick(() => import("./pages/SystemPages"), "NotificationsPage"),
   Settings = pick(() => import("./pages/SystemPages"), "SettingsPage"),
   Profile = pick(() => import("./pages/ProfilePages"), "ProfilePage"),
@@ -57,7 +59,8 @@ const Notifications = pick(() => import("./pages/SystemPages"), "NotificationsPa
   AdminOrgs = pick(() => import("./pages/admin/AdminPages"), "AdminOrganizations"),
   AdminAI = pick(() => import("./pages/admin/AdminPages"), "AdminAIUsage"),
   AdminSecurity = pick(() => import("./pages/admin/AdminPages"), "AdminSecurity"),
-  AdminModeration = pick(() => import("./pages/admin/AdminPages"), "AdminModeration");
+  AdminModeration = pick(() => import("./pages/admin/AdminPages"), "AdminModeration"),
+  AdminSubscriptions = pick(() => import("./pages/admin/AdminSubscriptions"), "AdminSubscriptions");
 const Forbidden = lazy(() => import("./pages/Forbidden")),
   NotFound = lazy(() => import("./pages/NotFound"));
 const LegacyWorkspaceRedirect = () => {
@@ -130,6 +133,7 @@ const App = () => (
                 <Route path="/app/candidate/interviews" element={<CInterviews />} />
                 <Route path="/app/candidate/interviews/:interviewId" element={<InterviewPrep />} />
                 <Route path="/app/candidate/copilot" element={<CareerCopilot />} />
+                <Route path="/app/candidate/plans" element={<CBilling />} />
               </Route>
             </Route>
             <Route
@@ -170,6 +174,7 @@ const App = () => (
                 <Route path="/app/o/:organizationId/copilot" element={<RecruiterCopilot />} />
                 <Route path="/app/o/:organizationId/team" element={<Team />} />
                 <Route path="/app/o/:organizationId/assigned" element={<Assigned assigned />} />
+                <Route path="/app/o/:organizationId/billing" element={<RBilling />} />
               </Route>
             </Route>
             <Route element={<ProtectedRoute roles={["admin"]} />}>
@@ -179,6 +184,7 @@ const App = () => (
                 <Route path="/app/admin/users" element={<AdminUsers />} />
                 <Route path="/app/admin/organizations" element={<AdminOrgs />} />
                 <Route path="/app/admin/organizations/:organizationId" element={<AdminOrgs />} />
+                <Route path="/app/admin/subscriptions" element={<AdminSubscriptions />} />
                 <Route path="/app/admin/ai-usage" element={<AdminAI />} />
                 <Route path="/app/admin/security" element={<AdminSecurity />} />
               </Route>

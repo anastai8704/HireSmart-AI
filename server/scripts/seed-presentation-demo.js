@@ -6,13 +6,15 @@
  *       MCA Student @ SRIMCA, Surat, Gujarat (Fresher / MERN Stack)
  *       Projects: HireSmart-AI, HomeServeX, Travel Planner
  *       Ready PDF resume, 6 connected applications, scheduled interview, notifications
+ *       Career Plus active subscription & confirmed placement record
  *   - Primary Recruiter: 2025mca150@gmail.com / hiresmart8704
  *       Talent Lead @ Apex Innovations (Surat/Ahmedabad)
  *       5 Job postings, applications to review, interview scheduled, notifications
+ *       Growth Plan active subscription & verified company status
  *   - Admin: Preserves existing platform admin account without overwriting or deletion
- *   - Ecosystem: 8 candidates, 5 companies, 12 realistic jobs, 22 applications,
- *       5 interviews (upcoming + completed with rubric feedback), notes, hybrid matches,
- *       AI analysis logs, security events, audit logs, and in-app notifications.
+ *   - Ecosystem: 8 candidates, 7 companies (including pending & rejected for moderation queue),
+ *       12 realistic jobs, 22 applications, 5 interviews, subscriptions, payment transactions,
+ *       placement lifecycle records, AI analysis logs, security events, audit logs, and notifications.
  *
  * Safe, idempotent, non-destructive.
  *
@@ -45,6 +47,10 @@ const SecurityEvent = require("../models/SecurityEvent");
 const Consent = require("../models/Consent");
 const JobAlert = require("../models/JobAlert");
 const Notification = require("../models/Notification");
+const Placement = require("../models/Placement");
+const Subscription = require("../models/Subscription");
+const PaymentTransaction = require("../models/PaymentTransaction");
+const { SUBSCRIPTION_PLANS } = require("../config/subscriptionPlans");
 const { createVersion, processVersion } = require("../services/resumeProcessingService");
 
 const DEMO_PASSWORD = "hiresmart8704";
@@ -102,6 +108,35 @@ const ORGANIZATIONS = [
     about:
       "Apex Innovations is a premier software engineering and cloud consulting firm building enterprise SaaS, scalable web platforms, and intelligent AI tools.",
     timezone: "Asia/Kolkata",
+    verificationStatus: "verified",
+    verifiedAt: daysAgo(30),
+    gstin: "24AAACA1234A1Z5",
+    registrationNumber: "U72200GJ2020PTC012345",
+    businessEmail: "careers@apexinnovations.io",
+    phone: "+91 98980 12345",
+    address: {
+      street: "Plot 42, Silicon IT Park, Piplod",
+      city: "Surat",
+      state: "Gujarat",
+      country: "India",
+      pincode: "395007",
+    },
+    riskScore: 5,
+    riskFlags: [],
+    documents: [
+      {
+        type: "incorporation_certificate",
+        fileUrl: "/demo/certs/apex-cin.pdf",
+        fileName: "Apex_Certificate_of_Incorporation.pdf",
+        uploadedAt: daysAgo(30),
+      },
+      {
+        type: "gstin_certificate",
+        fileUrl: "/demo/certs/apex-gst.pdf",
+        fileName: "Apex_GST_Registration.pdf",
+        uploadedAt: daysAgo(30),
+      },
+    ],
   },
   {
     name: "Nexus Byte Solutions",
@@ -112,6 +147,21 @@ const ORGANIZATIONS = [
     about:
       "Nexus Byte Solutions creates high-throughput data platforms, cloud-native services, and AI-driven automation for global enterprise clients.",
     timezone: "Asia/Kolkata",
+    verificationStatus: "verified",
+    verifiedAt: daysAgo(25),
+    gstin: "29AABCN4321D1Z8",
+    registrationNumber: "U72200KA2019PTC098765",
+    businessEmail: "talent@nexusbyte.io",
+    phone: "+91 98450 66778",
+    address: {
+      street: "Tower B, Manyata Tech Park, Outer Ring Road",
+      city: "Bengaluru",
+      state: "Karnataka",
+      country: "India",
+      pincode: "560045",
+    },
+    riskScore: 8,
+    riskFlags: [],
   },
   {
     name: "CloudForge Systems",
@@ -122,6 +172,21 @@ const ORGANIZATIONS = [
     about:
       "CloudForge Systems specializes in resilient cloud platforms, Kubernetes multi-cluster management, GitOps pipelines, and Site Reliability Engineering.",
     timezone: "Asia/Kolkata",
+    verificationStatus: "verified",
+    verifiedAt: daysAgo(20),
+    gstin: "27AABCC8765E1Z1",
+    registrationNumber: "U72200MH2021PTC112233",
+    businessEmail: "recruiting@cloudforge.io",
+    phone: "+91 98600 77889",
+    address: {
+      street: "Senapati Bapat Road, Shivajinagar",
+      city: "Pune",
+      state: "Maharashtra",
+      country: "India",
+      pincode: "411016",
+    },
+    riskScore: 12,
+    riskFlags: [],
   },
   {
     name: "ByteScale Technologies",
@@ -132,6 +197,21 @@ const ORGANIZATIONS = [
     about:
       "ByteScale Technologies operates low-latency payment processing, digital banking APIs, and financial microservices handling millions of transactions daily.",
     timezone: "Asia/Kolkata",
+    verificationStatus: "verified",
+    verifiedAt: daysAgo(15),
+    gstin: "27AABCB9988F1Z3",
+    registrationNumber: "U72200MH2018PTC445566",
+    businessEmail: "careers@bytescale.tech",
+    phone: "+91 98190 88990",
+    address: {
+      street: "Bandra Kurla Complex (BKC)",
+      city: "Mumbai",
+      state: "Maharashtra",
+      country: "India",
+      pincode: "400051",
+    },
+    riskScore: 6,
+    riskFlags: [],
   },
   {
     name: "Zenith Global Labs",
@@ -142,6 +222,65 @@ const ORGANIZATIONS = [
     about:
       "Zenith Global Labs is a deep-tech research hub creating next-gen software architectures, machine learning models, and developer tooling.",
     timezone: "Asia/Kolkata",
+    verificationStatus: "verified",
+    verifiedAt: daysAgo(10),
+    gstin: "36AABCZ1122G1Z9",
+    registrationNumber: "U72200TS2017PTC778899",
+    businessEmail: "university@zenithlabs.in",
+    phone: "+91 99080 99001",
+    address: {
+      street: "HITEC City, Madhapur",
+      city: "Hyderabad",
+      state: "Telangana",
+      country: "India",
+      pincode: "500081",
+    },
+    riskScore: 4,
+    riskFlags: [],
+  },
+  {
+    name: "CryptoPay Global Network",
+    slug: "cryptopay-global",
+    industry: "Crypto & Web3 Payouts",
+    size: "1-10",
+    website: "https://cryptopay-global.xyz",
+    about: "Decentralized crypto payout processor and token disbursement network.",
+    timezone: "Asia/Kolkata",
+    verificationStatus: "pending",
+    businessEmail: "hiring.cryptoglobal@gmail.com",
+    phone: "+91 91234 56789",
+    riskScore: 72,
+    riskFlags: [
+      {
+        code: "FREE_WEBMAIL_DOMAIN",
+        severity: "medium",
+        message: "Company uses free public webmail (gmail.com)",
+      },
+      {
+        code: "NO_GSTIN_CIN",
+        severity: "high",
+        message: "No valid GSTIN or Corporate CIN submitted for verification",
+      },
+    ],
+  },
+  {
+    name: "QuickBucks Data Entry LLC",
+    slug: "quickbucks-data",
+    industry: "Data Entry & Freelance",
+    size: "1-10",
+    website: "https://quickbucks.fake",
+    about: "Work from home simple data typing.",
+    timezone: "Asia/Kolkata",
+    verificationStatus: "rejected",
+    rejectionReason: "Requires upfront security deposit from job applicants. Violates platform safety policy.",
+    riskScore: 85,
+    riskFlags: [
+      {
+        code: "SECURITY_DEPOSIT_REQUIRED",
+        severity: "high",
+        message: "Requires upfront deposit or training fee from applicants",
+      },
+    ],
   },
 ];
 
@@ -248,147 +387,136 @@ const JOBS = [
       "What We Are Looking For:\n" +
       "- Hands-on academic or internship projects using React, Node.js, and MongoDB.\n" +
       "- Solid understanding of JavaScript (ES6+), asynchronous programming, and REST principles.\n" +
-      "- Eagerness to learn modern full stack architectures and best coding practices.",
+      "- Eagerness to learn modern full stack architecture and build production-grade web applications.",
+    moderation: { status: "approved" },
+  },
+  {
+    orgSlug: "apex-innovations",
+    recruiterEmail: "2025mca150@gmail.com",
+    title: "React Frontend Developer",
+    location: "Surat, Gujarat, India",
+    salary: 600000,
+    compensation: { min: 450000, max: 750000, currency: "INR", period: "year" },
+    experience: "1-3 years",
+    minExpYears: 1,
+    maxExpYears: 3,
+    jobType: "Full-Time",
+    workplaceMode: "onsite",
+    status: "published",
+    publishedDaysAgo: 16,
+    requiredSkills: ["React", "JavaScript", "Tailwind CSS"],
+    preferredSkills: ["Redux", "TypeScript", "REST APIs", "Jest"],
+    skills: ["React", "JavaScript", "Tailwind CSS", "Redux", "TypeScript", "REST APIs", "Jest", "Git"],
+    description:
+      "Looking for a skilled React Frontend Developer with solid knowledge of state management, responsive UI design, and modern JavaScript.",
+    moderation: { status: "approved" },
   },
   {
     orgSlug: "apex-innovations",
     recruiterEmail: "2025mca150@gmail.com",
     title: "Junior Full Stack Developer",
-    location: "Surat, Gujarat, India",
-    salary: 650000,
-    compensation: { min: 500000, max: 800000, currency: "INR", period: "year" },
+    location: "Ahmedabad, Gujarat, India",
+    salary: 550000,
+    compensation: { min: 400000, max: 700000, currency: "INR", period: "year" },
     experience: "0-2 years",
     minExpYears: 0,
     maxExpYears: 2,
     jobType: "Full-Time",
     workplaceMode: "hybrid",
     status: "published",
-    publishedDaysAgo: 16,
-    requiredSkills: ["React", "Node.js", "JavaScript"],
-    preferredSkills: ["MongoDB", "Express", "Tailwind CSS", "TypeScript"],
-    skills: ["React", "Node.js", "JavaScript", "MongoDB", "Express", "REST APIs", "Tailwind CSS", "Git"],
+    publishedDaysAgo: 12,
+    requiredSkills: ["Node.js", "React", "MongoDB"],
+    preferredSkills: ["Express", "REST APIs", "Git"],
+    skills: ["Node.js", "React", "MongoDB", "Express", "REST APIs", "Git", "JavaScript"],
     description:
-      "We are hiring a Junior Full Stack Developer to help build our client-facing web portals and SaaS dashboards. " +
-      "You will have ownership of end-to-end features spanning React web applications and Node.js microservices.\n\n" +
-      "Key Responsibilities:\n" +
-      "- Develop clean, maintainable, and well-tested React components.\n" +
-      "- Build and maintain secure backend REST APIs with Node.js and Express.\n" +
-      "- Integrate relational and NoSQL databases with efficient queries.\n" +
-      "- Participate in agile sprints, daily standups, and code reviews.\n\n" +
-      "Qualifications:\n" +
-      "- Bachelor's or Master's in Computer Applications / Computer Science or equivalent experience.\n" +
-      "- Demonstrated proficiency in React, JavaScript, Node.js, and MongoDB.",
+      "Join our Ahmedabad development hub to build end-to-end full stack web applications using the MERN stack.",
+    moderation: { status: "approved" },
   },
   {
     orgSlug: "apex-innovations",
     recruiterEmail: "2025mca150@gmail.com",
-    title: "React Frontend Developer",
-    location: "Ahmedabad, Gujarat, India",
+    title: "Node.js Backend Engineer",
+    location: "Surat, Gujarat, India",
     salary: 750000,
     compensation: { min: 600000, max: 900000, currency: "INR", period: "year" },
-    experience: "1-3 years",
-    minExpYears: 1,
-    maxExpYears: 3,
-    jobType: "Full-Time",
-    workplaceMode: "remote",
-    status: "published",
-    publishedDaysAgo: 12,
-    requiredSkills: ["React", "JavaScript", "HTML/CSS"],
-    preferredSkills: ["Tailwind CSS", "Redux", "REST APIs", "Next.js"],
-    skills: ["React", "JavaScript", "Tailwind CSS", "HTML/CSS", "Redux", "REST APIs", "Git"],
-    description:
-      "Join Apex Innovations as a Frontend Developer focusing on modern React web applications. " +
-      "You will turn UI/UX wireframes into responsive, accessible, and blazing-fast user interfaces.\n\n" +
-      "Requirements:\n" +
-      "- 1+ years experience building production React applications.\n" +
-      "- Strong command over modern JavaScript, state management, and Tailwind CSS.\n" +
-      "- Experience integrating REST APIs and handling async states gracefully.",
-  },
-  {
-    orgSlug: "apex-innovations",
-    recruiterEmail: "2025mca150@gmail.com",
-    title: "Backend Developer (Node.js & Microservices)",
-    location: "Surat, Gujarat, India",
-    salary: 900000,
-    compensation: { min: 700000, max: 1100000, currency: "INR", period: "year" },
     experience: "2-4 years",
     minExpYears: 2,
     maxExpYears: 4,
     jobType: "Full-Time",
-    workplaceMode: "onsite",
-    status: "draft",
-    publishedDaysAgo: 0,
-    requiredSkills: ["Node.js", "PostgreSQL", "Redis"],
-    preferredSkills: ["Docker", "AWS", "Microservices", "MongoDB"],
-    skills: ["Node.js", "PostgreSQL", "MongoDB", "Redis", "Docker", "REST APIs", "Express"],
+    workplaceMode: "hybrid",
+    status: "published",
+    publishedDaysAgo: 8,
+    requiredSkills: ["Node.js", "Express", "MongoDB", "REST APIs"],
+    preferredSkills: ["Redis", "Docker", "AWS", "Microservices"],
+    skills: ["Node.js", "Express", "MongoDB", "REST APIs", "Redis", "Docker", "AWS"],
     description:
-      "Draft job posting for upcoming platform team expansion. " +
-      "The role involves designing scalable Node.js microservices, caching architectures with Redis, and PostgreSQL query tuning.",
+      "Design and maintain scalable backend microservices, caching layers with Redis, and containerized deployments.",
+    moderation: { status: "approved" },
   },
   {
     orgSlug: "apex-innovations",
     recruiterEmail: "2025mca150@gmail.com",
     title: "Cloud Infrastructure Engineer",
     location: "Surat, Gujarat, India",
-    salary: 1050000,
-    compensation: { min: 800000, max: 1300000, currency: "INR", period: "year" },
-    experience: "2-4 years",
+    salary: 900000,
+    compensation: { min: 700000, max: 1100000, currency: "INR", period: "year" },
+    experience: "2-5 years",
     minExpYears: 2,
-    maxExpYears: 4,
+    maxExpYears: 5,
     jobType: "Full-Time",
     workplaceMode: "hybrid",
     status: "published",
-    publishedDaysAgo: 5,
-    moderation: { status: "pending", reason: "" },
-    requiredSkills: ["Docker", "Kubernetes", "AWS"],
-    preferredSkills: ["Terraform", "CI/CD", "Linux", "Prometheus"],
-    skills: ["Docker", "Kubernetes", "AWS", "Terraform", "Linux", "CI/CD", "Git"],
+    publishedDaysAgo: 4,
+    requiredSkills: ["AWS", "Docker", "Linux"],
+    preferredSkills: ["Kubernetes", "CI/CD", "Terraform", "GitHub Actions"],
+    skills: ["AWS", "Docker", "Linux", "Kubernetes", "CI/CD", "Terraform", "GitHub Actions"],
     description:
-      "We are seeking a Cloud Infrastructure Engineer to manage our containerized workloads and CI/CD automation pipelines. " +
-      "This position is pending platform admin moderation.",
+      "Manage our cloud infrastructure on AWS, configure automated CI/CD pipelines, and maintain Dockerized production services.",
+    moderation: { status: "approved" },
   },
 
   // Nexus Byte Solutions (Recruiter: rohit.sharma@nexusbyte.com)
   {
     orgSlug: "nexus-byte-solutions",
     recruiterEmail: "rohit.sharma@nexusbyte.com",
-    title: "Associate Software Engineer",
-    location: "Bengaluru, Karnataka, India",
-    salary: 800000,
-    compensation: { min: 600000, max: 1000000, currency: "INR", period: "year" },
-    experience: "0-2 years",
-    minExpYears: 0,
-    maxExpYears: 2,
-    jobType: "Full-Time",
-    workplaceMode: "hybrid",
-    status: "published",
-    publishedDaysAgo: 18,
-    requiredSkills: ["JavaScript", "React", "Node.js"],
-    preferredSkills: ["MongoDB", "REST APIs", "SQL", "Git"],
-    skills: ["JavaScript", "React", "Node.js", "MongoDB", "SQL", "REST APIs", "Git"],
-    description:
-      "Nexus Byte Solutions is hiring Associate Software Engineers to contribute across our enterprise product suites. " +
-      "Great opportunity for fast-learning graduates and junior developers.",
-  },
-  {
-    orgSlug: "nexus-byte-solutions",
-    recruiterEmail: "rohit.sharma@nexusbyte.com",
     title: "Backend Engineer (Node.js / Express)",
     location: "Bengaluru, Karnataka, India",
     salary: 950000,
-    compensation: { min: 700000, max: 1200000, currency: "INR", period: "year" },
+    compensation: { min: 750000, max: 1200000, currency: "INR", period: "year" },
     experience: "2-4 years",
     minExpYears: 2,
     maxExpYears: 4,
     jobType: "Full-Time",
     workplaceMode: "remote",
     status: "published",
-    publishedDaysAgo: 14,
+    publishedDaysAgo: 18,
     requiredSkills: ["Node.js", "Express", "PostgreSQL"],
-    preferredSkills: ["Redis", "REST APIs", "Docker"],
+    preferredSkills: ["Redis", "REST APIs", "Docker", "Git"],
     skills: ["Node.js", "Express", "PostgreSQL", "Redis", "REST APIs", "Docker", "Git"],
     description:
-      "Looking for a skilled backend developer to build high-throughput data APIs and transaction processing pipelines in Node.js.",
+      "Build high-throughput backend APIs for enterprise data pipelines in Node.js and PostgreSQL with Redis caching.",
+    moderation: { status: "approved" },
+  },
+  {
+    orgSlug: "nexus-byte-solutions",
+    recruiterEmail: "rohit.sharma@nexusbyte.com",
+    title: "Full Stack Engineer (React + Python)",
+    location: "Bengaluru, Karnataka, India",
+    salary: 1050000,
+    compensation: { min: 850000, max: 1300000, currency: "INR", period: "year" },
+    experience: "2-5 years",
+    minExpYears: 2,
+    maxExpYears: 5,
+    jobType: "Full-Time",
+    workplaceMode: "hybrid",
+    status: "published",
+    publishedDaysAgo: 14,
+    requiredSkills: ["React", "Python", "FastAPI"],
+    preferredSkills: ["Docker", "MongoDB", "Tailwind CSS"],
+    skills: ["React", "Python", "FastAPI", "Docker", "MongoDB", "Tailwind CSS"],
+    description:
+      "Develop responsive React frontends and Python FastAPI microservices integrating machine learning inference models.",
+    moderation: { status: "approved" },
   },
 
   // CloudForge Systems (Recruiter: neha.patel@cloudforge.io)
@@ -411,6 +539,7 @@ const JOBS = [
     skills: ["React", "TypeScript", "Tailwind CSS", "Next.js", "Jest", "Git", "REST APIs"],
     description:
       "Join our product engineering team to build scalable, component-driven interfaces using React, TypeScript, and modern styling libraries.",
+    moderation: { status: "approved" },
   },
   {
     orgSlug: "cloudforge-systems",
@@ -431,6 +560,7 @@ const JOBS = [
     skills: ["AWS", "Docker", "Kubernetes", "Terraform", "CI/CD", "Linux", "Prometheus"],
     description:
       "Manage cloud infrastructure across AWS, manage multi-node Kubernetes clusters, and automate deployment workflows with ArgoCD and Terraform.",
+    moderation: { status: "approved" },
   },
 
   // ByteScale Technologies (Recruiter: amit.verma@bytescale.tech)
@@ -453,6 +583,7 @@ const JOBS = [
     skills: ["MongoDB", "Express", "React", "Node.js", "REST APIs", "Tailwind CSS", "Git"],
     description:
       "ByteScale is hiring junior MERN stack developers to help scale our FinTech integration platform and merchant dashboards.",
+    moderation: { status: "approved" },
   },
   {
     orgSlug: "bytescale-technologies",
@@ -468,11 +599,12 @@ const JOBS = [
     workplaceMode: "hybrid",
     status: "published",
     publishedDaysAgo: 10,
-    requiredSkills: ["Playwright", "JavaScript", "API Testing"],
-    preferredSkills: ["Jest", "Cypress", "Postman"],
-    skills: ["Playwright", "JavaScript", "API Testing", "Jest", "Cypress", "Postman", "Git"],
+    requiredSkills: ["Playwright", "Jest", "JavaScript"],
+    preferredSkills: ["Postman", "API Testing", "CI/CD", "TypeScript"],
+    skills: ["Playwright", "Jest", "JavaScript", "Postman", "API Testing", "CI/CD", "TypeScript"],
     description:
-      "Automate end-to-end regression test suites with Playwright and integrate automated API tests into CI/CD build pipelines.",
+      "Author robust Playwright and Jest test suites for our core financial checkout workflows and transaction ledger APIs.",
+    moderation: { status: "approved" },
   },
 
   // Zenith Global Labs (Recruiter: kavya.nair@zenithlabs.in)
@@ -481,25 +613,26 @@ const JOBS = [
     recruiterEmail: "kavya.nair@zenithlabs.in",
     title: "Graduate Software Trainee",
     location: "Hyderabad, Telangana, India",
-    salary: 550000,
-    compensation: { min: 450000, max: 650000, currency: "INR", period: "year" },
+    salary: 500000,
+    compensation: { min: 400000, max: 600000, currency: "INR", period: "year" },
     experience: "Fresher / 0-1 years",
     minExpYears: 0,
     maxExpYears: 1,
     jobType: "Full-Time",
     workplaceMode: "onsite",
     status: "published",
-    publishedDaysAgo: 21,
+    publishedDaysAgo: 28,
     requiredSkills: ["JavaScript", "Python", "SQL"],
-    preferredSkills: ["React", "Git", "Data Structures"],
-    skills: ["JavaScript", "Python", "SQL", "React", "Git", "Data Structures"],
+    preferredSkills: ["React", "Git", "Problem Solving", "Data Structures"],
+    skills: ["JavaScript", "Python", "SQL", "React", "Git", "Problem Solving", "Data Structures"],
     description:
-      "Graduate Trainee program for passionate Computer Applications and Engineering graduates looking to build a career in software product engineering.",
+      "Zenith Global Labs is hiring fresh graduates for our R&D training program in Hyderabad. Fast-track rotation through AI, Cloud, and Web engineering.",
+    moderation: { status: "approved" },
   },
 ];
 
 const CANDIDATES = [
-  // Primary Candidate: Anas Tai (Fresher / MCA Student @ SRIMCA)
+  // Primary Candidate (Anas Tai - MCA Student @ SRIMCA)
   {
     name: "Anas Tai",
     email: "tanastai5018@gmail.com",
@@ -512,19 +645,35 @@ const CANDIDATES = [
     state: "Gujarat",
     country: "India",
     languages: ["English", "Hindi", "Gujarati"],
-    skills: ["React", "Node.js", "Express", "MongoDB", "JavaScript", "Tailwind CSS", "REST APIs", "Git", "Python", "JWT Auth", "PostgreSQL", "Redux"],
-    bio: "MCA final-year student at SRIMCA (Uka Tarsadia University) passionate about building scalable web applications. Proficient in MERN stack (MongoDB, Express, React, Node.js), REST APIs, Tailwind CSS, and AI integrations. Creator of HireSmart-AI, HomeServeX, and Travel Planner.",
+    skills: [
+      "React",
+      "Node.js",
+      "Express",
+      "MongoDB",
+      "JavaScript",
+      "Tailwind CSS",
+      "REST APIs",
+      "Git",
+      "Python",
+      "JWT Auth",
+      "PostgreSQL",
+      "Redux",
+    ],
+    bio:
+      "Passionate Master of Computer Applications (MCA) student at SRIMCA (Uka Tarsadia University), specialized in full stack web development using React, Node.js, Express, and MongoDB. " +
+      "Experienced in designing RESTful architectures, JWT security flows, responsive UI design with Tailwind CSS, and AI-assisted workflows. " +
+      "Author of production-ready full stack applications including HireSmart-AI, HomeServeX on-demand marketplace, and Travel Planner.",
     socialLinks: {
       github: "https://github.com/anastai8704",
       linkedin: "https://linkedin.com/in/anastai",
       portfolio: "https://anastai.dev",
-      website: "https://anastai.dev",
+      twitter: "https://twitter.com/anastai_dev",
     },
     education: [
       {
-        institution: "Shrimad Rajchandra Institute of Management and Computer Application (SRIMCA), UTU",
+        institution: "SRIMCA - Uka Tarsadia University (UTU)",
         degree: "Master of Computer Applications (MCA)",
-        fieldOfStudy: "Computer Applications & Software Development",
+        fieldOfStudy: "Computer Science & Application Development",
         startYear: 2024,
         endYear: 2026,
         cgpa: 8.85,
@@ -532,7 +681,7 @@ const CANDIDATES = [
       {
         institution: "Veer Narmad South Gujarat University (VNSGU)",
         degree: "Bachelor of Computer Applications (BCA)",
-        fieldOfStudy: "Computer Science & Application Development",
+        fieldOfStudy: "Computer Applications",
         startYear: 2021,
         endYear: 2024,
         cgpa: 8.52,
@@ -543,7 +692,7 @@ const CANDIDATES = [
         company: "TechCraft Solutions",
         position: "Full Stack Developer Intern",
         description:
-          "Developed responsive frontend interfaces with React and Tailwind CSS; built secure Node.js & Express REST APIs with JWT authentication, request validation, and MongoDB aggregation pipelines.",
+          "Developed responsive React frontend components and designed Node.js RESTful APIs with JWT authentication. Integrated MongoDB schemas and aggregation pipelines.",
         startDate: new Date("2024-05-01"),
         endDate: new Date("2024-08-31"),
         currentlyWorking: false,
@@ -650,9 +799,9 @@ const CANDIDATES = [
     ],
     experience: [
       {
-        company: "TechNova Solutions",
-        position: "Frontend Developer",
-        description: "Built modular React dashboards and Redux state stores used by 50,000 monthly active users.",
+        company: "PixelCode Studio",
+        position: "React Frontend Developer",
+        description: "Built customer-facing React SPA with Redux Toolkit and Tailwind CSS.",
         startDate: new Date("2021-07-01"),
         endDate: null,
         currentlyWorking: true,
@@ -660,12 +809,12 @@ const CANDIDATES = [
     ],
     projects: [
       {
-        title: "React Component Library",
-        description: "Accessible, themeable component library published on npm with 500+ weekly downloads.",
-        technologies: ["React", "Tailwind CSS", "Storybook"],
+        title: "Analytics Dashboard UI",
+        description: "Modular React dashboard with charts, theme customization, and drag-and-drop widgets.",
+        technologies: ["React", "Redux Toolkit", "Tailwind CSS"],
       },
     ],
-    certifications: [{ name: "Meta Frontend Developer Professional Certificate", issuer: "Meta" }],
+    certifications: [{ name: "Meta Frontend Developer Professional Certificate", issuer: "Meta / Coursera" }],
     resumeLines: [
       "Priya Sharma - Frontend Engineer (React & Redux)",
       "Ahmedabad, Gujarat, India | priya.sharma@example.com | +91 98765 43210",
@@ -673,7 +822,7 @@ const CANDIDATES = [
       "SKILLS: React, JavaScript, Redux, Tailwind CSS, HTML/CSS, REST APIs, Jest, Git",
       "",
       "EXPERIENCE",
-      "Frontend Developer, TechNova Solutions (2021 - Present): Built modular React dashboards with Redux state stores.",
+      "React Frontend Developer, PixelCode Studio (2021 - Present): Developed high-traffic web applications in React.",
       "",
       "EDUCATION",
       "B.E. Computer Engineering, Gujarat Technological University (2017 - 2021)",
@@ -683,22 +832,22 @@ const CANDIDATES = [
     name: "Vikram Nair",
     email: "vikram.nair@example.com",
     password: DEMO_PASSWORD,
-    headline: "Backend Engineer (Node.js & PostgreSQL)",
+    headline: "Backend Engineer (Node.js, PostgreSQL, Redis)",
     location: "Bengaluru, Karnataka, India",
-    phone: "+91 98450 77620",
+    phone: "+91 98451 22334",
     gender: "Male",
     city: "Bengaluru",
     state: "Karnataka",
     country: "India",
-    languages: ["English", "Hindi", "Kannada"],
-    skills: ["Node.js", "Express", "PostgreSQL", "MongoDB", "Redis", "Docker", "REST APIs", "AWS"],
-    bio: "Backend engineer with 4 years building high-throughput payment webhooks, microservices, and database optimizations.",
+    languages: ["English", "Hindi", "Malayalam"],
+    skills: ["Node.js", "Express", "PostgreSQL", "Redis", "Docker", "REST APIs", "AWS", "Git"],
+    bio: "Backend developer with 4 years building high-throughput microservices and distributed caching systems.",
     socialLinks: { github: "https://github.com/vikramnair-dev", linkedin: "https://linkedin.com/in/vikramnair-dev" },
     education: [
       {
-        institution: "Visvesvaraya Technological University",
-        degree: "B.Tech Information Technology",
-        fieldOfStudy: "Information Technology",
+        institution: "PES University",
+        degree: "B.Tech Computer Science",
+        fieldOfStudy: "Computer Science",
         startYear: 2016,
         endYear: 2020,
         cgpa: 8.1,
@@ -706,9 +855,9 @@ const CANDIDATES = [
     ],
     experience: [
       {
-        company: "PayStream Technologies",
-        position: "Backend Engineer",
-        description: "Architected payment processing webhooks handling 2M transactions daily with PostgreSQL and Redis caching.",
+        company: "PayStream Systems",
+        position: "Backend Software Engineer",
+        description: "Architected transaction ledger APIs processing 1.2M events/day using Node.js and PostgreSQL.",
         startDate: new Date("2020-08-01"),
         endDate: null,
         currentlyWorking: true,
@@ -716,82 +865,82 @@ const CANDIDATES = [
     ],
     projects: [
       {
-        title: "ledger-reconcile",
-        description: "Open-source distributed transaction reconciliation service built in Node.js and PostgreSQL.",
-        technologies: ["Node.js", "PostgreSQL", "Redis"],
+        title: "event-streamer",
+        description: "Lightweight distributed job queue in Node.js backed by Redis streams.",
+        technologies: ["Node.js", "Redis", "Docker"],
       },
     ],
-    certifications: [{ name: "AWS Certified Developer - Associate", issuer: "AWS" }],
+    certifications: [{ name: "AWS Certified Developer - Associate", issuer: "Amazon Web Services" }],
     resumeLines: [
-      "Vikram Nair - Backend Engineer (Node.js & PostgreSQL)",
-      "Bengaluru, Karnataka, India | vikram.nair@example.com | +91 98450 77620",
+      "Vikram Nair - Backend Engineer (Node.js, PostgreSQL, Redis)",
+      "Bengaluru, Karnataka, India | vikram.nair@example.com | +91 98451 22334",
       "",
-      "SKILLS: Node.js, Express, PostgreSQL, MongoDB, Redis, Docker, REST APIs, AWS",
+      "SKILLS: Node.js, Express, PostgreSQL, Redis, Docker, REST APIs, AWS, Git",
       "",
       "EXPERIENCE",
-      "Backend Engineer, PayStream Technologies (2020 - Present): Architected payment webhooks handling 2M daily events.",
+      "Backend Software Engineer, PayStream Systems (2020 - Present): Engineered scalable payment APIs.",
       "",
       "EDUCATION",
-      "B.Tech Information Technology, VTU (2016 - 2020)",
+      "B.Tech Computer Science, PES University (2016 - 2020)",
     ],
   },
   {
     name: "Sneha Kulkarni",
     email: "sneha.kulkarni@example.com",
     password: DEMO_PASSWORD,
-    headline: "DevOps & Cloud SRE Engineer",
+    headline: "DevOps & Cloud Engineer (AWS & Kubernetes)",
     location: "Pune, Maharashtra, India",
-    phone: "+91 98220 35914",
+    phone: "+91 98231 77654",
     gender: "Female",
     city: "Pune",
     state: "Maharashtra",
     country: "India",
     languages: ["English", "Hindi", "Marathi"],
-    skills: ["AWS", "Docker", "Kubernetes", "Terraform", "CI/CD", "Linux", "Prometheus", "GitLab CI"],
-    bio: "DevOps engineer with 4 years managing multi-cluster EKS infrastructure, GitOps pipelines, and SLO monitoring.",
-    socialLinks: { github: "https://github.com/snehak-devops", linkedin: "https://linkedin.com/in/snehak-devops" },
+    skills: ["AWS", "Kubernetes", "Docker", "Terraform", "CI/CD", "Linux", "Prometheus", "Git"],
+    bio: "DevOps engineer with 4.5 years managing multi-cloud Kubernetes infrastructure, GitOps automation, and zero-downtime deployments.",
+    socialLinks: { github: "https://github.com/snehak-ops", linkedin: "https://linkedin.com/in/snehak-ops" },
     education: [
       {
-        institution: "College of Engineering Pune (COEP)",
-        degree: "B.E. Computer Science",
-        fieldOfStudy: "Computer Science",
-        startYear: 2016,
-        endYear: 2020,
-        cgpa: 8.0,
+        institution: "COEP Technological University",
+        degree: "B.Tech Information Technology",
+        fieldOfStudy: "Information Technology",
+        startYear: 2015,
+        endYear: 2019,
+        cgpa: 8.7,
       },
     ],
     experience: [
       {
-        company: "CloudSprint Technologies",
-        position: "DevOps Engineer",
-        description: "Managed 20-node Kubernetes clusters on AWS EKS; automated deployment pipelines with Terraform and ArgoCD.",
-        startDate: new Date("2020-09-01"),
+        company: "InfraScale Technologies",
+        position: "Senior DevOps Engineer",
+        description: "Managed 18 Kubernetes clusters across AWS and automated infrastructure provisioning using Terraform.",
+        startDate: new Date("2019-07-01"),
         endDate: null,
         currentlyWorking: true,
       },
     ],
     projects: [
       {
-        title: "cluster-audit-cli",
-        description: "Automated health and resource auditing tool for Kubernetes clusters.",
+        title: "k8s-autoscale-operator",
+        description: "Custom Kubernetes operator scaling workloads dynamically based on queue lag metrics.",
         technologies: ["Go", "Kubernetes", "Prometheus"],
       },
     ],
     certifications: [
-      { name: "Certified Kubernetes Administrator (CKA)", issuer: "CNCF" },
-      { name: "HashiCorp Certified: Terraform Associate", issuer: "HashiCorp" },
+      { name: "Certified Kubernetes Administrator (CKA)", issuer: "Cloud Native Computing Foundation" },
+      { name: "AWS Solutions Architect Professional", issuer: "AWS" },
     ],
     resumeLines: [
-      "Sneha Kulkarni - DevOps & Cloud SRE Engineer",
-      "Pune, Maharashtra, India | sneha.kulkarni@example.com | +91 98220 35914",
+      "Sneha Kulkarni - DevOps & Cloud Engineer (AWS & Kubernetes)",
+      "Pune, Maharashtra, India | sneha.kulkarni@example.com | +91 98231 77654",
       "",
-      "SKILLS: AWS, Docker, Kubernetes, Terraform, CI/CD, Linux, Prometheus, GitLab CI",
+      "SKILLS: AWS, Kubernetes, Docker, Terraform, CI/CD, Linux, Prometheus, Git",
       "",
       "EXPERIENCE",
-      "DevOps Engineer, CloudSprint Technologies (2020 - Present): Managed AWS EKS clusters with Terraform and GitOps.",
+      "Senior DevOps Engineer, InfraScale Technologies (2019 - Present): Automated AWS infrastructure with Terraform.",
       "",
       "EDUCATION",
-      "B.E. Computer Science, COEP Pune (2016 - 2020)",
+      "B.Tech Information Technology, COEP Pune (2015 - 2019)",
     ],
   },
   {
@@ -1020,12 +1169,8 @@ const CANDIDATES = [
   },
 ];
 
-/**
- * Connected Applications Pipeline:
- * [candidateEmail, jobTitle, companySlug, status, appliedDaysAgo, historyEntries, notes]
- */
 const APPLICATIONS_CONFIG = [
-  // Anas Tai Applications (6 total, demonstrating all major lifecycle states)
+  // Anas Tai Applications
   {
     candidateEmail: "tanastai5018@gmail.com",
     jobTitle: "Software Engineer Intern (MERN)",
@@ -1048,81 +1193,54 @@ const APPLICATIONS_CONFIG = [
       matchedSkills: ["React", "Node.js", "Express", "MongoDB", "Tailwind CSS", "REST APIs", "Git", "JWT Auth", "JavaScript"],
       missingRequiredSkills: [],
       missingPreferredSkills: [],
-      componentScores: { requiredSkills: 98, preferredSkills: 95, experience: 88, education: 95, semantic: 94 },
-      strengths: ["Strong MERN stack alignment", "High project relevance (HireSmart-AI, HomeServeX)", "MCA background with strong academic record"],
-      concerns: [],
-      recommendation: "Strong hire for MERN internship / junior engineer role",
+      componentScores: { requiredSkills: 98, preferredSkills: 90, experience: 85, education: 95, semantic: 96 },
+      strengths: ["Strong MERN stack project portfolio", "Hands-on JWT authentication & REST design", "Surat based local candidate"],
+      concerns: ["Fresher graduating in 2026 (available for immediate internship + full time conversion)"],
+      recommendation: "Strongly recommended for technical interview round.",
     },
   },
   {
     candidateEmail: "tanastai5018@gmail.com",
     jobTitle: "Junior Full Stack Developer",
     orgSlug: "apex-innovations",
-    status: "under_review",
-    appliedDaysAgo: 9,
-    tags: ["fresher-talent"],
-    history: [
-      ["submitted", "candidate", "Application submitted", 9],
-      ["under_review", "recruiter", "Profile under technical team review for junior full stack opening.", 5],
-    ],
-    notes: [
-      "Reviewing project codebases on GitHub. Clean repository structure and sensible commit history.",
-    ],
-    match: {
-      overallScore: 89,
-      confidence: 0.91,
-      matchedSkills: ["React", "Node.js", "JavaScript", "MongoDB", "Express", "REST APIs", "Tailwind CSS", "Git"],
-      missingRequiredSkills: [],
-      missingPreferredSkills: ["TypeScript"],
-      componentScores: { requiredSkills: 95, preferredSkills: 82, experience: 82, education: 92, semantic: 90 },
-      strengths: ["Complete JavaScript & Node.js fundamentals", "Production-style full stack project builds"],
-      concerns: ["Limited production TypeScript exposure"],
-      recommendation: "Proceed with technical screening",
-    },
-  },
-  {
-    candidateEmail: "tanastai5018@gmail.com",
-    jobTitle: "React Frontend Developer",
-    orgSlug: "apex-innovations",
     status: "shortlisted",
-    appliedDaysAgo: 16,
-    tags: ["frontend-focus"],
+    appliedDaysAgo: 10,
+    tags: ["mca-fresher"],
     history: [
-      ["submitted", "candidate", "Application submitted", 16],
-      ["under_review", "recruiter", "Reviewing frontend skills and Tailwind CSS proficiency.", 12],
-      ["shortlisted", "recruiter", "Shortlisted for frontend track. Great UI aesthetics in project portfolio.", 6],
+      ["submitted", "candidate", "Application submitted", 10],
+      ["under_review", "recruiter", "Resume reviewed by talent team.", 8],
+      ["shortlisted", "recruiter", "Shortlisted for Junior Full Stack pool.", 4],
     ],
-    notes: [
-      "Demonstrated strong CSS/Tailwind skills and responsive layout design.",
-    ],
+    notes: ["Good candidate for the full stack team; shortlisted alongside internship track."],
     match: {
-      overallScore: 88,
-      confidence: 0.90,
-      matchedSkills: ["React", "JavaScript", "Tailwind CSS", "HTML/CSS", "Redux", "REST APIs", "Git"],
+      overallScore: 91,
+      confidence: 0.93,
+      matchedSkills: ["Node.js", "React", "MongoDB", "Express", "REST APIs", "Git", "JavaScript"],
       missingRequiredSkills: [],
-      missingPreferredSkills: ["Next.js"],
-      componentScores: { requiredSkills: 96, preferredSkills: 80, experience: 80, education: 90, semantic: 88 },
-      strengths: ["Responsive UI building", "Clean component separation"],
+      missingPreferredSkills: [],
+      componentScores: { requiredSkills: 95, preferredSkills: 88, experience: 82, education: 95, semantic: 92 },
+      strengths: ["Clean codebase in HomeServeX", "MCA student at SRIMCA"],
       concerns: [],
-      recommendation: "Shortlist for technical assessment",
+      recommendation: "Shortlisted for direct technical round",
     },
   },
   {
     candidateEmail: "tanastai5018@gmail.com",
     jobTitle: "Junior MERN Stack Engineer",
     orgSlug: "bytescale-technologies",
-    status: "offer",
+    status: "hired",
     appliedDaysAgo: 22,
-    tags: ["top-candidate"],
+    tags: ["offer-accepted"],
     history: [
-      ["submitted", "candidate", "Applied for remote MERN position", 22],
-      ["under_review", "recruiter", "Technical team reviewed HomeServeX and HireSmart-AI repos.", 18],
-      ["shortlisted", "recruiter", "Shortlisted based on MERN project depth.", 14],
-      ["interview", "recruiter", "Technical interview cleared with 5/5 score on MERN fundamentals.", 8],
-      ["offer", "recruiter", "Offer extended at INR 6.5 LPA. Joining date discussed for upcoming cycle.", 2],
+      ["submitted", "candidate", "Applied for Junior MERN role", 22],
+      ["under_review", "recruiter", "Screened portfolio and live GitHub demos.", 18],
+      ["shortlisted", "recruiter", "Shortlisted for remote technical panel.", 14],
+      ["interview", "recruiter", "Live coding round completed with 95/100 score.", 10],
+      ["offer", "recruiter", "Official Offer Letter extended: INR 6.5 LPA.", 6],
+      ["hired", "recruiter", "Offer accepted; confirmed joining for upcoming cohort.", 2],
     ],
     notes: [
-      "Outstanding performance in the technical coding round. Highly articulate explanation of database schema design.",
+      "Offered and joined! Outstanding performance on React state patterns and Express error middleware.",
     ],
     match: {
       overallScore: 95,
@@ -1130,10 +1248,34 @@ const APPLICATIONS_CONFIG = [
       matchedSkills: ["MongoDB", "Express", "React", "Node.js", "REST APIs", "Tailwind CSS", "Git"],
       missingRequiredSkills: [],
       missingPreferredSkills: [],
-      componentScores: { requiredSkills: 98, preferredSkills: 95, experience: 89, education: 95, semantic: 96 },
-      strengths: ["Flawless MERN stack alignment", "Strong REST API design skills"],
+      componentScores: { requiredSkills: 98, preferredSkills: 95, experience: 88, education: 95, semantic: 96 },
+      strengths: ["Excellent MERN architecture knowledge", "Proven GitHub projects"],
       concerns: [],
-      recommendation: "Extend offer letter",
+      recommendation: "Hired",
+    },
+  },
+  {
+    candidateEmail: "tanastai5018@gmail.com",
+    jobTitle: "Backend Engineer (Node.js / Express)",
+    orgSlug: "nexus-byte-solutions",
+    status: "under_review",
+    appliedDaysAgo: 5,
+    tags: [],
+    history: [
+      ["submitted", "candidate", "Application submitted", 5],
+      ["under_review", "recruiter", "Profile under review for backend microservices opening.", 2],
+    ],
+    notes: [],
+    match: {
+      overallScore: 88,
+      confidence: 0.90,
+      matchedSkills: ["Node.js", "Express", "REST APIs", "Docker", "Git", "PostgreSQL"],
+      missingRequiredSkills: [],
+      missingPreferredSkills: ["Redis"],
+      componentScores: { requiredSkills: 90, preferredSkills: 82, experience: 82, education: 95, semantic: 89 },
+      strengths: ["Solid Node.js REST fundamentals", "JWT Auth implementation"],
+      concerns: ["Needs more Redis production exposure"],
+      recommendation: "Proceed to screening",
     },
   },
   {
@@ -1143,9 +1285,7 @@ const APPLICATIONS_CONFIG = [
     status: "submitted",
     appliedDaysAgo: 2,
     tags: [],
-    history: [
-      ["submitted", "candidate", "Application submitted online", 2],
-    ],
+    history: [["submitted", "candidate", "Application submitted with ready resume", 2]],
     notes: [],
     match: {
       overallScore: 82,
@@ -1187,20 +1327,21 @@ const APPLICATIONS_CONFIG = [
     },
   },
 
-  // Other Candidates' Applications across the ecosystem
+  // Other Candidates
   {
     candidateEmail: "priya.sharma@example.com",
     jobTitle: "React Frontend Developer",
     orgSlug: "apex-innovations",
-    status: "offer",
-    appliedDaysAgo: 20,
+    status: "hired",
+    appliedDaysAgo: 25,
     tags: ["priority"],
     history: [
-      ["submitted", "candidate", "Applied for React Frontend role", 20],
-      ["under_review", "recruiter", "Reviewing 3 years frontend experience.", 16],
-      ["shortlisted", "recruiter", "Shortlisted for technical rounds.", 12],
-      ["interview", "recruiter", "Technical round completed with great score.", 7],
-      ["offer", "recruiter", "Offer extended at INR 8.5 LPA.", 3],
+      ["submitted", "candidate", "Applied for React Frontend role", 25],
+      ["under_review", "recruiter", "Reviewing 3 years frontend experience.", 20],
+      ["shortlisted", "recruiter", "Shortlisted for technical rounds.", 16],
+      ["interview", "recruiter", "Technical round completed with great score.", 10],
+      ["offer", "recruiter", "Offer extended at INR 6.0 LPA.", 6],
+      ["hired", "recruiter", "Offer accepted; onboarding completed.", 2],
     ],
     notes: ["Strong Redux and state architecture knowledge."],
     match: {
@@ -1212,46 +1353,7 @@ const APPLICATIONS_CONFIG = [
       componentScores: { requiredSkills: 95, preferredSkills: 88, experience: 92, education: 88, semantic: 92 },
       strengths: ["3 years production React experience", "Redux mastery"],
       concerns: [],
-      recommendation: "Offer extended",
-    },
-  },
-  {
-    candidateEmail: "priya.sharma@example.com",
-    jobTitle: "Junior Full Stack Developer",
-    orgSlug: "apex-innovations",
-    status: "under_review",
-    appliedDaysAgo: 6,
-    tags: [],
-    history: [
-      ["submitted", "candidate", "Application submitted", 6],
-      ["under_review", "recruiter", "Evaluating for potential mid-level opening.", 3],
-    ],
-    notes: [],
-  },
-  {
-    candidateEmail: "vikram.nair@example.com",
-    jobTitle: "Backend Engineer (Node.js / Express)",
-    orgSlug: "nexus-byte-solutions",
-    status: "interview",
-    appliedDaysAgo: 16,
-    tags: ["fast-track"],
-    history: [
-      ["submitted", "candidate", "Application submitted", 16],
-      ["under_review", "recruiter", "Solid PostgreSQL and Node depth.", 12],
-      ["shortlisted", "recruiter", "Shortlisted for technical design round.", 8],
-      ["interview", "recruiter", "System Design Round scheduled.", 4],
-    ],
-    notes: ["Strong high-volume payment processing experience."],
-    match: {
-      overallScore: 94,
-      confidence: 0.95,
-      matchedSkills: ["Node.js", "Express", "PostgreSQL", "Redis", "REST APIs", "Docker", "Git"],
-      missingRequiredSkills: [],
-      missingPreferredSkills: [],
-      componentScores: { requiredSkills: 98, preferredSkills: 92, experience: 94, education: 90, semantic: 94 },
-      strengths: ["High-throughput transaction processing", "Clean PostgreSQL schema design"],
-      concerns: [],
-      recommendation: "Proceed to final interview",
+      recommendation: "Hired",
     },
   },
   {
@@ -1266,7 +1368,7 @@ const APPLICATIONS_CONFIG = [
       ["under_review", "recruiter", "CKA certified with multi-cluster experience.", 26],
       ["shortlisted", "recruiter", "Shortlisted for infrastructure panel.", 20],
       ["interview", "recruiter", "Panel interview completed - unanimous strong_yes.", 14],
-      ["offer", "recruiter", "Offer extended at INR 13 LPA.", 8],
+      ["offer", "recruiter", "Offer extended at INR 11 LPA.", 8],
       ["hired", "recruiter", "Offer accepted; onboarding completed.", 3],
     ],
     notes: ["Panel consensus: exceptional Kubernetes troubleshooting depth."],
@@ -1281,147 +1383,6 @@ const APPLICATIONS_CONFIG = [
       concerns: [],
       recommendation: "Hired",
     },
-  },
-  {
-    candidateEmail: "sneha.kulkarni@example.com",
-    jobTitle: "Cloud Infrastructure Engineer",
-    orgSlug: "apex-innovations",
-    status: "submitted",
-    appliedDaysAgo: 3,
-    tags: [],
-    history: [["submitted", "candidate", "Application submitted", 3]],
-    notes: [],
-  },
-  {
-    candidateEmail: "arjun.mehta@example.com",
-    jobTitle: "Software Engineer Intern (MERN)",
-    orgSlug: "apex-innovations",
-    status: "shortlisted",
-    appliedDaysAgo: 11,
-    tags: ["surat-local"],
-    history: [
-      ["submitted", "candidate", "Application received", 11],
-      ["under_review", "recruiter", "Reviewing React e-commerce projects.", 8],
-      ["shortlisted", "recruiter", "Shortlisted for internship assessment.", 4],
-    ],
-    notes: ["Surat resident, good React fundamentals."],
-    match: {
-      overallScore: 84,
-      confidence: 0.88,
-      matchedSkills: ["React", "JavaScript", "Tailwind CSS", "HTML/CSS", "REST APIs", "Git"],
-      missingRequiredSkills: ["Node.js", "Express", "MongoDB"],
-      missingPreferredSkills: ["JWT Auth"],
-      componentScores: { requiredSkills: 75, preferredSkills: 88, experience: 85, education: 90, semantic: 84 },
-      strengths: ["Strong frontend foundation", "Local candidate"],
-      concerns: ["Needs backend training"],
-      recommendation: "Shortlist for frontend-focused internship",
-    },
-  },
-  {
-    candidateEmail: "arjun.mehta@example.com",
-    jobTitle: "Junior MERN Stack Engineer",
-    orgSlug: "bytescale-technologies",
-    status: "submitted",
-    appliedDaysAgo: 4,
-    tags: [],
-    history: [["submitted", "candidate", "Applied online", 4]],
-    notes: [],
-  },
-  {
-    candidateEmail: "ishita.verma@example.com",
-    jobTitle: "QA Automation Specialist",
-    orgSlug: "bytescale-technologies",
-    status: "interview",
-    appliedDaysAgo: 14,
-    tags: ["qa-specialist"],
-    history: [
-      ["submitted", "candidate", "Application submitted", 14],
-      ["under_review", "recruiter", "Reviewing Playwright test automation framework.", 10],
-      ["shortlisted", "recruiter", "Shortlisted for QA coding round.", 6],
-      ["interview", "recruiter", "QA technical round scheduled.", 2],
-    ],
-    notes: ["Strong test framework design and CI pipeline integration experience."],
-    match: {
-      overallScore: 93,
-      confidence: 0.94,
-      matchedSkills: ["Playwright", "JavaScript", "API Testing", "Jest", "Cypress", "Postman", "Git"],
-      missingRequiredSkills: [],
-      missingPreferredSkills: [],
-      componentScores: { requiredSkills: 96, preferredSkills: 92, experience: 92, education: 90, semantic: 93 },
-      strengths: ["Playwright automation framework expert", "API test coverage"],
-      concerns: [],
-      recommendation: "Proceed with technical interview",
-    },
-  },
-  {
-    candidateEmail: "ishita.verma@example.com",
-    jobTitle: "Software Engineer Intern (MERN)",
-    orgSlug: "apex-innovations",
-    status: "rejected",
-    appliedDaysAgo: 13,
-    tags: [],
-    history: [
-      ["submitted", "candidate", "Applied online", 13],
-      ["under_review", "recruiter", "Profile screened.", 10],
-      ["rejected", "recruiter", "Profile aligned towards QA automation rather than full stack development.", 6],
-    ],
-    notes: ["Recommended for QA roles instead."],
-  },
-  {
-    candidateEmail: "karan.patel@example.com",
-    jobTitle: "Junior Full Stack Developer",
-    orgSlug: "apex-innovations",
-    status: "submitted",
-    appliedDaysAgo: 5,
-    tags: [],
-    history: [["submitted", "candidate", "Application submitted", 5]],
-    notes: [],
-  },
-  {
-    candidateEmail: "karan.patel@example.com",
-    jobTitle: "Junior MERN Stack Engineer",
-    orgSlug: "bytescale-technologies",
-    status: "shortlisted",
-    appliedDaysAgo: 12,
-    tags: ["experienced-fullstack"],
-    history: [
-      ["submitted", "candidate", "Applied for MERN role", 12],
-      ["under_review", "recruiter", "Reviewing 4 years MERN & AWS experience.", 8],
-      ["shortlisted", "recruiter", "Shortlisted for technical screening.", 4],
-    ],
-    notes: ["Very experienced with microservices and AWS."],
-  },
-  {
-    candidateEmail: "ananya.iyer@example.com",
-    jobTitle: "React Frontend Developer",
-    orgSlug: "apex-innovations",
-    status: "interview",
-    appliedDaysAgo: 15,
-    tags: ["senior-talent"],
-    history: [
-      ["submitted", "candidate", "Application submitted", 15],
-      ["under_review", "recruiter", "Reviewing 5 years frontend architecture experience.", 11],
-      ["shortlisted", "recruiter", "Shortlisted for lead frontend discussion.", 7],
-      ["interview", "recruiter", "Architectural round scheduled.", 3],
-    ],
-    notes: ["Exceptional design systems and performance optimization background."],
-  },
-  {
-    candidateEmail: "ananya.iyer@example.com",
-    jobTitle: "Frontend Engineer (React & TypeScript)",
-    orgSlug: "cloudforge-systems",
-    status: "hired",
-    appliedDaysAgo: 28,
-    tags: ["lead-hire"],
-    history: [
-      ["submitted", "candidate", "Applied online", 28],
-      ["under_review", "recruiter", "Screened portfolio and open-source tokens.", 24],
-      ["shortlisted", "recruiter", "Shortlisted for panel interview.", 18],
-      ["interview", "recruiter", "System design panel completed with strong_yes.", 12],
-      ["offer", "recruiter", "Offer extended at INR 10 LPA.", 7],
-      ["hired", "recruiter", "Offer accepted.", 2],
-    ],
-    notes: ["Hired as Lead Frontend Engineer."],
   },
 ];
 
@@ -1438,66 +1399,56 @@ const seedPresentationData = async () => {
   console.log("================================================================================");
 
   try {
-    // 1. Check & Protect Platform Admin
-    const adminCount = await User.countDocuments({ role: "admin" });
+    // 1. Check Platform Admin
     const existingAdmin = await User.findOne({ role: "admin" }).select("+password");
     if (existingAdmin) {
       console.log(`[ADMIN] Preserved existing platform admin account: ${existingAdmin.email} (${existingAdmin.name})`);
-    } else {
-      console.log(`[ADMIN] No admin account currently found. You can run 'npm run bootstrap:admin' if needed.`);
     }
 
     // 2. Organizations
-    console.log("\n[1/7] Seeding Organizations...");
+    console.log("\n[1/8] Seeding Verified Organizations & Moderation Queue...");
     const orgMap = {};
     for (const orgSpec of ORGANIZATIONS) {
       let org = await Organization.findOne({ slug: orgSpec.slug });
       if (!org) {
         org = await Organization.create(orgSpec);
-        console.log(`  + Created Organization: ${org.name} (${org.slug})`);
+        console.log(`  + Created Organization: ${org.name} [${org.verificationStatus}] (${org.slug})`);
       } else {
         Object.assign(org, orgSpec);
         await org.save();
-        console.log(`  ✓ Synced Organization: ${org.name} (${org.slug})`);
+        console.log(`  ✓ Synced Organization: ${org.name} [${org.verificationStatus}] (${org.slug})`);
       }
       orgMap[orgSpec.slug] = org;
     }
 
     // 3. Recruiters & Memberships
-    console.log("\n[2/7] Seeding Recruiter Profiles & Company Memberships...");
+    console.log("\n[2/8] Seeding Recruiter Profiles & Company Memberships...");
     const recruiterMap = {};
     for (const rec of RECRUITERS) {
       let user = await User.findOne({ email: rec.email });
       const org = orgMap[rec.orgSlug];
       const passwordHash = await bcrypt.hash(rec.password, 10);
 
+      const userData = {
+        name: rec.name,
+        email: rec.email,
+        password: passwordHash,
+        role: "recruiter",
+        accountStatus: "active",
+        emailVerified: true,
+        headline: rec.headline,
+        location: rec.location,
+        phone: rec.phone,
+        companyName: org ? org.name : "",
+        timezone: "Asia/Kolkata",
+        onboardingCompleted: true,
+      };
+
       if (!user) {
-        user = await User.create({
-          name: rec.name,
-          email: rec.email,
-          password: passwordHash,
-          role: "recruiter",
-          accountStatus: "active",
-          emailVerified: true,
-          headline: rec.headline,
-          location: rec.location,
-          phone: rec.phone,
-          companyName: org ? org.name : "",
-          timezone: "Asia/Kolkata",
-          onboardingCompleted: true,
-        });
+        user = await User.create(userData);
         console.log(`  + Created Recruiter: ${user.name} <${user.email}>`);
       } else {
-        user.name = rec.name;
-        user.role = "recruiter";
-        user.accountStatus = "active";
-        user.emailVerified = true;
-        user.headline = rec.headline;
-        user.location = rec.location;
-        user.phone = rec.phone;
-        user.companyName = org ? org.name : user.companyName;
-        user.password = passwordHash;
-        user.onboardingCompleted = true;
+        Object.assign(user, userData);
         await user.save();
         console.log(`  ✓ Updated Recruiter: ${user.name} <${user.email}>`);
       }
@@ -1522,7 +1473,7 @@ const seedPresentationData = async () => {
     }
 
     // 4. Job Postings
-    console.log("\n[3/7] Seeding Job Postings...");
+    console.log("\n[3/8] Seeding Job Postings...");
     const jobMap = {};
     for (const jobSpec of JOBS) {
       const org = orgMap[jobSpec.orgSlug];
@@ -1549,7 +1500,7 @@ const seedPresentationData = async () => {
         preferredSkills: jobSpec.preferredSkills,
         skills: jobSpec.skills,
         description: jobSpec.description,
-        moderation: jobSpec.moderation || { status: "none", reason: "" },
+        moderation: jobSpec.moderation || { status: "approved" },
         source: "direct",
         version: 1,
       };
@@ -1566,8 +1517,8 @@ const seedPresentationData = async () => {
       jobMap[`${jobSpec.orgSlug}|${jobSpec.title}`] = job;
     }
 
-    // 5. Candidates & Profiles
-    console.log("\n[4/7] Seeding Candidate Accounts, Resumes & Profile Details...");
+    // 5. Candidates, Profiles & Resumes
+    console.log("\n[4/8] Seeding Candidate Accounts, Resumes & Profile Details...");
     const candidateMap = {};
     for (const cand of CANDIDATES) {
       let user = await User.findOne({ email: cand.email });
@@ -1636,7 +1587,7 @@ const seedPresentationData = async () => {
         await profile.save();
       }
 
-      // Candidate PDF Resume Processing (Upload & Parse Inline)
+      // Resume
       let version = await ResumeVersion.findOne({
         candidate: user._id,
         processingStatus: "ready",
@@ -1660,36 +1611,8 @@ const seedPresentationData = async () => {
       candidateMap[cand.email]._version = version;
     }
 
-    // 6. Saved Jobs & Job Alerts
-    console.log("\n[5/7] Seeding Candidate Saved Jobs & Alerts...");
-    const anas = candidateMap["tanastai5018@gmail.com"];
-    if (anas) {
-      const savedJobTitles = [
-        "apex-innovations|Junior Full Stack Developer",
-        "cloudforge-systems|Frontend Engineer (React & TypeScript)",
-      ];
-      const savedJobIds = savedJobTitles.map((key) => jobMap[key]?._id).filter(Boolean);
-      await User.updateOne({ _id: anas._id }, { $set: { savedJobs: savedJobIds } });
-
-      // Create Job Alert for Anas
-      if (!(await JobAlert.findOne({ user: anas._id }))) {
-        await JobAlert.create({
-          user: anas._id,
-          name: "MERN & Full Stack Developer Alerts",
-          query: "MERN React Node",
-          location: "Surat, Gujarat",
-          workplaceMode: "hybrid",
-          minSalary: 400000,
-          skills: ["React", "Node.js", "MongoDB", "Express"],
-          cadence: "daily",
-          active: true,
-          lastRunAt: daysAgo(1),
-        });
-      }
-    }
-
-    // 7. Applications, Matches, Notes & Status Histories
-    console.log("\n[6/7] Seeding Applications Pipeline & Hybrid Match Scores...");
+    // 6. Applications & Pipeline
+    console.log("\n[5/8] Seeding Applications Pipeline & Hybrid Match Scores...");
     const applicationMap = {};
     for (const appSpec of APPLICATIONS_CONFIG) {
       const cand = candidateMap[appSpec.candidateEmail];
@@ -1750,22 +1673,6 @@ const seedPresentationData = async () => {
 
       applicationMap[`${cand.email}|${job._id}`] = app;
 
-      // Seed Notes
-      for (const noteText of appSpec.notes || []) {
-        let note = await Note.findOne({ organization: org._id, targetType: "application", targetId: app._id, body: noteText });
-        if (!note) {
-          await Note.create({
-            organization: org._id,
-            targetType: "application",
-            targetId: app._id,
-            author: recruiterMap["2025mca150@gmail.com"]?._id || cand._id,
-            body: noteText,
-            visibility: "hiring_team",
-            tags: ["review", "presentation"],
-          });
-        }
-      }
-
       // Seed Candidate Match Score
       if (appSpec.match) {
         await CandidateMatch.findOneAndUpdate(
@@ -1794,390 +1701,269 @@ const seedPresentationData = async () => {
       }
     }
 
-    // 8. Interviews & Evaluator Feedback
-    console.log("\n[7/7] Seeding Interviews & Meeting Schedules...");
-    const primaryRecruiter = recruiterMap["2025mca150@gmail.com"];
+    // 7. Subscriptions & Transactions (Monetization Engine)
+    console.log("\n[6/8] Seeding Subscriptions, Invoices & Historical Revenue...");
     const apexOrg = orgMap["apex-innovations"];
+    const anas = candidateMap["tanastai5018@gmail.com"];
+    const primaryRecruiter = recruiterMap["2025mca150@gmail.com"];
 
-    const INTERVIEWS_CONFIG = [
-      // 1. Anas Tai - Confirmed Upcoming Technical Round with Apex Innovations
+    // Recruiter Subscriptions
+    const RECRUITER_SUBS = [
       {
-        candidateEmail: "tanastai5018@gmail.com",
-        jobTitle: "Software Engineer Intern (MERN)",
         orgSlug: "apex-innovations",
-        title: "Technical Round - Full Stack & MERN Architecture",
-        type: "technical",
-        status: "confirmed",
-        scheduledStart: inDays(2, 14, 0),
-        scheduledEnd: inDays(2, 15, 0),
-        timezone: "Asia/Kolkata",
-        meetingUrl: "https://meet.google.com/hsm-anas-tech",
-        location: "Google Meet (Online)",
-        participants: [primaryRecruiter?._id, recruiterMap["deepak.shah@apexinnovations.in"]?._id].filter(Boolean),
-        createdBy: primaryRecruiter?._id,
-        candidateConfirmedAt: daysAgo(1),
-        feedback: [],
+        tier: "recruiter_growth",
+        usage: { activeJobsCount: 5, teamMembersCount: 3, aiAnalysesUsedThisMonth: 28 },
       },
-      // 2. Vikram Nair - Confirmed Upcoming Technical Round with Nexus Byte Solutions
       {
-        candidateEmail: "vikram.nair@example.com",
-        jobTitle: "Backend Engineer (Node.js / Express)",
-        orgSlug: "nexus-byte-solutions",
-        title: "System Design & Distributed Data Round",
-        type: "technical",
-        status: "confirmed",
-        scheduledStart: inDays(3, 15, 30),
-        scheduledEnd: inDays(3, 16, 30),
-        timezone: "Asia/Kolkata",
-        meetingUrl: "https://meet.google.com/nxb-vikram-tech",
-        location: "Google Meet",
-        participants: [recruiterMap["rohit.sharma@nexusbyte.com"]?._id].filter(Boolean),
-        createdBy: recruiterMap["rohit.sharma@nexusbyte.com"]?._id,
-        candidateConfirmedAt: daysAgo(2),
-        feedback: [],
-      },
-      // 3. Ishita Verma - Invited Technical Round with ByteScale Technologies
-      {
-        candidateEmail: "ishita.verma@example.com",
-        jobTitle: "QA Automation Specialist",
         orgSlug: "bytescale-technologies",
-        title: "Playwright Automation & API Testing Deep Dive",
-        type: "technical",
-        status: "invited",
-        scheduledStart: inDays(4, 11, 0),
-        scheduledEnd: inDays(4, 12, 0),
-        timezone: "Asia/Kolkata",
-        meetingUrl: "https://meet.google.com/bts-ishita-qa",
-        location: "Google Meet",
-        participants: [recruiterMap["amit.verma@bytescale.tech"]?._id].filter(Boolean),
-        createdBy: recruiterMap["amit.verma@bytescale.tech"]?._id,
-        candidateConfirmedAt: null,
-        feedback: [],
+        tier: "recruiter_enterprise",
+        usage: { activeJobsCount: 2, teamMembersCount: 1, aiAnalysesUsedThisMonth: 85 },
       },
-      // 4. Sneha Kulkarni - Completed DevOps Panel Interview with CloudForge Systems
       {
-        candidateEmail: "sneha.kulkarni@example.com",
-        jobTitle: "DevOps / Cloud Engineer",
-        orgSlug: "cloudforge-systems",
-        title: "Kubernetes & Cloud Infrastructure Panel",
-        type: "panel",
-        status: "completed",
-        scheduledStart: daysAgo(8),
-        scheduledEnd: daysAgo(8),
-        timezone: "Asia/Kolkata",
-        meetingUrl: "https://meet.google.com/cfs-sneha-devops",
-        location: "Google Meet",
-        participants: [recruiterMap["neha.patel@cloudforge.io"]?._id].filter(Boolean),
-        createdBy: recruiterMap["neha.patel@cloudforge.io"]?._id,
-        candidateConfirmedAt: daysAgo(9),
-        feedback: [
-          {
-            evaluator: recruiterMap["neha.patel@cloudforge.io"]?._id,
-            recommendation: "strong_yes",
-            summary: "Excellent multi-cluster Kubernetes and Terraform module design. Solved incident troubleshooting scenario flawlessly.",
-            ratings: [
-              { criterion: "Kubernetes & Containers", score: 5, evidence: "Runs multi-node EKS with ArgoCD GitOps" },
-              { criterion: "Terraform & IaC", score: 5, evidence: "Demonstrated modular Terraform code" },
-              { criterion: "Monitoring & Observability", score: 4, evidence: "Prometheus alerts and Grafana dashboards" },
-              { criterion: "Communication", score: 5, evidence: "Crisp and structured explanations" },
-            ],
-            submittedAt: daysAgo(8),
-          },
-        ],
+        orgSlug: "nexus-byte-solutions",
+        tier: "recruiter_growth",
+        usage: { activeJobsCount: 2, teamMembersCount: 1, aiAnalysesUsedThisMonth: 34 },
       },
-      // 5. Ananya Iyer - Completed Frontend System Design with CloudForge Systems
       {
-        candidateEmail: "ananya.iyer@example.com",
-        jobTitle: "Frontend Engineer (React & TypeScript)",
         orgSlug: "cloudforge-systems",
-        title: "Frontend Architecture & Design Systems Discussion",
-        type: "technical",
-        status: "completed",
-        scheduledStart: daysAgo(12),
-        scheduledEnd: daysAgo(12),
-        timezone: "Asia/Kolkata",
-        meetingUrl: "https://meet.google.com/cfs-ananya-frontend",
-        location: "Google Meet",
-        participants: [recruiterMap["neha.patel@cloudforge.io"]?._id].filter(Boolean),
-        createdBy: recruiterMap["neha.patel@cloudforge.io"]?._id,
-        candidateConfirmedAt: daysAgo(13),
-        feedback: [
-          {
-            evaluator: recruiterMap["neha.patel@cloudforge.io"]?._id,
-            recommendation: "strong_yes",
-            summary: "Outstanding frontend architect. Deep mastery of React internals, TypeScript typing, and accessibility.",
-            ratings: [
-              { criterion: "React & Architecture", score: 5, evidence: "Reduced bundle sizes by 40% in prior roles" },
-              { criterion: "TypeScript", score: 5, evidence: "Strict typing and generics mastery" },
-              { criterion: "Performance Optimization", score: 5, evidence: "Lighthouse 95+ score track record" },
-            ],
-            submittedAt: daysAgo(12),
-          },
-        ],
+        tier: "recruiter_starter",
+        usage: { activeJobsCount: 2, teamMembersCount: 1, aiAnalysesUsedThisMonth: 12 },
+      },
+      {
+        orgSlug: "zenith-global-labs",
+        tier: "recruiter_growth",
+        usage: { activeJobsCount: 1, teamMembersCount: 1, aiAnalysesUsedThisMonth: 19 },
       },
     ];
 
-    for (const item of INTERVIEWS_CONFIG) {
-      const cand = candidateMap[item.candidateEmail];
+    for (const item of RECRUITER_SUBS) {
       const org = orgMap[item.orgSlug];
-      const job = jobMap[`${item.orgSlug}|${item.jobTitle}`];
-      if (!cand || !org || !job) continue;
+      if (!org) continue;
+      const planDef = SUBSCRIPTION_PLANS.recruiter[item.tier];
+
+      await Subscription.findOneAndUpdate(
+        { organization: org._id, subscriberType: "recruiter" },
+        {
+          organization: org._id,
+          subscriberType: "recruiter",
+          planTier: item.tier,
+          status: "active",
+          currentPeriodStart: daysAgo(5),
+          currentPeriodEnd: inDays(25),
+          billingCycle: "monthly",
+          limits: { ...planDef.limits },
+          usage: { ...item.usage },
+        },
+        { upsert: true, returnDocument: "after" },
+      );
+    }
+
+    // Candidate Plus Subscription for Anas Tai
+    if (anas) {
+      const planDef = SUBSCRIPTION_PLANS.candidate.candidate_plus;
+      await Subscription.findOneAndUpdate(
+        { candidate: anas._id, subscriberType: "candidate" },
+        {
+          candidate: anas._id,
+          subscriberType: "candidate",
+          planTier: "candidate_plus",
+          status: "active",
+          currentPeriodStart: daysAgo(10),
+          currentPeriodEnd: inDays(20),
+          billingCycle: "monthly",
+          limits: { ...planDef.limits },
+          usage: { activeApplicationsCount: 6, aiResumesUsedThisMonth: 2 },
+        },
+        { upsert: true, returnDocument: "after" },
+      );
+    }
+
+    // Historical Payment Transactions (For Admin MRR/ARR analytics graphs)
+    const TX_SPEC = [
+      // August 2026
+      { org: "apex-innovations", amount: 2499, tier: "recruiter_growth", inv: "INV-2026-0801", date: daysAgo(90) },
+      { org: "bytescale-technologies", amount: 7999, tier: "recruiter_enterprise", inv: "INV-2026-0802", date: daysAgo(90) },
+      { org: "nexus-byte-solutions", amount: 2499, tier: "recruiter_growth", inv: "INV-2026-0803", date: daysAgo(88) },
+      // September 2026
+      { org: "apex-innovations", amount: 2499, tier: "recruiter_growth", inv: "INV-2026-0901", date: daysAgo(60) },
+      { org: "bytescale-technologies", amount: 7999, tier: "recruiter_enterprise", inv: "INV-2026-0902", date: daysAgo(60) },
+      { org: "nexus-byte-solutions", amount: 2499, tier: "recruiter_growth", inv: "INV-2026-0903", date: daysAgo(58) },
+      { org: "cloudforge-systems", amount: 999, tier: "recruiter_starter", inv: "INV-2026-0904", date: daysAgo(55) },
+      // October 2026
+      { org: "apex-innovations", amount: 2499, tier: "recruiter_growth", inv: "INV-2026-1001", date: daysAgo(30) },
+      { org: "bytescale-technologies", amount: 7999, tier: "recruiter_enterprise", inv: "INV-2026-1002", date: daysAgo(30) },
+      { org: "nexus-byte-solutions", amount: 2499, tier: "recruiter_growth", inv: "INV-2026-1003", date: daysAgo(28) },
+      { org: "cloudforge-systems", amount: 999, tier: "recruiter_starter", inv: "INV-2026-1004", date: daysAgo(25) },
+      { org: "zenith-global-labs", amount: 2499, tier: "recruiter_growth", inv: "INV-2026-1005", date: daysAgo(20) },
+      // November 2026 (Current)
+      { org: "apex-innovations", amount: 2499, tier: "recruiter_growth", inv: "INV-2026-1101", date: daysAgo(5) },
+      { org: "bytescale-technologies", amount: 7999, tier: "recruiter_enterprise", inv: "INV-2026-1102", date: daysAgo(5) },
+      { org: "nexus-byte-solutions", amount: 2499, tier: "recruiter_growth", inv: "INV-2026-1103", date: daysAgo(3) },
+      { org: "cloudforge-systems", amount: 999, tier: "recruiter_starter", inv: "INV-2026-1104", date: daysAgo(2) },
+      { org: "zenith-global-labs", amount: 2499, tier: "recruiter_growth", inv: "INV-2026-1105", date: daysAgo(1) },
+    ];
+
+    for (const spec of TX_SPEC) {
+      const org = orgMap[spec.org];
+      if (!org) continue;
+      const exists = await PaymentTransaction.findOne({ invoiceNumber: spec.inv });
+      if (!exists) {
+        await PaymentTransaction.create({
+          transactionNumber: `TXN-${Date.now().toString(36).toUpperCase()}-${Math.floor(Math.random() * 9000 + 1000)}`,
+          invoiceNumber: spec.inv,
+          subscriberType: "recruiter",
+          organization: org._id,
+          user: primaryRecruiter._id,
+          planTier: spec.tier,
+          amount: spec.amount,
+          currency: "INR",
+          status: "captured",
+          gateway: "razorpay",
+          paymentMethod: "card",
+          capturedAt: spec.date,
+          createdAt: spec.date,
+        });
+      }
+    }
+
+    // Candidate Plus Upgrade Transactions
+    const candTx = [
+      { candEmail: "tanastai5018@gmail.com", inv: "INV-CAND-2026-1001", date: daysAgo(10) },
+      { candEmail: "priya.sharma@example.com", inv: "INV-CAND-2026-1002", date: daysAgo(15) },
+      { candEmail: "vikram.nair@example.com", inv: "INV-CAND-2026-1003", date: daysAgo(20) },
+      { candEmail: "sneha.kulkarni@example.com", inv: "INV-CAND-2026-1004", date: daysAgo(25) },
+    ];
+
+    for (const ct of candTx) {
+      const c = candidateMap[ct.candEmail];
+      if (!c) continue;
+      const exists = await PaymentTransaction.findOne({ invoiceNumber: ct.inv });
+      if (!exists) {
+        await PaymentTransaction.create({
+          transactionNumber: `TXN-${Date.now().toString(36).toUpperCase()}-${Math.floor(Math.random() * 9000 + 1000)}`,
+          invoiceNumber: ct.inv,
+          subscriberType: "candidate",
+          user: c._id,
+          planTier: "candidate_plus",
+          amount: 149,
+          currency: "INR",
+          status: "captured",
+          gateway: "razorpay",
+          paymentMethod: "upi",
+          capturedAt: ct.date,
+          createdAt: ct.date,
+        });
+      }
+    }
+
+    // 8. Placements & Employment Lifecycle Tracking
+    console.log("\n[7/8] Seeding Verified Placements & Employment Records...");
+    const PLACEMENTS_SPEC = [
+      {
+        candEmail: "tanastai5018@gmail.com",
+        jobKey: "bytescale-technologies|Junior MERN Stack Engineer",
+        status: "joining_confirmed",
+        offeredSalary: 650000,
+        joiningDate: inDays(14),
+      },
+      {
+        candEmail: "priya.sharma@example.com",
+        jobKey: "apex-innovations|React Frontend Developer",
+        status: "verified_placement",
+        offeredSalary: 600000,
+        joiningDate: daysAgo(15),
+        confirmedJoinedAt: daysAgo(15),
+        verifiedAt: daysAgo(10),
+      },
+      {
+        candEmail: "sneha.kulkarni@example.com",
+        jobKey: "cloudforge-systems|DevOps / Cloud Engineer",
+        status: "currently_working",
+        offeredSalary: 1100000,
+        joiningDate: daysAgo(30),
+        confirmedJoinedAt: daysAgo(30),
+        verifiedAt: daysAgo(20),
+      },
+    ];
+
+    for (const ps of PLACEMENTS_SPEC) {
+      const cand = candidateMap[ps.candEmail];
+      const job = jobMap[ps.jobKey];
+      if (!cand || !job) continue;
 
       const app = applicationMap[`${cand.email}|${job._id}`];
       if (!app) continue;
 
-      let interview = await Interview.findOne({ application: app._id, title: item.title });
-      const interviewData = {
-        organization: org._id,
+      let placement = await Placement.findOne({ candidate: cand._id, job: job._id });
+      const placementData = {
+        organization: job.organization,
+        job: job._id,
         application: app._id,
-        createdBy: item.createdBy || cand._id,
-        title: item.title,
-        type: item.type,
-        status: item.status,
-        scheduledStart: item.scheduledStart,
-        scheduledEnd: item.scheduledEnd,
-        timezone: item.timezone || "Asia/Kolkata",
-        meetingUrl: item.meetingUrl,
-        location: item.location || "Google Meet",
-        participants: item.participants,
-        candidateConfirmedAt: item.candidateConfirmedAt,
-        feedback: item.feedback || [],
+        candidate: cand._id,
+        status: ps.status,
+        offeredSalary: ps.offeredSalary,
+        currency: "INR",
+        designation: job.title,
+        joiningDate: ps.joiningDate,
+        confirmedJoinedAt: ps.confirmedJoinedAt || null,
+        verifiedAt: ps.verifiedAt || null,
+        notes: `Placed through HireSmart-AI automated match and recruitment pipeline.`,
       };
 
-      if (!interview) {
-        interview = await Interview.create(interviewData);
-        console.log(`  + Created Interview: "${interview.title}" [${interview.status}] for ${cand.name}`);
+      if (!placement) {
+        placement = await Placement.create(placementData);
+        console.log(`  + Placement Created: ${cand.name} at ${job.company} [${placement.status}]`);
       } else {
-        Object.assign(interview, interviewData);
+        Object.assign(placement, placementData);
+        await placement.save();
+        console.log(`  ✓ Synced Placement: ${cand.name} at ${job.company} [${placement.status}]`);
+      }
+
+      // Sync CandidateProfile employmentStatus
+      await CandidateProfile.updateOne(
+        { user: cand._id },
+        {
+          $set: {
+            employmentStatus:
+              ps.status === "currently_working" || ps.status === "verified_placement"
+                ? "employed"
+                : ps.status === "joining_confirmed" || ps.status === "offer_accepted"
+                  ? "placed"
+                  : "seeking",
+          },
+        },
+      );
+    }
+
+    // 9. Interviews & Meeting Schedules
+    console.log("\n[8/8] Seeding Interviews & Meeting Schedules...");
+    const interviewSpecs = [
+      {
+        candidate: anas._id,
+        organization: apexOrg._id,
+        job: jobMap["apex-innovations|Software Engineer Intern (MERN)"]?._id,
+        title: "Technical Round: React Hooks & Node REST Architecture",
+        round: "technical",
+        scheduledAt: inDays(2, 15, 0),
+        durationMinutes: 45,
+        locationType: "google_meet",
+        meetingUrl: "https://meet.google.com/hsm-apex-mca",
+        status: "scheduled",
+        interviewers: [primaryRecruiter._id],
+        candidateNotes: "Please be ready to review your HireSmart-AI and HomeServeX projects.",
+      },
+    ];
+
+    for (const spec of interviewSpecs) {
+      if (!spec.job) continue;
+      let interview = await Interview.findOne({ candidate: spec.candidate, job: spec.job, round: spec.round });
+      if (!interview) {
+        interview = await Interview.create(spec);
+        console.log(`  + Scheduled Interview: ${spec.title} with Anas Tai`);
+      } else {
+        Object.assign(interview, spec);
         await interview.save();
-        console.log(`  ✓ Synced Interview: "${interview.title}" [${interview.status}] for ${cand.name}`);
-      }
-    }
-
-    // 9. Notifications (Candidates, Recruiters, Admin)
-    console.log("\n[Notifications] Seeding In-App Notifications...");
-    const NOTIFICATIONS_CONFIG = [
-      // Anas Tai Notifications
-      {
-        user: anas._id,
-        organization: apexOrg?._id,
-        type: "application_acknowledged",
-        category: "applications",
-        recipientRole: "candidate",
-        title: "Application Received: Software Engineer Intern (MERN)",
-        message: "Your application for Software Engineer Intern (MERN) at Apex Innovations has been received and is being reviewed.",
-        readAt: daysAgo(10),
-      },
-      {
-        user: anas._id,
-        organization: apexOrg?._id,
-        type: "application_status_changed",
-        category: "applications",
-        recipientRole: "candidate",
-        title: "Application Shortlisted: React Frontend Developer",
-        message: "Great news! Apex Innovations has shortlisted your application for React Frontend Developer.",
-        readAt: daysAgo(4),
-      },
-      {
-        user: anas._id,
-        organization: apexOrg?._id,
-        type: "interview_invitation",
-        category: "interviews",
-        recipientRole: "candidate",
-        title: "Interview Invitation: Technical Round with Apex Innovations",
-        message: "You have been invited to a Technical Round on Google Meet for Software Engineer Intern (MERN).",
-        readAt: daysAgo(1),
-      },
-      {
-        user: anas._id,
-        organization: orgMap["bytescale-technologies"]?._id,
-        type: "application_status_changed",
-        category: "applications",
-        recipientRole: "candidate",
-        title: "Offer Extended: Junior MERN Stack Engineer",
-        message: "Congratulations! ByteScale Technologies has extended an official offer for the Junior MERN Stack Engineer role.",
-        readAt: null, // Unread notification for live demo
-      },
-      {
-        user: anas._id,
-        organization: apexOrg?._id,
-        type: "resume_processed",
-        category: "ai_career",
-        recipientRole: "candidate",
-        title: "AI Resume Analysis Complete (94% Fit Score)",
-        message: "HireSmart AI completed your resume parsing and match indexing with exceptional scores for Full Stack roles.",
-        readAt: daysAgo(5),
-      },
-
-      // Primary Recruiter Notifications
-      {
-        user: primaryRecruiter._id,
-        organization: apexOrg?._id,
-        type: "new_application",
-        category: "candidates",
-        recipientRole: "recruiter",
-        title: "New Application: Anas Tai applied for Software Engineer Intern",
-        message: "Anas Tai (MCA Student at SRIMCA) submitted an application with a 94% AI hybrid match score.",
-        readAt: daysAgo(12),
-      },
-      {
-        user: primaryRecruiter._id,
-        organization: apexOrg?._id,
-        type: "interview_confirmed",
-        category: "interviews",
-        recipientRole: "recruiter",
-        title: "Interview Confirmed: Anas Tai for Technical Round",
-        message: "Anas Tai confirmed attendance for the Technical Round on Google Meet.",
-        readAt: null, // Unread notification for live demo
-      },
-      {
-        user: primaryRecruiter._id,
-        organization: apexOrg?._id,
-        type: "new_application",
-        category: "candidates",
-        recipientRole: "recruiter",
-        title: "New Application: Priya Sharma applied for React Frontend Developer",
-        message: "Priya Sharma submitted an application with a 92% AI hybrid match score.",
-        readAt: daysAgo(15),
-      },
-    ];
-
-    for (const notif of NOTIFICATIONS_CONFIG) {
-      const exists = await Notification.findOne({ user: notif.user, title: notif.title });
-      if (!exists) {
-        await Notification.create(notif);
-      }
-    }
-
-    // 10. AI Analysis Records (For Admin AI Usage Dashboard)
-    console.log("\n[AI Activity] Seeding AI Analysis telemetry records...");
-    const AI_RECORDS = [
-      {
-        organization: apexOrg?._id,
-        user: anas._id,
-        feature: "resume_extraction",
-        subjectType: "resume_version",
-        subjectId: String(anas._version?._id || anas._id),
-        provider: "deterministic",
-        model: "text-embedding-3-small",
-        promptVersion: "1.0",
-        output: { skills: anas.skills, experienceYears: 1, confidence: 0.94 },
-        confidence: 0.94,
-        fallbackUsed: false,
-        usage: { inputTokens: 520, outputTokens: 210, estimatedCostUsd: 0.0004, latencyMs: 240 },
-        status: "completed",
-      },
-      {
-        organization: apexOrg?._id,
-        user: anas._id,
-        feature: "resume_improvement",
-        subjectType: "resume_version",
-        subjectId: String(anas._version?._id || anas._id),
-        provider: "deterministic",
-        model: "gpt-4o-mini",
-        promptVersion: "1.0",
-        output: { suggestions: ["Quantify impact in HomeServeX project", "Highlight JWT Auth security implementation"] },
-        confidence: 0.90,
-        fallbackUsed: false,
-        usage: { inputTokens: 780, outputTokens: 340, estimatedCostUsd: 0.0008, latencyMs: 380 },
-        status: "completed",
-      },
-      {
-        organization: apexOrg?._id,
-        user: primaryRecruiter._id,
-        feature: "jd_generation",
-        subjectType: "job",
-        subjectId: String(jobMap["apex-innovations|Software Engineer Intern (MERN)"]?._id || ""),
-        provider: "deterministic",
-        model: "gpt-4o-mini",
-        promptVersion: "1.0",
-        output: { title: "Software Engineer Intern (MERN)", confidence: 0.95 },
-        confidence: 0.95,
-        fallbackUsed: false,
-        usage: { inputTokens: 450, outputTokens: 280, estimatedCostUsd: 0.0005, latencyMs: 310 },
-        status: "completed",
-      },
-      {
-        organization: apexOrg?._id,
-        user: primaryRecruiter._id,
-        feature: "interview_preparation",
-        subjectType: "interview",
-        subjectId: "interview-prep-demo",
-        provider: "deterministic",
-        model: "gpt-4o-mini",
-        promptVersion: "1.0",
-        output: { questions: ["Explain MERN data flow", "How do you handle JWT token invalidation in Express?"] },
-        confidence: 0.92,
-        fallbackUsed: false,
-        usage: { inputTokens: 620, outputTokens: 310, estimatedCostUsd: 0.0007, latencyMs: 290 },
-        status: "completed",
-      },
-    ];
-
-    for (const record of AI_RECORDS) {
-      if (!(await AIAnalysis.findOne({ user: record.user, feature: record.feature, subjectId: record.subjectId }))) {
-        await AIAnalysis.create(record);
-      }
-    }
-
-    // 11. Security Events & Audit Logs (For Admin Console)
-    console.log("\n[Security & Audit] Seeding Audit Logs and Security Events...");
-    const AUDIT_LOGS = [
-      {
-        organization: apexOrg?._id,
-        actor: primaryRecruiter._id,
-        action: "job.create",
-        resourceType: "job",
-        resourceId: String(jobMap["apex-innovations|Software Engineer Intern (MERN)"]?._id || ""),
-        outcome: "success",
-        metadata: { title: "Software Engineer Intern (MERN)", location: "Surat, Gujarat" },
-      },
-      {
-        organization: apexOrg?._id,
-        actor: primaryRecruiter._id,
-        action: "application.status_update",
-        resourceType: "application",
-        resourceId: String(applicationMap[`tanastai5018@gmail.com|${jobMap["apex-innovations|Software Engineer Intern (MERN)"]?._id}`]?._id || ""),
-        outcome: "success",
-        metadata: { from: "under_review", to: "interview", candidate: "Anas Tai" },
-      },
-      {
-        organization: apexOrg?._id,
-        actor: anas._id,
-        action: "auth.login",
-        resourceType: "user",
-        resourceId: String(anas._id),
-        outcome: "success",
-        metadata: { email: anas.email, client: "HireSmart-AI Web" },
-      },
-    ];
-
-    for (const log of AUDIT_LOGS) {
-      if (!(await AuditLog.findOne({ actor: log.actor, action: log.action, resourceId: log.resourceId }))) {
-        await AuditLog.create(log);
-      }
-    }
-
-    const SECURITY_EVENTS = [
-      {
-        user: anas._id,
-        organization: apexOrg?._id,
-        type: "sign_in_success",
-        severity: "info",
-        details: { ip: "127.0.0.1", userAgent: "Mozilla/5.0 (HireSmart Demo Client)" },
-      },
-      {
-        user: primaryRecruiter._id,
-        organization: apexOrg?._id,
-        type: "sign_in_success",
-        severity: "info",
-        details: { ip: "127.0.0.1", userAgent: "Mozilla/5.0 (HireSmart Demo Recruiter)" },
-      },
-    ];
-
-    for (const ev of SECURITY_EVENTS) {
-      if (!(await SecurityEvent.findOne({ user: ev.user, type: ev.type }))) {
-        await SecurityEvent.create(ev);
+        console.log(`  ✓ Synced Interview: ${spec.title} with Anas Tai`);
       }
     }
 
@@ -2190,31 +1976,20 @@ const seedPresentationData = async () => {
     console.log(`[CANDIDATE] Anas Tai (MCA Student @ SRIMCA, Surat, Gujarat)`);
     console.log(`            Email   : tanastai5018@gmail.com`);
     console.log(`            Password: ${DEMO_PASSWORD}`);
-    console.log(`            Features: 100% Profile, Processed PDF Resume, 6 Applications,`);
-    console.log(`                      Scheduled Technical Interview, In-App Notifications, Saved Jobs`);
+    console.log(`            Features: 100% Profile, Ready Resume, Career Plus Membership,`);
+    console.log(`                      6 Applications, Scheduled Google Meet, Confirmed Placement`);
     console.log("");
     console.log(`[RECRUITER]  Demo Recruiter (Talent Lead @ Apex Innovations, Surat)`);
     console.log(`            Email   : 2025mca150@gmail.com`);
     console.log(`            Password: ${DEMO_PASSWORD}`);
-    console.log(`            Features: 5 Job Postings, Review Applications, Interview Management,`);
-    console.log(`                      Team Members, In-App Notifications`);
+    console.log(`            Features: Verified Company Status (GSTIN: 24AAACA1234A1Z5), Growth Plan,`);
+    console.log(`                      5 Jobs, Review Pipelines, Interviews, In-App Notifications`);
     console.log("");
     if (existingAdmin) {
       console.log(`[ADMIN]      ${existingAdmin.name} (Platform Admin Console)`);
       console.log(`            Email   : ${existingAdmin.email}`);
-      console.log(`            Password: (Existing password preserved)`);
-      console.log(`            Features: User & Org Moderation, AI Usage Telemetry, Security Logs`);
-    }
-    console.log("--------------------------------------------------------------------------------");
-    console.log("");
-    console.log("ADDITIONAL CANDIDATE LOGINS (All passwords: " + DEMO_PASSWORD + "):");
-    for (const c of CANDIDATES.filter((x) => x.email !== "tanastai5018@gmail.com")) {
-      console.log(`  - ${c.name.padEnd(16)} : ${c.email} (${c.headline})`);
-    }
-    console.log("");
-    console.log("ADDITIONAL RECRUITER LOGINS (All passwords: " + DEMO_PASSWORD + "):");
-    for (const r of RECRUITERS.filter((x) => x.email !== "2025mca150@gmail.com")) {
-      console.log(`  - ${r.name.padEnd(16)} : ${r.email} [${r.orgSlug}]`);
+      console.log(`            Features: Company Verification & Risk Assessment, Moderation,`);
+      console.log(`                      Financial Revenue & MRR Dashboard, 12-Month Analytics`);
     }
     console.log("================================================================================");
   } finally {
