@@ -347,6 +347,302 @@ exports.overviewAnalytics = asyncHandler(async (req, res) => {
   });
 });
 
+/**
+ * Admin: Company-level Job Listing Moderation Summary
+ * Groups job listings requiring review by employer organization
+ */
+exports.companyModerationSummary = asyncHandler(async (req, res) => {
+  requireAdmin(req);
+  const search = req.query.search ? String(req.query.search).trim() : "";
+  const verificationStatus = req.query.verificationStatus;
+  const riskLevel = req.query.riskLevel;
+
+  const pipeline = [
+    {
+      $lookup: {
+        from: "jobs",
+        localField: "_id",
+        foreignField: "organization",
+        as: "jobs",
+      },
+    },
+    {
+      $project: {
+        organizationId: "$_id",
+        _id: "$_id",
+        companyName: "$name",
+        companyLogo: "$logoUrl",
+        companySlug: "$slug",
+        industry: "$industry",
+        verificationStatus: { $ifNull: ["$verificationStatus", "pending"] },
+        riskScore: { $ifNull: ["$riskScore", 0] },
+        riskFlags: { $ifNull: ["$riskFlags", []] },
+        jobCounts: {
+          total: { $size: "$jobs" },
+          pending: {
+            $size: {
+              $filter: {
+                input: "$jobs",
+                as: "j",
+                cond: {
+                  $or: [
+                    { $eq: ["$$j.moderation.status", "pending"] },
+                    { $eq: ["$$j.pendingChanges.status", "pending"] },
+                  ],
+                },
+              },
+            },
+          },
+          approved: {
+            $size: {
+              $filter: {
+                input: "$jobs",
+                as: "j",
+                cond: { $eq: ["$$j.moderation.status", "approved"] },
+              },
+            },
+          },
+          rejected: {
+            $size: {
+              $filter: {
+                input: "$jobs",
+                as: "j",
+                cond: { $eq: ["$$j.moderation.status", "rejected"] },
+              },
+            },
+          },
+        },
+        latestSubmission: { $max: "$jobs.createdAt" },
+      },
+    },
+  ];
+
+  const matchConditions = {};
+  if (search) {
+    matchConditions.$or = [
+      { companyName: { $regex: search, $options: "i" } },
+      { companySlug: { $regex: search, $options: "i" } },
+    ];
+  }
+  if (verificationStatus && verificationStatus !== "all") {
+    matchConditions.verificationStatus = verificationStatus;
+  }
+  if (riskLevel && riskLevel !== "all") {
+    if (riskLevel === "low") matchConditions.riskScore = { $lte: 25 };
+    else if (riskLevel === "medium") matchConditions.riskScore = { $gt: 25, $lte: 60 };
+    else if (riskLevel === "high") matchConditions.riskScore = { $gt: 60 };
+  }
+
+  if (Object.keys(matchConditions).length > 0) {
+    pipeline.push({ $match: matchConditions });
+  }
+
+  pipeline.push({
+    $sort: { "jobCounts.pending": -1, latestSubmission: -1, companyName: 1 },
+  });
+
+  const companies = await Organization.aggregate(pipeline);
+  res.json({
+    data: companies,
+    meta: { total: companies.length },
+  });
+});
+
+/**
+ * Admin: Company Jobs List for Moderation Drawer / Modal
+ */
+exports.companyJobsList = asyncHandler(async (req, res) => {
+  requireAdmin(req);
+  const { organizationId } = req.params;
+  const org = await Organization.findById(organizationId);
+  if (!org) throw new AppError("Organization not found", 404, "ORGANIZATION_NOT_FOUND");
+
+  const status = req.query.status;
+  const filter = { organization: org._id };
+  if (status && status !== "all") {
+    filter.$or = [
+      { "moderation.status": status },
+      { "pendingChanges.status": status },
+    ];
+  }
+
+  const jobs = await Job.find(filter)
+    .populate("recruiter", "name email phone")
+    .sort({ "moderation.status": 1, createdAt: -1 });
+
+  const jobIds = jobs.map((j) => j._id);
+  const appCounts = await Application.aggregate([
+    { $match: { job: { $in: jobIds } } },
+    { $group: { _id: "$job", count: { $sum: 1 } } },
+  ]);
+  const countMap = Object.fromEntries(appCounts.map((a) => [String(a._id), a.count]));
+
+  const mapped = jobs.map((j) => ({
+    id: j._id,
+    _id: j._id,
+    title: j.title,
+    company: j.company || org.name,
+    location: j.location,
+    department: j.department || "Engineering",
+    workplaceMode: j.workplaceMode,
+    jobType: j.jobType,
+    experience: j.experience,
+    minExpYears: j.minExpYears,
+    maxExpYears: j.maxExpYears,
+    salary: j.salary,
+    compensation: j.compensation || {
+      min: j.salary || 0,
+      max: j.salary || 0,
+      currency: "INR",
+      period: "year",
+    },
+    salaryInrLpa: j.salary ? `${(j.salary / 100000).toFixed(1)} LPA` : "Not specified",
+    requiredSkills: j.requiredSkills || [],
+    preferredSkills: j.preferredSkills || [],
+    skills: j.skills || [],
+    description: j.description,
+    status: j.status,
+    moderation: j.moderation || { status: "none" },
+    changeReview: j.pendingChanges
+      ? {
+          status: j.pendingChanges.status,
+          reason: j.pendingChanges.reason,
+          fields: j.pendingChanges.fields,
+        }
+      : null,
+    applicationCount: countMap[String(j._id)] || 0,
+    recruiter: j.recruiter
+      ? { id: j.recruiter._id, name: j.recruiter.name, email: j.recruiter.email }
+      : null,
+    createdAt: j.createdAt,
+    updatedAt: j.updatedAt,
+  }));
+
+  res.json({
+    data: {
+      organization: {
+        id: org._id,
+        _id: org._id,
+        name: org.name,
+        slug: org.slug,
+        verificationStatus: org.verificationStatus || "pending",
+        riskScore: org.riskScore || 0,
+        riskFlags: org.riskFlags || [],
+        businessEmail: org.businessEmail,
+        phone: org.phone,
+        gstin: org.gstin,
+        registrationNumber: org.registrationNumber,
+      },
+      jobs: mapped,
+    },
+  });
+});
+
+/**
+ * Admin: Bulk Approve All Pending Jobs for Verified Company
+ */
+exports.bulkApproveCompanyJobs = asyncHandler(async (req, res) => {
+  requireAdmin(req);
+  const { organizationId } = req.params;
+  const org = await Organization.findById(organizationId);
+  if (!org) throw new AppError("Organization not found", 404, "ORGANIZATION_NOT_FOUND");
+
+  // Safety check 1: Company must be verified
+  if (org.verificationStatus !== "verified") {
+    throw new AppError(
+      "Cannot bulk-approve jobs for an unverified company. Please verify the company first.",
+      400,
+      "ORGANIZATION_NOT_VERIFIED",
+    );
+  }
+
+  // Safety check 2: Query eligible jobs belonging to company where moderation is pending
+  const eligibleJobs = await Job.find({
+    organization: org._id,
+    status: { $nin: ["closed", "archived"] },
+    $or: [
+      { "moderation.status": "pending" },
+      { "pendingChanges.status": "pending" },
+    ],
+  });
+
+  if (eligibleJobs.length === 0) {
+    return res.json({ success: true, approvedCount: 0, message: "No pending eligible jobs to approve" });
+  }
+
+  const now = new Date();
+  const approvedIds = [];
+
+  for (const job of eligibleJobs) {
+    const isChangeReview = Boolean(
+      job.pendingChanges &&
+        job.pendingChanges.status === "pending" &&
+        job.pendingChanges.fields &&
+        Object.keys(job.pendingChanges.fields).length > 0,
+    );
+
+    if (isChangeReview) {
+      const changes = job.pendingChanges.fields || {};
+      for (const [key, value] of Object.entries(changes)) {
+        if (PUBLIC_EDIT_FIELDS.has(key)) job[key] = value;
+      }
+      if (changes.requiredSkills) job.skills = changes.requiredSkills;
+      job.version += 1;
+      job.pendingChanges.status = "approved";
+      job.pendingChanges.reviewedBy = req.user._id;
+      job.pendingChanges.reviewedAt = now;
+      job.pendingChanges.reason = "";
+    } else {
+      job.moderation.status = "approved";
+      job.status = "published";
+      job.moderation.reviewedBy = req.user._id;
+      job.moderation.reviewedAt = now;
+      job.moderation.reason = "";
+      if (!job.publishedAt) job.publishedAt = now;
+    }
+
+    await job.save();
+    approvedIds.push(job._id);
+  }
+
+  // Dispatch notification to company owner
+  const owner = await Membership.findOne({
+    organization: org._id,
+    role: "owner",
+    status: "active",
+  });
+  if (owner) {
+    try {
+      await notify({
+        user: owner.user,
+        organization: org._id,
+        type: "job_moderation",
+        category: "jobs",
+        title: "All Pending Jobs Approved",
+        message: `Platform administrators have approved all ${approvedIds.length} pending job postings for ${org.name}. They are now live!`,
+        resourceType: "organization",
+        resourceId: org._id,
+      });
+    } catch (_e) {}
+  }
+
+  // Audit log
+  await audit({
+    req,
+    organization: org._id,
+    action: "job.bulk_approved",
+    resourceType: "organization",
+    resourceId: org._id,
+    metadata: { approvedCount: approvedIds.length, jobIds: approvedIds },
+  });
+
+  res.json({
+    success: true,
+    approvedCount: approvedIds.length,
+    message: `Successfully approved ${approvedIds.length} job postings for ${org.name}`,
+  });
+});
+
 exports.moderationJobs = asyncHandler(async (req, res) => {
   requireAdmin(req);
   const page = parse(req.query);

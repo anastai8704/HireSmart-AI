@@ -215,6 +215,11 @@ export const adminApi = {
   requestMoreInfoOrg: (orgId, notes) =>
     api.post(`/admin/organizations/${orgId}/request-info`, { notes }),
   suspendOrg: (orgId, reason) => api.post(`/admin/organizations/${orgId}/suspend`, { reason }),
+  reactivateOrg: (orgId, reason) => api.post(`/admin/organizations/${orgId}/reactivate`, { reason }),
+  moderationCompanies: (params) => api.get(`/admin/moderation/companies${query(params)}`),
+  companyModerationJobs: (orgId, params) =>
+    api.get(`/admin/moderation/companies/${orgId}/jobs${query(params)}`),
+  bulkApproveJobs: (orgId) => api.post(`/admin/moderation/companies/${orgId}/approve-all`),
   placements: (params) => api.get(`/admin/placements${query(params)}`),
   verifyPlacement: (placementId, body) =>
     api.post(`/admin/placements/${placementId}/verify`, body),

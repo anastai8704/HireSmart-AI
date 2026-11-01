@@ -861,6 +861,7 @@ router.post("/admin/organizations/:organizationId/verify", authenticate, org.adm
 router.post("/admin/organizations/:organizationId/reject", authenticate, org.adminRejectOrg);
 router.post("/admin/organizations/:organizationId/request-info", authenticate, org.adminRequestMoreInfoOrg);
 router.post("/admin/organizations/:organizationId/suspend", authenticate, org.adminSuspendOrg);
+router.post("/admin/organizations/:organizationId/reactivate", authenticate, org.adminReactivateOrg);
 router.get("/admin/placements", authenticate, placement.listAdminPlacements);
 router.post("/admin/placements/:placementId/verify", authenticate, placement.adminVerifyPlacement);
 
@@ -902,6 +903,13 @@ router.post("/subscriptions/verify-payment", authenticate, subscription.verifyPa
 router.post("/subscriptions/cancel", authenticate, subscription.cancelSubscription);
 router.get("/subscriptions/invoices", authenticate, subscription.getInvoices);
 
+router.get("/admin/moderation/companies", authenticate, admin.companyModerationSummary);
+router.get("/admin/moderation/companies/:organizationId/jobs", authenticate, admin.companyJobsList);
+router.post(
+  "/admin/moderation/companies/:organizationId/approve-all",
+  authenticate,
+  admin.bulkApproveCompanyJobs,
+);
 router.get("/admin/moderation/jobs", authenticate, admin.moderationJobs);
 router.post(
   "/admin/moderation/jobs/:jobId/:action",

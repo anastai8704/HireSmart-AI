@@ -2,6 +2,8 @@ const crypto = require("node:crypto");
 const Organization = require("../models/Organization");
 const User = require("../models/User");
 const Job = require("../models/Job");
+const { Application } = require("../models/Application");
+const { Placement } = require("../models/Placement");
 const { Membership } = require("../models/Membership");
 const Invite = require("../models/Invite");
 const asyncHandler = require("../middleware/asyncHandler");
@@ -182,10 +184,36 @@ exports.adminGetOrgDetails = asyncHandler(async (req, res) => {
   const org = await Organization.findById(req.params.organizationId).populate("verifiedBy", "name email");
   if (!org) throw new AppError("Organization not found", 404, "RESOURCE_NOT_FOUND");
 
-  const [ownerMembership, activeJobsCount, applicationsCount] = await Promise.all([
+  const [
+    ownerMembership,
+    totalJobs,
+    pendingJobs,
+    approvedJobs,
+    rejectedJobs,
+    totalApplications,
+    shortlistedCount,
+    interviewCount,
+    hiredCount,
+    confirmedJoinings,
+    verifiedEmployees,
+  ] = await Promise.all([
     Membership.findOne({ organization: org._id, role: "owner" }).populate("user", "name email phone"),
-    Job.countDocuments({ organization: org._id, status: "published" }),
-    require("../models/Application").Application.countDocuments({ organization: org._id }),
+    Job.countDocuments({ organization: org._id }),
+    Job.countDocuments({ organization: org._id, "moderation.status": "pending" }),
+    Job.countDocuments({ organization: org._id, "moderation.status": "approved" }),
+    Job.countDocuments({ organization: org._id, "moderation.status": "rejected" }),
+    Application.countDocuments({ organization: org._id }),
+    Application.countDocuments({ organization: org._id, status: { $in: ["shortlisted", "Shortlisted"] } }),
+    Application.countDocuments({ organization: org._id, status: { $in: ["interview", "Interview"] } }),
+    Application.countDocuments({ organization: org._id, status: { $in: ["hired", "Selected"] } }),
+    Placement.countDocuments({
+      organization: org._id,
+      status: { $in: ["joining_confirmed", "placement_verified", "verified_placement", "currently_working"] },
+    }),
+    Placement.countDocuments({
+      organization: org._id,
+      status: { $in: ["placement_verified", "verified_placement", "currently_working"] },
+    }),
   ]);
 
   res.json({
@@ -193,8 +221,20 @@ exports.adminGetOrgDetails = asyncHandler(async (req, res) => {
       organization: org,
       owner: ownerMembership?.user || null,
       stats: {
-        activeJobsCount,
-        applicationsCount,
+        activeJobsCount: approvedJobs,
+        applicationsCount: totalApplications,
+      },
+      hiringStats: {
+        totalJobs,
+        pendingJobs,
+        approvedJobs,
+        rejectedJobs,
+        totalApplications,
+        shortlistedCount,
+        interviewCount,
+        hiredCount,
+        confirmedJoinings,
+        verifiedEmployees,
       },
     },
   });
@@ -370,6 +410,36 @@ exports.adminSuspendOrg = asyncHandler(async (req, res) => {
   });
 
   res.json({ data: org });
+});
+
+/**
+ * Admin: Reactivate Suspended Organization
+ */
+exports.adminReactivateOrg = asyncHandler(async (req, res) => {
+  if (req.auth.platformRole !== "platform_admin") {
+    throw new AppError("Resource not found", 404, "RESOURCE_NOT_FOUND");
+  }
+
+  const org = await Organization.findById(req.params.organizationId);
+  if (!org) throw new AppError("Organization not found", 404, "RESOURCE_NOT_FOUND");
+
+  org.verificationStatus = "verified";
+  org.verifiedAt = new Date();
+  org.verifiedBy = req.user._id;
+  org.rejectionReason = "";
+  await org.save();
+
+  // Audit log
+  await audit({
+    req,
+    organization: org._id,
+    action: "admin.organization_reactivated",
+    resourceType: "organization",
+    resourceId: org._id,
+    metadata: { reason: req.body.reason || "Reactivated by platform administrator" },
+  });
+
+  res.json({ data: org, message: "Organization reactivated successfully" });
 });
 
 exports.settings = asyncHandler(async (req, res) => {
