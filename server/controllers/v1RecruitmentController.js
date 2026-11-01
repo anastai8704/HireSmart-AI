@@ -191,9 +191,17 @@ exports.relatedJobs = asyncHandler(async (req, res) => {
   res.json({ data: items.map((j) => jobDto(j, { public: true })), meta: { count: items.length } });
 });
 exports.createJob = asyncHandler(async (req, res) => {
+  const org = await Organization.findById(req.auth.organizationId);
+  if (!org || org.verificationStatus !== "verified") {
+    throw new AppError(
+      "Company is not verified. Unverified companies cannot create or publish jobs.",
+      403,
+      "ORGANIZATION_NOT_VERIFIED",
+    );
+  }
+
   const payload = req.body;
   const requiredSkills = payload.requiredSkills || payload.skills;
-  const org = await Organization.findById(req.auth.organizationId).select("industry");
   const job = await Job.create({
     organization: req.auth.organizationId,
     recruiter: req.user._id,
@@ -354,6 +362,15 @@ exports.updateJob = asyncHandler(async (req, res) => {
 });
 
 exports.publish = asyncHandler(async (req, res) => {
+  const org = await Organization.findById(req.auth.organizationId);
+  if (!org || org.verificationStatus !== "verified") {
+    throw new AppError(
+      "Company is not verified. Unverified companies cannot create or publish jobs.",
+      403,
+      "ORGANIZATION_NOT_VERIFIED",
+    );
+  }
+
   const job = await getOrgJob(req, req.params.jobId);
   if (!job.description || !(job.requiredSkills?.length || job.skills?.length))
     throw new AppError(
@@ -441,6 +458,17 @@ exports.apply = asyncHandler(async (req, res) => {
     $or: [{ closesAt: null }, { closesAt: { $gte: new Date() } }],
   });
   if (!job) throw new AppError("Job is not accepting applications", 404, "RESOURCE_NOT_FOUND");
+
+  if (job.organization) {
+    const org = await Organization.findById(job.organization);
+    if (!org || org.verificationStatus !== "verified") {
+      throw new AppError(
+        "Company is not verified. Unverified companies cannot receive applications.",
+        403,
+        "ORGANIZATION_NOT_VERIFIED",
+      );
+    }
+  }
   const resume = await ResumeVersion.findOne({
     _id: req.body.resumeVersionId,
     candidate: req.user._id,
@@ -671,6 +699,31 @@ exports.transition = asyncHandler(async (req, res) => {
     note: req.body.note || req.body.reasonCode || "",
   });
   await app.save();
+
+  if (req.body.toStatus === "hired") {
+    try {
+      const { Placement } = require("../models/Placement");
+      await Placement.findOneAndUpdate(
+        { application: app._id },
+        {
+          application: app._id,
+          organization: app.organization,
+          candidate: app.candidate._id,
+          job: app.job._id,
+          status: "hired",
+          offerDetails: {
+            designation: app.job?.title || "Software Engineer",
+            ctc: app.job?.salary || (app.job?.compensation?.max || 0),
+            currency: "INR",
+            offerDate: new Date(),
+          },
+        },
+        { upsert: true, returnDocument: "after" },
+      );
+    } catch (err) {
+      logger.error(`Placement creation on hire failed: ${err.message}`);
+    }
+  }
   try {
     const statusLabel = {
       shortlisted: "shortlisted",

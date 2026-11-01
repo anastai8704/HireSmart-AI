@@ -1,14 +1,14 @@
-# HireSmart-AI — MCA Semester 3 Project Presentation & Demo Guide
+# HireSmart-AI — MCA Semester 3 Project Presentation & Demonstration Guide
 
-**Project Title:** HireSmart-AI (AI-Powered Intelligent Recruitment & Candidate Assessment Platform)  
+**Project Title:** HireSmart-AI (AI-Powered Intelligent Recruitment, Platform Governance & Candidate Assessment Ecosystem)  
 **Lead Developer / Candidate Persona:** Anas Tai (MCA Student @ SRIMCA, Surat, Gujarat)  
 **Repository Branch:** `arena/01a08596-hiresmart-ai`
 
 ---
 
-## 1. Quick Start & Seeding
+## 1. Quick Start & Presentation Seeder
 
-To run the safe, idempotent presentation demo seeder:
+To run the safe, repeatable, idempotent presentation demo seeder:
 
 ```bash
 # In the server directory:
@@ -18,10 +18,10 @@ npm run demo
 npm run seed:demo
 ```
 
-Then start the application in two separate terminals:
+Start the application services:
 
 ```bash
-# Terminal 1 (Backend Server on http://localhost:5000):
+# Terminal 1 (Backend API on http://localhost:5000):
 cd server
 npm run dev
 
@@ -34,87 +34,111 @@ npm run dev
 
 ## 2. Demo Account Matrix
 
-| Role | Email | Password | Organization / Details |
+| Role | Email | Password | Details & Key Capabilities |
 | :--- | :--- | :--- | :--- |
-| **Primary Candidate** | `tanastai5018@gmail.com` | `hiresmart8704` | **Anas Tai** — MCA Student @ SRIMCA, Surat (Full 100% profile, MERN projects, processed PDF resume, 6 applications, scheduled interview) |
-| **Primary Recruiter** | `2025mca150@gmail.com` | `hiresmart8704` | **Apex Innovations** (Surat/Ahmedabad) — 5 Job postings, candidate applications, interview scheduler |
-| **Platform Admin** | _(Existing Admin Email)_ | _(Preserved Password)_ | Platform Moderation, AI Telemetry, User & Org Management, Security Logs |
+| **Primary Candidate** | `tanastai5018@gmail.com` | `hiresmart8704` | **Anas Tai** — MCA Student @ SRIMCA, Surat (100% profile, MERN projects, processed PDF resume, 6 applications, scheduled interview, Career Plus active plan, verified placement record) |
+| **Primary Recruiter** | `2025mca150@gmail.com` | `hiresmart8704` | **Apex Innovations** (Surat) — Verified company status (GSTIN: `24AAACA1234A1Z5`), Growth Tier Plan, 5 Job postings, candidate review pipeline, Google Meet scheduler |
+| **Platform Admin** | _(Existing Admin Email)_ | _(Preserved Password)_ | Platform Analytics Overview, Company Verification & Risk Assessment, Job Moderation, Subscriptions & Revenue Dashboard (MRR/ARR), AI Telemetry, Security Logs |
 
 ### Additional Candidate Logins (Password for all: `hiresmart8704`)
-- **Priya Sharma** (`priya.sharma@example.com`) — Frontend Engineer (React/Redux), Ahmedabad
+- **Priya Sharma** (`priya.sharma@example.com`) — Frontend Engineer (React/Redux), Ahmedabad (Hired & Verified Placement at Apex Innovations)
 - **Vikram Nair** (`vikram.nair@example.com`) — Backend Engineer (Node.js/PostgreSQL), Bengaluru
-- **Sneha Kulkarni** (`sneha.kulkarni@example.com`) — DevOps & Cloud SRE (Kubernetes/AWS), Pune
+- **Sneha Kulkarni** (`sneha.kulkarni@example.com`) — DevOps & Cloud SRE (Kubernetes/AWS), Pune (Currently Working at CloudForge Systems)
 - **Arjun Mehta** (`arjun.mehta@example.com`) — Junior Frontend Developer, Surat
 - **Ishita Verma** (`ishita.verma@example.com`) — QA Automation Specialist (Playwright/Jest), Indore
 - **Karan Patel** (`karan.patel@example.com`) — Full Stack Engineer (MERN/Redis), Ahmedabad
 - **Ananya Iyer** (`ananya.iyer@example.com`) — Senior Frontend Architect (React/TypeScript), Ahmedabad
 
-### Additional Recruiter / Company Logins (Password for all: `hiresmart8704`)
-- **Rohit Sharma** (`rohit.sharma@nexusbyte.com`) — Nexus Byte Solutions (Bengaluru)
-- **Neha Patel** (`neha.patel@cloudforge.io`) — CloudForge Systems (Pune)
-- **Amit Verma** (`amit.verma@bytescale.tech`) — ByteScale Technologies (Mumbai)
-- **Kavya Nair** (`kavya.nair@zenithlabs.in`) — Zenith Global Labs (Hyderabad)
+### Additional Recruiter & Company Logins (Password for all: `hiresmart8704`)
+- **Rohit Sharma** (`rohit.sharma@nexusbyte.com`) — Nexus Byte Solutions (Bengaluru) [Verified, Growth Plan]
+- **Neha Patel** (`neha.patel@cloudforge.io`) — CloudForge Systems (Pune) [Verified, Starter Plan]
+- **Amit Verma** (`amit.verma@bytescale.tech`) — ByteScale Technologies (Mumbai) [Verified, Enterprise Plan]
+- **Kavya Nair** (`kavya.nair@zenithlabs.in`) — Zenith Global Labs (Hyderabad) [Verified, Growth Plan]
 
 ---
 
-## 3. Recommended 4-Act Live Presentation Flow
+## 3. Recommended 5-Act Live Presentation Flow
 
 ### Act 1: Candidate Experience (Anas Tai)
 1. **Login:** Log in with `tanastai5018@gmail.com` / `hiresmart8704`.
-2. **Dashboard & Profile:**
-   - Notice the **100% Profile Completion** score.
-   - Show SRIMCA education (2024-2026), BCA from VNSGU, and featured projects (*HireSmart-AI*, *HomeServeX*, *Travel Planner*).
-   - View the **Resumes** tab: verified PDF resume is parsed and in `ready` state with AI skill extraction.
+2. **Dashboard & Profile Completion:**
+   - Observe **100% Profile Completion** score.
+   - Point out SRIMCA education (2024-2026), BCA from VNSGU, and featured projects (*HireSmart-AI*, *HomeServeX*, *Travel Planner*).
+   - View the **Resumes** tab: verified PDF resume in `ready` state with AI skill extraction.
 3. **Application Tracking:**
    - Open **Applications**: observe 6 real-world applications across various statuses:
      - `Interview` (Apex Innovations: *Software Engineer Intern - MERN*)
-     - `Offer` (ByteScale Technologies: *Junior MERN Stack Engineer*)
-     - `Shortlisted` (Apex Innovations: *React Frontend Developer*)
-     - `Under Review` (Apex Innovations: *Junior Full Stack Developer*)
+     - `Hired / Joining Confirmed` (ByteScale Technologies: *Junior MERN Stack Engineer*)
+     - `Shortlisted` (Apex Innovations: *Junior Full Stack Developer*)
+     - `Under Review` (Nexus Byte Solutions: *Backend Engineer*)
      - `Submitted` (CloudForge Systems: *Frontend Engineer*)
-     - `Rejected / Talent Pool` (Zenith Global Labs: *Graduate Software Trainee*)
+     - `Rejected / Talent Network` (Zenith Global Labs: *Graduate Software Trainee*)
 4. **Interview Schedule:**
-   - Open **Interviews**: see the confirmed **Technical Round** with Apex Innovations on Google Meet.
-5. **AI Fit Analysis & Discover:**
-   - Navigate to **Discover Jobs** -> Open any job -> Click **Analyze Fit** to see instant Hybrid Match scoring with skill breakdown, strengths, and recommendations.
+   - Open **Interviews**: see confirmed **Technical Round** on Google Meet.
+5. **Career Plus Membership (`/app/candidate/plans`):**
+   - View active Career Plus membership status with unlimited applications and AI Career Assistant features.
 
 ---
 
-### Act 2: Recruiter Workflow (Apex Innovations)
+### Act 2: Recruiter Workflow & Workspace (Apex Innovations)
 1. **Login:** Log in with `2025mca150@gmail.com` / `hiresmart8704`.
-2. **Recruiter Overview:**
+2. **Recruiter Overview & Pipelines:**
    - View company dashboard for **Apex Innovations** showing applicant counts, pipeline stages, and active postings.
-3. **Applicant Pipeline:**
+3. **Applicant Review:**
    - Open **Applicants** for *Software Engineer Intern (MERN)*.
    - Inspect **Anas Tai**:
-     - 94% Hybrid Match Score.
+     - 94% Hybrid Match Score with radar breakdown.
      - Review stage history: `Submitted -> Under Review -> Shortlisted -> Interview`.
      - Read internal hiring team notes.
-4. **Interviews Hub:**
-   - View scheduled upcoming technical round with Anas Tai on Google Meet.
-   - Inspect completed interviews with rubric ratings (1 to 5) and evaluator recommendations (`strong_yes`).
-5. **Job Management:**
-   - Navigate to **Jobs**: view active published roles and the draft *Backend Developer (Node.js & Microservices)* job (show quick one-click publish).
+4. **Subscription & Quota Management (`/app/o/:orgId/billing`):**
+   - Open **Billing & Quotas**: observe live quota progress bars (Active Jobs `5/10`, Team Seats `3/5`, Monthly AI Matches `28/150`).
+   - Showcase plan options (Starter ₹999/mo, Growth ₹2,499/mo, Enterprise ₹7,999/mo) and interactive upgrade modal with simulation support.
+   - View previous GST invoice receipts.
 
 ---
 
-### Act 3: Platform Admin Console
+### Act 3: Platform Governance & Admin Control Center (`/app/admin`)
 1. **Login:** Log in with your Platform Admin account.
-2. **Admin Overview (`/app/admin`):**
-   - **Users & Organizations:** View all registered organizations (Apex Innovations, Nexus Byte, CloudForge, ByteScale, Zenith Global) and user accounts.
-   - **Job Moderation:** Inspect *Cloud Infrastructure Engineer* submitted for platform approval. Approve or reject with feedback.
-   - **AI Usage Telemetry:** Live aggregate metrics displaying feature token counts, estimated costs, and latency averages.
-   - **Security & Audit Logs:** Live event log capturing authentication, job actions, and role updates.
+2. **Overview & Hiring Analytics (`/app/admin`):**
+   - KPI metrics: Total Users, Verified Companies, Active Openings, Verified Placements.
+   - **Company Deep-Dive Selector**: Select *Apex Innovations* or *ByteScale Technologies* to view isolated company statistics.
+   - **12-Month Hiring & Placement Trends Chart**: Interactive area & line chart showing applications vs. hires vs. verified placements.
+   - Platform Recruitment Pipeline Funnel.
+3. **Company Verification & Trust Drawer (`/app/admin/organizations`):**
+   - Filter by verification status (`pending`, `verified`, `rejected`) and risk score.
+   - Inspect *Apex Innovations* (Low Risk: 5/100, verified GSTIN/CIN, certificate attachments).
+   - Inspect *CryptoPay Global Network* (Pending Review: High Risk 72/100 due to free webmail domain and missing tax IDs).
+   - Demonstrate admin moderation controls: **Approve**, **Reject** (with reason), **Request More Info**, and **Suspend**.
+4. **Job Moderation (`/app/admin/moderation`):**
+   - Review incoming job postings with employer trust badges and fraud indicators.
+5. **Financial Revenue & MRR Dashboard (`/app/admin/subscriptions`):**
+   - View real-time Monthly Recurring Revenue (MRR: ~₹34,990), Annual Run Rate (ARR: ~₹4,19,880), Lifetime Revenue, and active subscriber metrics.
+   - Visual monthly revenue trend chart and plan distribution breakdown.
+   - Recent payment transaction log with invoice numbers and status indicators.
 
 ---
 
-### Act 4: Viva & Technical Architecture Q&A Highlights
+### Act 4: Placement Lifecycle & Employment Tracking
+1. **6-Stage Lifecycle:**
+   - `offer_extended` -> `offer_accepted` -> `joining_confirmed` -> `joined` -> `verified_placement` -> `currently_working`.
+2. **Automatic Synchronization:**
+   - When recruiter marks candidate as hired, a `Placement` record is created.
+   - Candidate confirms joining, and candidate's `CandidateProfile.employmentStatus` automatically transitions to `placed` / `employed`.
+   - Admin verifies official employment on platform.
 
-1. **Architecture:** Single-page frontend in React 19 / Vite / Tailwind CSS communicating via RESTful API with an Express / Node.js backend on MongoDB.
-2. **Hybrid Matching Algorithm:** Combines deterministic skill extraction (TF-IDF keyword matching, experience weights, education relevance) with AI embeddings to avoid hallucinations and ensure fair assessment.
-3. **Security & Data Integrity:**
-   - Password hashing with `bcryptjs` (salt rounds = 10).
-   - Short-lived JWT access tokens + secure rotating refresh tokens.
-   - Role-Based Access Control (RBAC) with organization membership permissions.
-   - Idempotent data handling and optimistic concurrency control.
-4. **Real Resume Processing:** In-memory stream parser utilizing `pdf-parse` to extract structured sections, contact information, and normalized skill tokens without external dependencies.
+---
+
+### Act 5: Technical Architecture & Viva Q&A Highlights
+
+1. **Full-Stack Architecture:**
+   - Frontend: React 19, Vite, Tailwind CSS v4, Lucide Icons, Recharts, React Router v7, TanStack Query.
+   - Backend: Node.js, Express, MongoDB with Mongoose, JWT authentication with rotating cookies, and Winston logging.
+2. **Fraud Prevention & Verification Engine:**
+   - Heuristic risk scoring (0-100) scanning business email domains (flagging free webmails), GSTIN format validation, incorporation document verification, and scam keyword detection (upfront deposits, training fees).
+3. **Monetization Architecture:**
+   - Supports live Razorpay integration with HMAC-SHA256 signature verification alongside instant simulation sandbox mode for zero-risk demonstration.
+   - Quota enforcement middleware blocking over-limit job creation and candidate AI runs.
+4. **Security & Data Integrity:**
+   - Multi-tenant isolation through organization-scoped queries and middleware.
+   - Role-Based Access Control (RBAC) separating candidates, recruiter roles (`owner`, `hiring_manager`, `interviewer`, `viewer`), and platform administrators.
+   - Sanitization against NoSQL injection and XSS.

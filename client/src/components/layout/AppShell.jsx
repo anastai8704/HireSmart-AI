@@ -7,6 +7,8 @@ import {
   Building2,
   ChartNoAxesCombined,
   ChevronDown,
+  CreditCard,
+  DollarSign,
   FileText,
   HeartHandshake,
   LayoutDashboard,
@@ -45,7 +47,13 @@ const candidateGroups = [
       ["/app/candidate/alerts", "Alerts", Bell],
     ],
   ],
-  ["Assistant", [["/app/candidate/copilot", "Career Assistant", Sparkles]]],
+  [
+    "Assistant & Plan",
+    [
+      ["/app/candidate/copilot", "Career Assistant", Sparkles],
+      ["/app/candidate/plans", "Career Plus", CreditCard],
+    ],
+  ],
 ];
 const recruiterGroups = (org) => [
   [
@@ -65,7 +73,13 @@ const recruiterGroups = (org) => [
       [`/app/o/${org}/copilot`, "Hiring Assistant", Sparkles],
     ],
   ],
-  ["Workspace", [[`/app/o/${org}/team`, "Team", Building2]]],
+  [
+    "Workspace",
+    [
+      [`/app/o/${org}/team`, "Team", Building2],
+      [`/app/o/${org}/billing`, "Billing & Quotas", CreditCard],
+    ],
+  ],
 ];
 const managerGroups = (org) => [
   [
@@ -93,6 +107,7 @@ const adminGroups = [
       ["/app/admin/moderation", "Approvals", BriefcaseBusiness],
       ["/app/admin/users", "Users", UserRound],
       ["/app/admin/organizations", "Companies", Building2],
+      ["/app/admin/subscriptions", "Revenue & Plans", DollarSign],
     ],
   ],
   [
@@ -115,6 +130,7 @@ const SECTION_TITLES = [
   ["/app/admin/moderation", "Approvals"],
   ["/app/admin/users", "Users"],
   ["/app/admin/organizations", "Companies"],
+  ["/app/admin/subscriptions", "Revenue & Subscriptions"],
   ["/app/admin/ai-usage", "AI Activity"],
   ["/app/admin/security", "Security & Audit"],
   ["/app/notifications", "Notifications"],

@@ -1,5 +1,13 @@
 const mongoose = require("mongoose");
 
+const verificationStatuses = Object.freeze([
+  "pending",
+  "under_review",
+  "verified",
+  "rejected",
+  "suspended",
+]);
+
 const organizationSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true, minlength: 2, maxlength: 150 },
@@ -26,6 +34,86 @@ const organizationSchema = new mongoose.Schema(
       default: "active",
       index: true,
     },
+    // Company Verification & Fraud Prevention fields
+    verificationStatus: {
+      type: String,
+      enum: verificationStatuses,
+      default: "pending",
+      index: true,
+    },
+    businessEmail: {
+      type: String,
+      lowercase: true,
+      trim: true,
+      default: "",
+    },
+    phone: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    address: {
+      street: { type: String, trim: true, default: "" },
+      city: { type: String, trim: true, default: "" },
+      state: { type: String, trim: true, default: "" },
+      pincode: { type: String, trim: true, default: "" },
+      country: { type: String, trim: true, default: "India" },
+    },
+    registrationNumber: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    gstin: {
+      type: String,
+      trim: true,
+      uppercase: true,
+      maxlength: 15,
+      default: "",
+    },
+    documents: [
+      {
+        type: { type: String, default: "incorporation_certificate" },
+        fileName: { type: String, default: "" },
+        fileUrl: { type: String, default: "" },
+        uploadedAt: { type: Date, default: Date.now },
+      },
+    ],
+    riskScore: {
+      type: Number,
+      min: 0,
+      max: 100,
+      default: 0,
+    },
+    riskFlags: [
+      {
+        code: { type: String, required: true },
+        severity: { type: String, enum: ["low", "medium", "high"], default: "low" },
+        message: { type: String, required: true },
+        flaggedAt: { type: Date, default: Date.now },
+      },
+    ],
+    verificationNotes: {
+      type: String,
+      trim: true,
+      maxlength: 5000,
+      default: "",
+    },
+    verifiedAt: {
+      type: Date,
+      default: null,
+    },
+    verifiedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+    rejectionReason: {
+      type: String,
+      trim: true,
+      maxlength: 2000,
+      default: "",
+    },
     settings: {
       requireJobApproval: { type: Boolean, default: false },
       aiEnabled: { type: Boolean, default: true },
@@ -34,5 +122,8 @@ const organizationSchema = new mongoose.Schema(
   },
   { timestamps: true, optimisticConcurrency: true },
 );
+
 organizationSchema.index({ slug: 1 }, { unique: true });
+organizationSchema.index({ verificationStatus: 1, createdAt: -1 });
+
 module.exports = mongoose.model("Organization", organizationSchema);

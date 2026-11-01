@@ -1,3 +1,5 @@
+const Organization = require("../models/Organization");
+
 const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const num = (v) => {
   const n = Number(v);
@@ -21,10 +23,16 @@ const moderationGate = () => ({ "moderation.status": { $in: ["approved", "none"]
  * Shared filter builder for every public job surface (search, alerts,
  * company pages) so behaviour stays identical. Accepts a plain object of
  * query params and returns a { filter, sort } pair for Mongoose.
+ * Only returns jobs from verified organizations.
  */
 const buildPublicJobFilter = async (query = {}) => {
   const filter = { ...openRolesCondition() };
   const and = [moderationGate()];
+
+  // Only show jobs from verified companies on public candidate surfaces
+  const verifiedOrgs = await Organization.find({ verificationStatus: "verified" }).distinct("_id");
+  and.push({ organization: { $in: verifiedOrgs } });
+
   if (query.location) filter.location = new RegExp(escapeRegex(query.location), "i");
   if (query.workplaceMode) filter.workplaceMode = String(query.workplaceMode).slice(0, 20);
   if (query.jobType) filter.jobType = String(query.jobType).slice(0, 50);
