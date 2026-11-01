@@ -35,7 +35,8 @@ const Button = ({
   as: Component = "button",
   variant = "primary",
   size = "md",
-  isLoading = false,
+  isLoading: isLoadingProp = false,
+  loading: loadingProp,
   leftIcon,
   rightIcon,
   fullWidth = false,
@@ -44,6 +45,7 @@ const Button = ({
   disabled,
   ...props
 }) => {
+  const isLoading = Boolean(isLoadingProp || loadingProp);
   // A loading button must not be clickable again, or the user submits twice.
   const isDisabled = disabled || isLoading;
 

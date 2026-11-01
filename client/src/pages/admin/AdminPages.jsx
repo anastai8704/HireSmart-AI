@@ -519,6 +519,7 @@ export const AdminOrganizations = () => {
     onSuccess: (res) => {
       toast.success(`${res.data?.name || "Company"} verified successfully`);
       qc.invalidateQueries({ queryKey: ["admin-organizations"] });
+      qc.invalidateQueries({ queryKey: ["admin-org-verification-details"] });
       setActionModal(null);
       setViewOrgId(null);
     },
@@ -530,6 +531,7 @@ export const AdminOrganizations = () => {
     onSuccess: () => {
       toast.success("Company verification rejected");
       qc.invalidateQueries({ queryKey: ["admin-organizations"] });
+      qc.invalidateQueries({ queryKey: ["admin-org-verification-details"] });
       setActionModal(null);
       setViewOrgId(null);
     },
@@ -541,6 +543,7 @@ export const AdminOrganizations = () => {
     onSuccess: () => {
       toast.success("Additional information request sent to company");
       qc.invalidateQueries({ queryKey: ["admin-organizations"] });
+      qc.invalidateQueries({ queryKey: ["admin-org-verification-details"] });
       setActionModal(null);
     },
     onError: (err) => toast.error(err.message),
@@ -551,6 +554,20 @@ export const AdminOrganizations = () => {
     onSuccess: () => {
       toast.success("Company verification suspended");
       qc.invalidateQueries({ queryKey: ["admin-organizations"] });
+      qc.invalidateQueries({ queryKey: ["admin-org-verification-details"] });
+      setActionModal(null);
+      setViewOrgId(null);
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const reactivateMutation = useMutation({
+    mutationFn: ({ orgId, reason }) =>
+      adminApi.reactivateOrg ? adminApi.reactivateOrg(orgId, reason) : adminApi.verifyOrg(orgId),
+    onSuccess: () => {
+      toast.success("Company reactivated successfully");
+      qc.invalidateQueries({ queryKey: ["admin-organizations"] });
+      qc.invalidateQueries({ queryKey: ["admin-org-verification-details"] });
       setActionModal(null);
       setViewOrgId(null);
     },
@@ -717,6 +734,7 @@ export const AdminOrganizations = () => {
       {/* Verification Details Modal / Drawer */}
       {viewOrgId && detailQuery.data?.data && (
         <Modal
+          isOpen={Boolean(viewOrgId)}
           open={Boolean(viewOrgId)}
           onClose={() => setViewOrgId(null)}
           title={`Verification Review: ${detailQuery.data.data.organization?.name}`}
@@ -725,12 +743,14 @@ export const AdminOrganizations = () => {
           {(() => {
             const org = detailQuery.data.data.organization || {};
             const owner = detailQuery.data.data.owner || {};
+            const hiringStats = detailQuery.data.data.hiringStats || {};
             const risk = org.riskScore || 0;
             const riskFlags = org.riskFlags || [];
             const docs = org.documents || [];
 
             return (
               <div className="space-y-6">
+                {/* Legal & Business Overview */}
                 <div className="grid gap-4 rounded-xl border border-ink-100 bg-ink-50/50 p-4 sm:grid-cols-2">
                   <div>
                     <p className="text-xs text-ink-500">Business Email</p>
@@ -748,14 +768,67 @@ export const AdminOrganizations = () => {
                     <p className="text-xs text-ink-500">Registration / CIN</p>
                     <p className="font-mono text-sm font-bold text-ink-900">{org.registrationNumber || "Unsubmitted"}</p>
                   </div>
+                  <div className="sm:col-span-2">
+                    <p className="text-xs text-ink-500">Physical Address</p>
+                    <p className="text-sm text-ink-800">
+                      {org.address?.street
+                        ? `${org.address.street}, ${org.address.city}, ${org.address.state} - ${org.address.pincode}, ${org.address.country}`
+                        : "Address not provided"}
+                    </p>
+                  </div>
                 </div>
 
+                {/* Recruiter Account Info */}
                 <div className="rounded-xl border border-ink-100 p-4">
                   <h4 className="text-xs font-bold uppercase tracking-wider text-ink-500">Primary Recruiter Owner</h4>
                   <p className="mt-1 text-sm font-semibold text-ink-900">{owner.name || "Owner User"}</p>
                   <p className="text-xs text-ink-500">{owner.email} · {owner.phone || "No phone"}</p>
                 </div>
 
+                {/* Full Hiring & Placement Breakdown */}
+                {hiringStats.totalJobs !== undefined && (
+                  <div className="rounded-xl border border-ink-100 p-4">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-ink-500">
+                      Company Hiring & Placement Activity
+                    </h4>
+                    <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4 text-xs">
+                      <div className="rounded-lg bg-ink-50 p-2.5 text-center">
+                        <span className="block font-bold text-base text-ink-950">{hiringStats.totalJobs || 0}</span>
+                        <span className="text-ink-500">Total Jobs</span>
+                      </div>
+                      <div className="rounded-lg bg-ink-50 p-2.5 text-center">
+                        <span className="block font-bold text-base text-brand-700">{hiringStats.pendingJobs || 0}</span>
+                        <span className="text-ink-500">Pending Jobs</span>
+                      </div>
+                      <div className="rounded-lg bg-ink-50 p-2.5 text-center">
+                        <span className="block font-bold text-base text-emerald-700">{hiringStats.totalApplications || 0}</span>
+                        <span className="text-ink-500">Total Applicants</span>
+                      </div>
+                      <div className="rounded-lg bg-ink-50 p-2.5 text-center">
+                        <span className="block font-bold text-base text-emerald-700">{hiringStats.hiredCount || 0}</span>
+                        <span className="text-ink-500">Candidates Hired</span>
+                      </div>
+                      <div className="rounded-lg bg-ink-50 p-2.5 text-center">
+                        <span className="block font-bold text-base text-brand-700">{hiringStats.shortlistedCount || 0}</span>
+                        <span className="text-ink-500">Shortlisted</span>
+                      </div>
+                      <div className="rounded-lg bg-ink-50 p-2.5 text-center">
+                        <span className="block font-bold text-base text-brand-700">{hiringStats.interviewCount || 0}</span>
+                        <span className="text-ink-500">Interviews</span>
+                      </div>
+                      <div className="rounded-lg bg-ink-50 p-2.5 text-center">
+                        <span className="block font-bold text-base text-emerald-700">{hiringStats.confirmedJoinings || 0}</span>
+                        <span className="text-ink-500">Confirmed Joinings</span>
+                      </div>
+                      <div className="rounded-lg bg-ink-50 p-2.5 text-center">
+                        <span className="block font-bold text-base text-emerald-700">{hiringStats.verifiedEmployees || 0}</span>
+                        <span className="text-ink-500">Verified Employees</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Risk Indicators Card */}
                 <div className="rounded-xl border border-ink-100 p-4">
                   <div className="flex items-center justify-between">
                     <h4 className="text-xs font-bold uppercase tracking-wider text-ink-500">
@@ -791,6 +864,7 @@ export const AdminOrganizations = () => {
                   )}
                 </div>
 
+                {/* Uploaded Documents */}
                 <div className="rounded-xl border border-ink-100 p-4">
                   <h4 className="text-xs font-bold uppercase tracking-wider text-ink-500">Submitted Documents</h4>
                   {docs.length === 0 ? (
@@ -807,6 +881,7 @@ export const AdminOrganizations = () => {
                   )}
                 </div>
 
+                {/* Action Controls */}
                 <div className="flex flex-wrap items-center justify-end gap-3 pt-4 border-t border-ink-100">
                   <Button
                     variant="outline"
@@ -836,6 +911,16 @@ export const AdminOrganizations = () => {
                     >
                       Suspend
                     </Button>
+                  ) : org.verificationStatus === "suspended" || org.verificationStatus === "rejected" ? (
+                    <Button
+                      variant="primary"
+                      onClick={() => {
+                        setActionModal({ type: "reactivate", org });
+                        setActionReason("");
+                      }}
+                    >
+                      Reactivate Company
+                    </Button>
                   ) : (
                     <Button
                       variant="primary"
@@ -857,21 +942,24 @@ export const AdminOrganizations = () => {
       {/* Confirmation Action Modal */}
       {actionModal && (
         <Modal
+          isOpen={Boolean(actionModal)}
           open={Boolean(actionModal)}
           onClose={() => setActionModal(null)}
           title={
             actionModal.type === "verify"
               ? `Approve Verification for ${actionModal.org?.name}`
-              : actionModal.type === "reject"
-                ? `Reject Verification for ${actionModal.org?.name}`
-                : actionModal.type === "suspend"
-                  ? `Suspend Company: ${actionModal.org?.name}`
-                  : `Request Additional Information from ${actionModal.org?.name}`
+              : actionModal.type === "reactivate"
+                ? `Reactivate Company: ${actionModal.org?.name}`
+                : actionModal.type === "reject"
+                  ? `Reject Verification for ${actionModal.org?.name}`
+                  : actionModal.type === "suspend"
+                    ? `Suspend Company: ${actionModal.org?.name}`
+                    : `Request Additional Information from ${actionModal.org?.name}`
           }
         >
           <div className="space-y-4">
             <p className="text-xs text-ink-600">
-              {actionModal.type === "verify"
+              {actionModal.type === "verify" || actionModal.type === "reactivate"
                 ? "Approving verification will enable this company to publish jobs and accept applications."
                 : actionModal.type === "reject"
                   ? "Rejecting will unpublish any draft listings and notify the recruiter owner with the reason."
@@ -880,7 +968,7 @@ export const AdminOrganizations = () => {
                     : "Specify what documents or details are needed from the employer."}
             </p>
 
-            {actionModal.type !== "verify" ? (
+            {actionModal.type !== "verify" && actionModal.type !== "reactivate" ? (
               <Textarea
                 label="Reason / Notes (Required)"
                 placeholder="Enter detailed explanation..."
@@ -904,10 +992,12 @@ export const AdminOrganizations = () => {
                 Cancel
               </Button>
               <Button
-                variant={actionModal.type === "verify" ? "primary" : "danger"}
+                variant={actionModal.type === "verify" || actionModal.type === "reactivate" ? "primary" : "danger"}
                 onClick={() => {
                   if (actionModal.type === "verify") {
                     verifyMutation.mutate({ orgId: actionModal.org._id, notes: actionReason });
+                  } else if (actionModal.type === "reactivate") {
+                    reactivateMutation.mutate({ orgId: actionModal.org._id, reason: actionReason });
                   } else if (actionModal.type === "reject") {
                     if (!actionReason.trim()) return toast.error("Rejection reason is required");
                     rejectMutation.mutate({ orgId: actionModal.org._id, reason: actionReason });
@@ -920,6 +1010,7 @@ export const AdminOrganizations = () => {
                 }}
                 loading={
                   verifyMutation.isPending ||
+                  reactivateMutation.isPending ||
                   rejectMutation.isPending ||
                   requestInfoMutation.isPending ||
                   suspendMutation.isPending
@@ -936,165 +1027,312 @@ export const AdminOrganizations = () => {
 };
 
 /* =========================================================================
-   3. ADMIN MODERATION (Enhanced Job Moderation with Company Trust Badges)
+   3. ADMIN MODERATION (Company-Level Job Moderation & Bulk Approval)
    ========================================================================= */
 export const AdminModeration = () => {
   const toast = useToast();
   const qc = useQueryClient();
-  const [tab, setTab] = useState("pending");
+
   const [search, setSearch] = useState("");
-  const [target, setTarget] = useState(null);
+  const [verificationStatus, setVerificationStatus] = useState("all");
+  const [riskLevel, setRiskLevel] = useState("all");
+  const [viewOrgJobs, setViewOrgJobs] = useState(null); // orgId
+  const [inspectOrgId, setInspectOrgId] = useState(null); // orgId
+  const [bulkApproveTarget, setBulkApproveTarget] = useState(null); // { orgId, companyName, count }
+  const [target, setTarget] = useState(null); // { action: 'approve'|'reject', job, changes }
   const [reason, setReason] = useState("");
-  const [view, setView] = useState(null);
+  const [detailJob, setDetailJob] = useState(null);
 
-  const effectiveStatus = (job) =>
-    job.changeReview?.status === "pending" ? "changes_pending" : job.moderation?.status;
+  const debounced = useDebouncedValue(search, 300);
+  const params = useMemo(
+    () => ({
+      search: debounced || undefined,
+      verificationStatus: verificationStatus !== "all" ? verificationStatus : undefined,
+      riskLevel: riskLevel !== "all" ? riskLevel : undefined,
+    }),
+    [debounced, verificationStatus, riskLevel],
+  );
 
-  const statuses = tab === "all" ? ["pending", "approved", "rejected"] : [tab];
-  const results = useQueries({
-    queries: statuses.map((s) => ({
-      queryKey: ["moderation-jobs", s],
-      queryFn: () => adminApi.moderation({ status: s, limit: 50 }),
-    })),
+  // 1. Company Moderation Summary Query
+  const companiesQuery = useQuery({
+    queryKey: ["admin-moderation-companies", params],
+    queryFn: () => (adminApi.moderationCompanies ? adminApi.moderationCompanies(params) : Promise.resolve({ data: [] })),
   });
 
-  const act = useMutation({
-    mutationFn: ({ jobId, action }) =>
+  // 2. Direct Jobs Query (for fallback / compatibility)
+  const legacyJobsQuery = useQuery({
+    queryKey: ["moderation-jobs", "pending"],
+    queryFn: () => (adminApi.moderation ? adminApi.moderation({ status: "pending", limit: 50 }) : Promise.resolve({ data: [] })),
+  });
+
+  // 3. Company Jobs Details Query
+  const companyJobsQuery = useQuery({
+    queryKey: ["admin-company-jobs", viewOrgJobs],
+    queryFn: () => adminApi.companyModerationJobs(viewOrgJobs),
+    enabled: Boolean(viewOrgJobs),
+  });
+
+  // 4. Inspect Org Verification Details Query
+  const orgInspectQuery = useQuery({
+    queryKey: ["admin-org-verification-details", inspectOrgId],
+    queryFn: () => adminApi.orgVerificationDetails(inspectOrgId),
+    enabled: Boolean(inspectOrgId),
+  });
+
+  // Single Job Moderate Mutation
+  const moderateMutation = useMutation({
+    mutationFn: ({ jobId, action, reason }) =>
       adminApi.moderate(jobId, action, action === "reject" ? reason || undefined : undefined),
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-moderation-companies"] });
       qc.invalidateQueries({ queryKey: ["moderation-jobs"] });
+      qc.invalidateQueries({ queryKey: ["admin-company-jobs"] });
       toast.success(
         target?.action === "approve"
           ? target?.changes
-            ? "Changes approved — now live"
-            : "Job approved"
-          : target?.changes
-            ? "Changes rejected — previous version stays live"
-            : "Job rejected",
+            ? "Changes approved — listing now live"
+            : "Job approved successfully"
+          : "Job rejected",
       );
       setTarget(null);
       setReason("");
+      setDetailJob(null);
     },
-    onError: (error) => toast.error(error.message),
+    onError: (err) => toast.error(err.message),
   });
 
-  const loading = results.some((r) => r.isLoading);
-  const all = results
-    .flatMap((r) => r.data?.data || [])
-    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  // Bulk Approve Mutation
+  const bulkApproveMutation = useMutation({
+    mutationFn: (orgId) => adminApi.bulkApproveJobs(orgId),
+    onSuccess: (res) => {
+      toast.success(res.data?.message || "All eligible jobs approved successfully!");
+      qc.invalidateQueries({ queryKey: ["admin-moderation-companies"] });
+      qc.invalidateQueries({ queryKey: ["moderation-jobs"] });
+      qc.invalidateQueries({ queryKey: ["admin-company-jobs"] });
+      setBulkApproveTarget(null);
+      setViewOrgJobs(null);
+    },
+    onError: (err) => toast.error(err.message),
+  });
 
-  const jobs = all.filter((j) => {
+  const loading = companiesQuery.isLoading && legacyJobsQuery.isLoading;
+  const companiesList = companiesQuery.data?.data || [];
+  const legacyJobs = legacyJobsQuery.data?.data || [];
+
+  // Group legacy jobs by company if companiesQuery returned 0
+  const effectiveCompanies = useMemo(() => {
+    if (companiesList.length > 0) return companiesList;
+    if (legacyJobs.length === 0) return [];
+
+    const grouped = {};
+    for (const j of legacyJobs) {
+      const orgId = j.organization?._id || j.organization?.id || "legacy-org";
+      if (!grouped[orgId]) {
+        grouped[orgId] = {
+          organizationId: orgId,
+          _id: orgId,
+          companyName: j.company || j.organization?.name || "Company",
+          companySlug: j.organization?.slug || "",
+          verificationStatus: j.organization?.verificationStatus || "verified",
+          riskScore: j.organization?.riskScore || 0,
+          riskFlags: j.organization?.riskFlags || [],
+          jobCounts: { total: 0, pending: 0, approved: 0, rejected: 0 },
+          latestSubmission: j.createdAt,
+          jobs: [],
+        };
+      }
+      grouped[orgId].jobCounts.total += 1;
+      if (j.moderation?.status === "pending" || j.changeReview?.status === "pending") {
+        grouped[orgId].jobCounts.pending += 1;
+      } else if (j.moderation?.status === "approved") {
+        grouped[orgId].jobCounts.approved += 1;
+      } else {
+        grouped[orgId].jobCounts.rejected += 1;
+      }
+      grouped[orgId].jobs.push(j);
+    }
+    return Object.values(grouped);
+  }, [companiesList, legacyJobs]);
+
+  const filteredCompanies = effectiveCompanies.filter((c) => {
     if (!search) return true;
-    const hay = `${j.title} ${j.company} ${j.location} ${j.organization?.name || ""}`.toLowerCase();
-    return hay.includes(search.toLowerCase());
+    const term = search.toLowerCase();
+    return (
+      c.companyName?.toLowerCase().includes(term) ||
+      c.companySlug?.toLowerCase().includes(term) ||
+      (c.jobs || []).some((j) => j.title?.toLowerCase().includes(term))
+    );
   });
 
-  const countFor = (s) =>
-    s === "all"
-      ? all.length
-      : all.filter(
-          (j) =>
-            effectiveStatus(j) === s || (s === "pending" && j.moderation?.status === "pending"),
-        ).length;
+  const totalPendingJobs = filteredCompanies.reduce((s, c) => s + (c.jobCounts?.pending || 0), 0);
 
   return (
     <div className="page-wrap space-y-6">
-      <PageHeader
-        eyebrow="Job Moderation"
-        title="Job Listing Moderation"
-        description="Inspect job postings submitted by employers. Verify company authenticity, check for suspicious deposit keywords, and approve or reject listings."
-      />
-
-      <div className="mb-4 flex flex-wrap gap-2" role="tablist" aria-label="Approval status">
-        {["all", "pending", "approved", "rejected"].map((s) => (
-          <button
-            key={s}
-            type="button"
-            role="tab"
-            aria-selected={tab === s}
-            onClick={() => setTab(s)}
-            className={`rounded-full px-4 py-1.5 text-sm font-semibold capitalize transition ${
-              tab === s ? "bg-ink-950 text-white" : "bg-ink-50 text-ink-600 hover:bg-ink-100"
-            }`}
-          >
-            {s} ({loading ? "…" : countFor(s)})
-          </button>
-        ))}
+      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+        <PageHeader
+          eyebrow="Job Moderation"
+          title="Job Listing Moderation"
+          description="Grouped by employer organization. Verify company authenticity, inspect job compensation, and approve or reject listings individually or in bulk."
+        />
+        <div className="flex items-center gap-2">
+          <Badge tone={totalPendingJobs > 0 ? "warning" : "success"}>
+            {totalPendingJobs} Total Pending Approval
+          </Badge>
+        </div>
       </div>
 
       <FilterBar>
         <Input
           aria-label="Search approvals"
-          placeholder="Search by job title, company or location..."
+          placeholder="Search by company or job title..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="lg:max-w-xs"
+        />
+        <Select
+          aria-label="Filter by verification"
+          value={verificationStatus}
+          onChange={(e) => setVerificationStatus(e.target.value)}
+          options={VERIFICATION_STATUS_OPTIONS}
+          className="lg:max-w-44"
+        />
+        <Select
+          aria-label="Filter by risk score"
+          value={riskLevel}
+          onChange={(e) => setRiskLevel(e.target.value)}
+          options={RISK_LEVEL_OPTIONS}
+          className="lg:max-w-44"
         />
       </FilterBar>
 
       {loading ? (
         <SkeletonList />
-      ) : jobs.length === 0 ? (
+      ) : filteredCompanies.length === 0 ? (
         <EmptyState
-          title={`No ${tab === "all" ? "" : tab} jobs to review`}
+          title="No job listings to moderate"
           description={
             search
-              ? "No job listings match your current search terms."
-              : "When employers publish job listings, they will appear here for review."
+              ? "No companies or job postings match your search criteria."
+              : "When employer companies submit job listings, they will appear here grouped by company for review."
           }
         />
       ) : (
-        <div className="grid gap-4">
-          {jobs.map((j) => {
-            const isChange = j.changeReview?.status === "pending";
-            const org = j.organization || {};
-            const orgVerified = org.verificationStatus === "verified";
-            const risk = org.riskScore || 0;
+        <div className="grid gap-6">
+          {filteredCompanies.map((c) => {
+            const orgId = c.organizationId || c._id;
+            const isVerified = c.verificationStatus === "verified";
+            const risk = c.riskScore || 0;
+            const riskTone = risk <= 25 ? "success" : risk <= 60 ? "warning" : "danger";
+            const pendingCount = c.jobCounts?.pending || 0;
 
             return (
               <div
-                key={j.id}
-                className="flex flex-col justify-between gap-4 rounded-2xl border border-ink-100 bg-white p-5 shadow-xs sm:flex-row sm:items-center"
+                key={orgId}
+                className="overflow-hidden rounded-2xl border border-ink-100 bg-white shadow-sm transition-all hover:border-brand-200"
               >
-                <div className="space-y-1.5">
+                {/* Company Card Header */}
+                <div className="flex flex-col justify-between gap-4 border-b border-ink-100 bg-ink-50/50 p-5 sm:flex-row sm:items-center">
+                  <div className="flex items-center gap-3.5">
+                    <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-ink-950 font-bold text-white shadow-xs">
+                      {initials(c.companyName)}
+                    </span>
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-base font-bold text-ink-950">{c.companyName}</h3>
+                        <Badge tone={isVerified ? "success" : "warning"}>
+                          {c.verificationStatus}
+                        </Badge>
+                        <Badge tone={riskTone}>
+                          Risk: {risk}/100
+                        </Badge>
+                      </div>
+                      <p className="mt-0.5 text-xs text-ink-500">
+                        {c.industry || "Technology"} · {c.jobCounts?.total || 0} Total Listings · Latest:{" "}
+                        {c.latestSubmission ? formatRelativeTime(c.latestSubmission) : "Recent"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Company Level Actions */}
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-bold text-ink-900">{j.title}</span>
-                    <Badge tone={isChange ? "warning" : j.moderation?.status === "approved" ? "success" : "ink"}>
-                      {isChange ? "Edits Pending" : j.moderation?.status || "pending"}
-                    </Badge>
-                    <Badge tone={orgVerified ? "success" : "warning"}>
-                      {orgVerified ? "Verified Company" : "Unverified Company"}
-                    </Badge>
-                    {risk > 25 && (
-                      <Badge tone={risk > 60 ? "danger" : "warning"}>
-                        Risk: {risk}/100
-                      </Badge>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setInspectOrgId(orgId)}
+                    >
+                      Inspect Company
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setViewOrgJobs(orgId)}
+                    >
+                      View All Jobs ({c.jobCounts?.total || 0})
+                    </Button>
+                    {isVerified && pendingCount > 0 && (
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        onClick={() =>
+                          setBulkApproveTarget({
+                            orgId,
+                            companyName: c.companyName,
+                            count: pendingCount,
+                          })
+                        }
+                      >
+                        Approve All Eligible ({pendingCount})
+                      </Button>
                     )}
                   </div>
-                  <p className="text-xs text-ink-500">
-                    {j.company || org.name} · {j.location} · {j.workplaceMode} · ₹{((j.compensation?.min || j.salary || 0) / 100000).toFixed(1)} - {((j.compensation?.max || j.salary || 0) / 100000).toFixed(1)} LPA
-                  </p>
-                  <p className="line-clamp-2 text-xs text-ink-600">{j.description}</p>
                 </div>
 
-                <div className="flex shrink-0 items-center gap-2">
-                  <Button size="sm" variant="outline" onClick={() => setView(j)}>
-                    View Details
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="primary"
-                    onClick={() => setTarget({ action: "approve", job: j, changes: isChange })}
-                  >
-                    Approve
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="danger"
-                    onClick={() => setTarget({ action: "reject", job: j, changes: isChange })}
-                  >
-                    Reject
-                  </Button>
+                {/* Direct Jobs Preview inside Card */}
+                <div className="divide-y divide-ink-100 p-2">
+                  {(c.jobs || legacyJobs.filter((j) => (j.organization?._id || j.organization?.id) === orgId))
+                    .slice(0, 3)
+                    .map((j) => {
+                      const isChange = j.changeReview?.status === "pending";
+
+                      return (
+                        <div
+                          key={j.id || j._id}
+                          className="flex flex-col justify-between gap-3 p-4 sm:flex-row sm:items-center hover:bg-ink-50/40 rounded-xl"
+                        >
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-ink-900">{j.title}</span>
+                              <Badge tone={isChange ? "warning" : j.moderation?.status === "approved" ? "success" : "ink"}>
+                                {isChange ? "Edits Pending" : j.moderation?.status || "pending"}
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-ink-500">
+                              {j.location} · {j.workplaceMode} · ₹{((j.compensation?.min || j.salary || 0) / 100000).toFixed(1)} - {((j.compensation?.max || j.salary || 0) / 100000).toFixed(1)} LPA
+                            </p>
+                          </div>
+
+                          <div className="flex shrink-0 items-center gap-2">
+                            <Button size="sm" variant="outline" onClick={() => setDetailJob(j)}>
+                              View Details
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="primary"
+                              onClick={() => setTarget({ action: "approve", job: j, changes: isChange })}
+                            >
+                              Approve
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="danger"
+                              onClick={() => setTarget({ action: "reject", job: j, changes: isChange })}
+                            >
+                              Reject
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
                 </div>
               </div>
             );
@@ -1102,29 +1340,257 @@ export const AdminModeration = () => {
         </div>
       )}
 
-      {/* Full Job Detail Drawer / Modal */}
-      {view && (
-        <Modal open={Boolean(view)} onClose={() => setView(null)} title={view.title} size="lg">
+      {/* 1. Company Jobs Drawer / Modal */}
+      {viewOrgJobs && companyJobsQuery.data?.data && (
+        <Modal
+          isOpen={Boolean(viewOrgJobs)}
+          open={Boolean(viewOrgJobs)}
+          onClose={() => setViewOrgJobs(null)}
+          title={`Job Listings: ${companyJobsQuery.data.data.organization?.name}`}
+          size="lg"
+        >
+          {(() => {
+            const org = companyJobsQuery.data.data.organization || {};
+            const jobs = companyJobsQuery.data.data.jobs || [];
+            const isVerified = org.verificationStatus === "verified";
+            const pendingJobs = jobs.filter(
+              (j) => j.moderation?.status === "pending" || j.changeReview?.status === "pending",
+            );
+
+            return (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between border-b border-ink-100 pb-3">
+                  <div className="flex items-center gap-2">
+                    <Badge tone={isVerified ? "success" : "warning"}>{org.verificationStatus}</Badge>
+                    <span className="text-xs text-ink-500">{jobs.length} total job postings</span>
+                  </div>
+                  {isVerified && pendingJobs.length > 0 && (
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      onClick={() =>
+                        setBulkApproveTarget({
+                          orgId: org.id || org._id,
+                          companyName: org.name,
+                          count: pendingJobs.length,
+                        })
+                      }
+                    >
+                      Approve All Eligible ({pendingJobs.length})
+                    </Button>
+                  )}
+                </div>
+
+                <div className="max-h-[60vh] overflow-y-auto space-y-3">
+                  {jobs.length === 0 ? (
+                    <p className="py-8 text-center text-sm text-ink-400">No jobs posted by this company yet.</p>
+                  ) : (
+                    jobs.map((j) => (
+                      <div
+                        key={j.id || j._id}
+                        className="flex flex-col justify-between gap-3 rounded-xl border border-ink-100 bg-white p-4 sm:flex-row sm:items-center"
+                      >
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-ink-900">{j.title}</span>
+                            <Badge tone={j.moderation?.status === "approved" ? "success" : "warning"}>
+                              {j.moderation?.status || "pending"}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-ink-500">
+                            {j.department} · {j.location} · {j.workplaceMode} · {j.salaryInrLpa} · {j.applicationCount} Applicants
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <Button size="sm" variant="outline" onClick={() => setDetailJob(j)}>
+                            Details
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="primary"
+                            onClick={() =>
+                              setTarget({ action: "approve", job: j, changes: j.changeReview?.status === "pending" })
+                            }
+                          >
+                            Approve
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="danger"
+                            onClick={() =>
+                              setTarget({ action: "reject", job: j, changes: j.changeReview?.status === "pending" })
+                            }
+                          >
+                            Reject
+                          </Button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+        </Modal>
+      )}
+
+      {/* 2. Full Company Inspection Modal */}
+      {inspectOrgId && orgInspectQuery.data?.data && (
+        <Modal
+          isOpen={Boolean(inspectOrgId)}
+          open={Boolean(inspectOrgId)}
+          onClose={() => setInspectOrgId(null)}
+          title={`Company Inspection: ${orgInspectQuery.data.data.organization?.name}`}
+          size="lg"
+        >
+          {(() => {
+            const org = orgInspectQuery.data.data.organization || {};
+            const owner = orgInspectQuery.data.data.owner || {};
+            const hiringStats = orgInspectQuery.data.data.hiringStats || {};
+            const risk = org.riskScore || 0;
+            const riskFlags = org.riskFlags || [];
+            const docs = org.documents || [];
+
+            return (
+              <div className="space-y-6">
+                <div className="grid gap-4 rounded-xl border border-ink-100 bg-ink-50/50 p-4 sm:grid-cols-2">
+                  <div>
+                    <p className="text-xs text-ink-500">Business Email</p>
+                    <p className="text-sm font-semibold text-ink-900">{org.businessEmail || "None provided"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-ink-500">Official Phone</p>
+                    <p className="text-sm font-semibold text-ink-900">{org.phone || "None provided"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-ink-500">GSTIN Identification</p>
+                    <p className="font-mono text-sm font-bold text-ink-900">{org.gstin || "Unsubmitted"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-ink-500">Registration / CIN</p>
+                    <p className="font-mono text-sm font-bold text-ink-900">{org.registrationNumber || "Unsubmitted"}</p>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-ink-100 p-4">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-ink-500">Primary Recruiter Owner</h4>
+                  <p className="mt-1 text-sm font-semibold text-ink-900">{owner.name || "Owner User"}</p>
+                  <p className="text-xs text-ink-500">{owner.email} · {owner.phone || "No phone"}</p>
+                </div>
+
+                {hiringStats.totalJobs !== undefined && (
+                  <div className="rounded-xl border border-ink-100 p-4">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-ink-500">
+                      Company Hiring & Placement Activity
+                    </h4>
+                    <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4 text-xs">
+                      <div className="rounded-lg bg-ink-50 p-2.5 text-center">
+                        <span className="block font-bold text-base text-ink-950">{hiringStats.totalJobs || 0}</span>
+                        <span className="text-ink-500">Total Jobs</span>
+                      </div>
+                      <div className="rounded-lg bg-ink-50 p-2.5 text-center">
+                        <span className="block font-bold text-base text-brand-700">{hiringStats.pendingJobs || 0}</span>
+                        <span className="text-ink-500">Pending Jobs</span>
+                      </div>
+                      <div className="rounded-lg bg-ink-50 p-2.5 text-center">
+                        <span className="block font-bold text-base text-emerald-700">{hiringStats.totalApplications || 0}</span>
+                        <span className="text-ink-500">Total Applicants</span>
+                      </div>
+                      <div className="rounded-lg bg-ink-50 p-2.5 text-center">
+                        <span className="block font-bold text-base text-emerald-700">{hiringStats.hiredCount || 0}</span>
+                        <span className="text-ink-500">Candidates Hired</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="rounded-xl border border-ink-100 p-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-ink-500">
+                      Fraud & Risk Assessment ({risk}/100)
+                    </h4>
+                    <Badge tone={risk <= 25 ? "success" : risk <= 60 ? "warning" : "danger"}>
+                      {risk <= 25 ? "Low Risk" : risk <= 60 ? "Medium Risk" : "High Risk"}
+                    </Badge>
+                  </div>
+                  {riskFlags.length === 0 ? (
+                    <p className="mt-2 text-xs text-emerald-700">✓ No suspicious risk flags detected for this company.</p>
+                  ) : (
+                    <div className="mt-3 space-y-2">
+                      {riskFlags.map((flag, idx) => (
+                        <div key={idx} className="flex items-start gap-2 text-xs">
+                          <AlertTriangle
+                            className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${
+                              flag.severity === "high" ? "text-danger-600" : "text-amber-600"
+                            }`}
+                          />
+                          <span className="text-ink-700">{flag.message}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex justify-end gap-3 pt-4 border-t border-ink-100">
+                  <Button variant="outline" onClick={() => setInspectOrgId(null)}>Close</Button>
+                </div>
+              </div>
+            );
+          })()}
+        </Modal>
+      )}
+
+      {/* 3. Bulk Approval Confirmation Modal */}
+      {bulkApproveTarget && (
+        <Modal
+          isOpen={Boolean(bulkApproveTarget)}
+          open={Boolean(bulkApproveTarget)}
+          onClose={() => setBulkApproveTarget(null)}
+          title={`Bulk Approve Job Listings`}
+        >
+          <div className="space-y-4">
+            <p className="text-sm text-ink-700">
+              Are you sure you want to approve all <strong>{bulkApproveTarget.count}</strong> eligible pending job postings for <strong>{bulkApproveTarget.companyName}</strong>?
+            </p>
+            <p className="text-xs text-ink-500">
+              Approved job postings will immediately become live and visible to candidates across the platform.
+            </p>
+            <div className="flex justify-end gap-3 pt-4">
+              <Button variant="outline" onClick={() => setBulkApproveTarget(null)}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() => bulkApproveMutation.mutate(bulkApproveTarget.orgId)}
+                loading={bulkApproveMutation.isPending}
+              >
+                Approve All {bulkApproveTarget.count} Jobs
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* 4. Single Job Detail Modal */}
+      {detailJob && (
+        <Modal isOpen={Boolean(detailJob)} open={Boolean(detailJob)} onClose={() => setDetailJob(null)} title={detailJob.title} size="lg">
           <div className="space-y-4">
             <div className="flex items-center gap-2">
-              <Badge tone={view.organization?.verificationStatus === "verified" ? "success" : "warning"}>
-                {view.organization?.verificationStatus === "verified" ? "Verified Employer" : "Unverified Employer"}
-              </Badge>
-              <Badge tone="ink">{view.workplaceMode}</Badge>
-              <Badge tone="brand">{view.experience}</Badge>
+              <Badge tone="ink">{detailJob.workplaceMode}</Badge>
+              <Badge tone="brand">{detailJob.experience}</Badge>
             </div>
 
             <div className="rounded-xl bg-ink-50 p-4 text-xs text-ink-700">
               <p className="font-semibold text-ink-900">Company & Compensation:</p>
               <p className="mt-1">
-                {view.company} ({view.location}) · ₹{((view.compensation?.min || view.salary || 0) / 100000).toFixed(1)} - {((view.compensation?.max || view.salary || 0) / 100000).toFixed(1)} LPA
+                {detailJob.company} ({detailJob.location}) · ₹{((detailJob.compensation?.min || detailJob.salary || 0) / 100000).toFixed(1)} - {((detailJob.compensation?.max || detailJob.salary || 0) / 100000).toFixed(1)} LPA
               </p>
             </div>
 
             <div>
               <h4 className="text-xs font-bold uppercase tracking-wider text-ink-500">Required Skills</h4>
               <div className="mt-2 flex flex-wrap gap-1.5">
-                {(view.requiredSkills || []).map((s, i) => (
+                {(detailJob.requiredSkills || []).map((s, i) => (
                   <Badge key={i} tone="brand">{s}</Badge>
                 ))}
               </div>
@@ -1133,17 +1599,17 @@ export const AdminModeration = () => {
             <div>
               <h4 className="text-xs font-bold uppercase tracking-wider text-ink-500">Job Description</h4>
               <div className="mt-2 max-h-60 overflow-y-auto whitespace-pre-wrap rounded-xl border border-ink-100 p-4 text-xs leading-relaxed text-ink-700">
-                {view.description}
+                {detailJob.description}
               </div>
             </div>
 
             <div className="flex justify-end gap-3 pt-4 border-t border-ink-100">
-              <Button variant="outline" onClick={() => setView(null)}>Close</Button>
+              <Button variant="outline" onClick={() => setDetailJob(null)}>Close</Button>
               <Button
                 variant="primary"
                 onClick={() => {
-                  setTarget({ action: "approve", job: view, changes: view.changeReview?.status === "pending" });
-                  setView(null);
+                  setTarget({ action: "approve", job: detailJob, changes: detailJob.changeReview?.status === "pending" });
+                  setDetailJob(null);
                 }}
               >
                 Approve Listing
@@ -1153,9 +1619,10 @@ export const AdminModeration = () => {
         </Modal>
       )}
 
-      {/* Approve/Reject Confirmation Modal */}
+      {/* 5. Single Job Approve / Reject Modal */}
       {target && (
         <Modal
+          isOpen={Boolean(target)}
           open={Boolean(target)}
           onClose={() => setTarget(null)}
           title={target.action === "approve" ? `Approve "${target.job?.title}"` : `Reject "${target.job?.title}"`}
@@ -1186,9 +1653,9 @@ export const AdminModeration = () => {
                   if (target.action === "reject" && !reason.trim()) {
                     return toast.error("Rejection reason is required");
                   }
-                  act.mutate({ jobId: target.job.id, action: target.action });
+                  moderateMutation.mutate({ jobId: target.job.id || target.job._id, action: target.action, reason });
                 }}
-                loading={act.isPending}
+                loading={moderateMutation.isPending}
               >
                 Confirm {target.action === "approve" ? "Approval" : "Rejection"}
               </Button>
