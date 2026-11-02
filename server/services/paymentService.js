@@ -72,7 +72,7 @@ const verifyPaymentSignature = ({ orderId, paymentId, signature }) => {
   // Simulation verification
   if (orderId.startsWith("order_sim_") || signature.startsWith("sim_sig_")) {
     const expected = generateSimulationSignature(orderId, paymentId);
-    return signature === expected || signature === `sim_sig_${orderId}` || signature.length >= 32;
+    return signature === expected || signature === `sim_sig_${orderId}`;
   }
 
   // Live Razorpay HMAC verification

@@ -1869,7 +1869,7 @@ const seedPresentationData = async () => {
       {
         candEmail: "priya.sharma@example.com",
         jobKey: "apex-innovations|React Frontend Developer",
-        status: "verified_placement",
+        status: "placement_verified",
         offeredSalary: 600000,
         joiningDate: daysAgo(15),
         confirmedJoinedAt: daysAgo(15),
@@ -1925,7 +1925,7 @@ const seedPresentationData = async () => {
         {
           $set: {
             employmentStatus:
-              ps.status === "currently_working" || ps.status === "verified_placement"
+              ps.status === "currently_working" || ps.status === "placement_verified"
                 ? "employed"
                 : ps.status === "joining_confirmed" || ps.status === "offer_accepted"
                   ? "placed"
