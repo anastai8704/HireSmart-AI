@@ -1,54 +1,21 @@
 import { useMemo, useState } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Activity,
-  AlertCircle,
   AlertTriangle,
-  ArrowRight,
-  Brain,
-  BriefcaseBusiness,
   Building2,
-  Calendar,
-  Check,
-  CheckCircle2,
-  Clock,
   Clock3,
-  CreditCard,
   Database,
   DollarSign,
-  Download,
-  Eye,
   FileCheck2,
-  FileText,
-  Filter,
-  Flame,
-  Globe,
   Layers,
-  Mail,
-  MapPin,
-  Phone,
-  RefreshCw,
-  ScrollText,
-  Search,
-  Shield,
-  ShieldAlert,
   ShieldCheck,
   Sparkles,
-  TrendingUp,
-  UserCheck,
-  UserRound,
   Users,
-  UsersRound,
-  X,
-  XCircle,
   Zap,
 } from "lucide-react";
 import {
   ResponsiveContainer,
-  BarChart,
-  Bar,
-  LineChart,
   Line,
   XAxis,
   YAxis,
@@ -64,13 +31,11 @@ import Badge from "../../components/ui/Badge";
 import Modal from "../../components/ui/Modal";
 import ConfirmModal from "../../components/ui/ConfirmModal";
 import Kpi from "../../components/ui/Kpi";
-import SectionCard from "../../components/ui/SectionCard";
 import ActivityFeed from "../../components/ui/ActivityFeed";
 import PipelineFunnel from "../../components/ui/PipelineFunnel";
-import QuickActions from "../../components/ui/QuickActions";
 import { EmptyState, ErrorState, LoadingState, SkeletonList } from "../../components/ui/States";
-import { PageHeader, StatusPill } from "../../components/Product";
-import { adminApi, downloadBlob, jobsApi } from "../../lib/api";
+import { PageHeader } from "../../components/Product";
+import { adminApi } from "../../lib/api";
 import { useToast } from "../../components/ui/useToast";
 import {
   formatDate,
@@ -78,21 +43,10 @@ import {
   formatRelativeTime,
   initials,
   humanizeAction,
-  shortId,
 } from "../../lib/utils";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 
-const ROLE_OPTIONS = ["candidate", "recruiter", "admin"].map((x) => ({
-  value: x,
-  label: x.charAt(0).toUpperCase() + x.slice(1),
-}));
 
-const ORG_STATUS_OPTIONS = [
-  { value: "", label: "All statuses" },
-  { value: "active", label: "Active" },
-  { value: "suspended", label: "Suspended" },
-  { value: "archived", label: "Archived" },
-];
 
 const VERIFICATION_STATUS_OPTIONS = [
   { value: "all", label: "All verification states" },
@@ -182,10 +136,6 @@ export const AdminHome = () => {
     queryKey: ["admin-audit", {}],
     queryFn: () => adminApi.audit({ limit: 10 }),
   });
-  const readyQuery = useQuery({
-    queryKey: ["admin-health-ready"],
-    queryFn: () => (adminApi.ready ? adminApi.ready() : Promise.resolve({ data: { status: "ready" } })),
-  });
 
   const overviewQuery = useQuery({
     queryKey: ["admin-overview-analytics", selectedOrgId],
@@ -206,7 +156,6 @@ export const AdminHome = () => {
 
   const stats = overviewQuery.data?.data || null;
   const usersList = usersQuery.data?.data || [];
-  const orgsList = orgsQuery.data?.data || [];
   const pendingJobs = pendingQuery.data?.data || [];
   const aiRows = aiQuery.data?.data || [];
   const auditLogs = auditQuery.data?.data || [];
@@ -220,7 +169,6 @@ export const AdminHome = () => {
   const monthlyTrends = stats?.monthlyTrends || [];
   const companyWise = stats?.companyWiseStats || [];
   const deepDive = stats?.deepDive || null;
-  const topCompanies = stats?.topActiveCompanies || [];
 
   const activityItems = (stats?.recentActivity || auditLogs).slice(0, 8).map((a) => ({
     title: humanizeAction(a.action || a.type),
@@ -478,7 +426,6 @@ export const AdminHome = () => {
    2. ADMIN ORGANIZATIONS (Verification & Fraud Detection Interface)
    ========================================================================= */
 export const AdminOrganizations = () => {
-  const { organizationId } = useParams();
   const toast = useToast();
   const qc = useQueryClient();
 
@@ -1449,7 +1396,6 @@ export const AdminModeration = () => {
             const hiringStats = orgInspectQuery.data.data.hiringStats || {};
             const risk = org.riskScore || 0;
             const riskFlags = org.riskFlags || [];
-            const docs = org.documents || [];
 
             return (
               <div className="space-y-6">
@@ -1742,6 +1688,20 @@ export const AdminUsers = () => {
           ]}
           className="lg:max-w-40"
         />
+        <Select
+          aria-label="Filter by status"
+          value={status}
+          onChange={(e) => {
+            setStatus(e.target.value);
+            setCursor(null);
+          }}
+          options={[
+            { value: "", label: "All statuses" },
+            { value: "active", label: "Active" },
+            { value: "suspended", label: "Suspended" },
+          ]}
+          className="lg:max-w-40"
+        />
       </FilterBar>
 
       {q.isLoading ? (
@@ -1814,10 +1774,6 @@ export const AdminUsers = () => {
    ========================================================================= */
 export const AdminAIUsage = () => {
   const q = useQuery({ queryKey: ["admin-ai-usage"], queryFn: adminApi.aiUsage });
-  const act = useQuery({
-    queryKey: ["admin-ai-activity", 8],
-    queryFn: () => (adminApi.aiActivity ? adminApi.aiActivity({ limit: 8 }) : Promise.resolve({ data: [] })),
-  });
   if (q.isLoading) return <LoadingState message="Loading AI telemetry…" />;
   if (q.error) return <ErrorState error={q.error} onRetry={q.refetch} />;
 

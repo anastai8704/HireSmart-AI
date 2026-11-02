@@ -7,6 +7,8 @@ const app = require("../app");
 const { startDatabase, stopDatabase, clearDatabase } = require("./setup");
 const User = require("../models/User");
 const Notification = require("../models/Notification");
+const { Subscription } = require("../models/Subscription");
+const { RECRUITER_PLANS } = require("../config/subscriptionPlans");
 const { notify } = require("../services/notificationService");
 const auth = (token) => ({ Authorization: `Bearer ${token}` });
 
@@ -217,6 +219,11 @@ test("team events notify the organization owner", async () => {
   const ownerA = await User.findOne({ email: "team-a@example.com" }).lean();
   const orgA = (await request(app).get("/api/v1/organizations").set(auth(ownerAToken))).body
     .data[0];
+  await Subscription.findOneAndUpdate(
+    { subscriberType: "organization", subscriberId: orgA.id },
+    { $set: { planTier: "recruiter_growth", limits: RECRUITER_PLANS.recruiter_growth.limits } },
+    { upsert: true }
+  );
 
   const addMember = await request(app)
     .post(`/api/v1/organizations/${orgA.id}/members`)

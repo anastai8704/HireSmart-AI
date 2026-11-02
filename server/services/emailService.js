@@ -4,6 +4,10 @@ const logger = require("../utils/logger");
 const { renderEmail, roleLabel, fmtDate, escapeHtml } = require("./email/templates");
 
 const createTransporter = () => {
+  if (config.isTest) {
+    return nodemailer.createTransport({ jsonTransport: true });
+  }
+
   if (config.smtpHost && config.smtpUser && config.smtpPass) {
     return nodemailer.createTransport({
       host: config.smtpHost,
@@ -14,10 +18,6 @@ const createTransporter = () => {
         pass: config.smtpPass,
       },
     });
-  }
-
-  if (config.isTest) {
-    return nodemailer.createTransport({ jsonTransport: true });
   }
 
   return nodemailer.createTransport({

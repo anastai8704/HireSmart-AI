@@ -7,6 +7,7 @@ const request = require("supertest");
 const bcrypt = require("bcryptjs");
 const User = require("../models/User");
 const AIAnalysis = require("../models/AIAnalysis");
+const Organization = require("../models/Organization");
 const { startDatabase, stopDatabase, clearDatabase } = require("./setup");
 const app = require("../app");
 let candidateToken;
@@ -54,6 +55,10 @@ test("v1 candidate and recruiter can register with scoped organization", async (
   });
   recruiterToken = recruiter.token;
   organizationId = recruiter.registration.organization.id;
+  await Organization.updateOne(
+    { _id: organizationId },
+    { $set: { verificationStatus: "verified", verifiedAt: new Date() } },
+  );
   const candidate = await registerAndLogin({ email: "candidate@example.com", intent: "candidate" });
   candidateToken = candidate.token;
   const manager = await registerAndLogin({ email: "manager@example.com", intent: "candidate" });

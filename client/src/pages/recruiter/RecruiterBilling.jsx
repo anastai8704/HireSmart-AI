@@ -1,32 +1,24 @@
 import { useState } from "react";
-import { useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  CreditCard,
   Check,
-  Zap,
   Building2,
   Users,
   BriefcaseBusiness,
   Sparkles,
-  ArrowRight,
-  Clock,
   Download,
-  AlertCircle,
   CheckCircle2,
 } from "lucide-react";
 import Button from "../../components/ui/Button";
 import Badge from "../../components/ui/Badge";
 import Modal from "../../components/ui/Modal";
-import Kpi from "../../components/ui/Kpi";
-import { EmptyState, ErrorState, LoadingState } from "../../components/ui/States";
+import { ErrorState, LoadingState } from "../../components/ui/States";
 import { PageHeader } from "../../components/Product";
 import { subscriptionApi } from "../../lib/api";
 import { useToast } from "../../components/ui/useToast";
 import { formatDate } from "../../lib/utils";
 
 export const RecruiterBilling = () => {
-  const { organizationId } = useParams();
   const toast = useToast();
   const qc = useQueryClient();
 

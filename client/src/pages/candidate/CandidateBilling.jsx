@@ -5,17 +5,11 @@ import {
   Check,
   CheckCircle2,
   Zap,
-  Star,
-  FileCheck2,
-  Video,
-  Target,
-  ArrowRight,
-  Download,
 } from "lucide-react";
 import Button from "../../components/ui/Button";
 import Badge from "../../components/ui/Badge";
 import Modal from "../../components/ui/Modal";
-import { EmptyState, ErrorState, LoadingState } from "../../components/ui/States";
+import { ErrorState, LoadingState } from "../../components/ui/States";
 import { PageHeader } from "../../components/Product";
 import { subscriptionApi } from "../../lib/api";
 import { useToast } from "../../components/ui/useToast";
@@ -79,7 +73,6 @@ export const CandidateBilling = () => {
   }
 
   const sub = subQuery.data?.data?.subscription || {};
-  const currentPlan = subQuery.data?.data?.plan || {};
   const candidatePlans = plansQuery.data?.data?.candidate || [];
   const invoices = invoicesQuery.data?.data || [];
 

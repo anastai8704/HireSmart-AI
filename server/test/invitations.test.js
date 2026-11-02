@@ -9,6 +9,8 @@ const { startDatabase, stopDatabase, clearDatabase } = require("./setup");
 const User = require("../models/User");
 const Invite = require("../models/Invite");
 const { Membership, permissionsByRole } = require("../models/Membership");
+const { Subscription } = require("../models/Subscription");
+const { RECRUITER_PLANS } = require("../config/subscriptionPlans");
 const { createSession } = require("../services/sessionService");
 
 // NOTE: the route-level credential limiters (authLimit: 20/15min per IP) are
@@ -46,6 +48,11 @@ const createOrg = async (ownerToken, name) => {
     .set(auth(ownerToken))
     .send({ name });
   assert.equal(res.status, 201, JSON.stringify(res.body).slice(0, 300));
+  await Subscription.findOneAndUpdate(
+    { subscriberType: "organization", subscriberId: res.body.data._id },
+    { $set: { planTier: "recruiter_growth", limits: RECRUITER_PLANS.recruiter_growth.limits } },
+    { upsert: true }
+  );
   return res.body.data;
 };
 

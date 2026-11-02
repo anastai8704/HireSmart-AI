@@ -64,6 +64,10 @@ test("marketplace: org owner publishes structured jobs for the public", async ()
   const owner = await registerOwner("owner@marketplace.example", "Meridian Labs");
   ownerToken = owner.token;
   organizationId = owner.organization.id;
+  await Organization.updateOne(
+    { _id: organizationId },
+    { $set: { verificationStatus: "verified", verifiedAt: new Date() } },
+  );
 
   jobIds.react = (
     await createPublishedJob({
@@ -271,6 +275,10 @@ test("marketplace: organization updates are whitelisted (mass-assignment protect
 
 test("marketplace: tenant isolation — another org cannot see these jobs in company listing", async () => {
   const other = await registerOwner("owner@otherco.example", "Other Co");
+  await Organization.updateOne(
+    { _id: other.organization.id },
+    { $set: { verificationStatus: "verified", verifiedAt: new Date() } },
+  );
   const created = await request(app)
     .post(`/api/v1/organizations/${other.organization.id}/jobs`)
     .set(auth(other.token))

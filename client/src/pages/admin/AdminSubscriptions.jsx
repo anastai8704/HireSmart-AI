@@ -1,23 +1,14 @@
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   DollarSign,
   TrendingUp,
   CreditCard,
   Users,
-  Building2,
-  AlertCircle,
-  CheckCircle2,
-  Calendar,
-  FileText,
-  ShieldAlert,
 } from "lucide-react";
 import {
   ResponsiveContainer,
   BarChart,
   Bar,
-  LineChart,
-  Line,
   XAxis,
   YAxis,
   Tooltip,
@@ -28,11 +19,10 @@ import {
   Cell,
 } from "recharts";
 import Kpi from "../../components/ui/Kpi";
-import SectionCard from "../../components/ui/SectionCard";
 import Badge from "../../components/ui/Badge";
-import { EmptyState, ErrorState, LoadingState } from "../../components/ui/States";
-import { PageHeader, StatusPill } from "../../components/Product";
-import { adminApi, downloadBlob } from "../../lib/api";
+import { ErrorState, LoadingState } from "../../components/ui/States";
+import { PageHeader } from "../../components/Product";
+import { adminApi } from "../../lib/api";
 import { formatDate } from "../../lib/utils";
 
 const COLORS = ["#0052cc", "#00875a", "#ffab00", "#de350b", "#6554c0"];

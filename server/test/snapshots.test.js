@@ -6,6 +6,7 @@ const request = require("supertest");
 const app = require("../app");
 const { startDatabase, stopDatabase, clearDatabase } = require("./setup");
 const { tickRecommendationRefresh } = require("../services/recommendationSnapshotService");
+const Organization = require("../models/Organization");
 const RecommendationSnapshot = require("../models/RecommendationSnapshot");
 const auth = (token) => ({ Authorization: `Bearer ${token}` });
 
@@ -53,6 +54,10 @@ test("phase 4: seed candidate with ready resume and two published jobs", async (
   });
   ownerToken = owner.token;
   organizationId = owner.organization.id;
+  await Organization.updateOne(
+    { _id: organizationId },
+    { $set: { verificationStatus: "verified", verifiedAt: new Date() } },
+  );
   const candidate = await registerAndLogin({
     email: "candidate@snapshots.example",
     intent: "candidate",
