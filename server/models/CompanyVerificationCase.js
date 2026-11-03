@@ -54,7 +54,6 @@ const companyVerificationCaseSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Organization",
       required: true,
-      index: true,
     },
     status: { type: String, enum: caseStatuses, default: "pending", required: true },
     assessment: { type: String, enum: assessments, default: "unassessed", required: true },
@@ -97,11 +96,17 @@ companyVerificationCaseSchema.path("status").validate({
   message: "A company can only be verified with verified evidence",
 });
 
+// Organization lookups use this compound index (no separate single-field index on organization).
 companyVerificationCaseSchema.index({ organization: 1, createdAt: -1 });
 // At most one open case per organization. Concurrent duplicate submissions fail with E11000.
+// The explicit name avoids clashing with the auto-generated "organization_1" name.
 companyVerificationCaseSchema.index(
   { organization: 1 },
-  { unique: true, partialFilterExpression: { status: { $in: OPEN_STATUSES } } },
+  {
+    name: "uniq_open_case_per_organization",
+    unique: true,
+    partialFilterExpression: { status: { $in: OPEN_STATUSES } },
+  },
 );
 companyVerificationCaseSchema.index({ status: 1, createdAt: -1 });
 

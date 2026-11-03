@@ -23,7 +23,7 @@ test("the open-case index is unique per organization and partial to open statuse
   await clearDatabase();
   await CompanyVerificationCase.createIndexes();
   const indexes = await CompanyVerificationCase.collection.indexes();
-  const openCaseIndex = indexes.find((index) => index.name === "organization_1");
+  const openCaseIndex = indexes.find((index) => index.name === "uniq_open_case_per_organization");
   assert.ok(openCaseIndex, "organization index exists");
   assert.equal(openCaseIndex.unique, true);
   assert.deepEqual(openCaseIndex.partialFilterExpression, { status: { $in: ["pending", "under_review"] } });
