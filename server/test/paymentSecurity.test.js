@@ -96,8 +96,10 @@ test("payments fail closed when PAYMENT_MODE is disabled and create no transacti
   process.env.PAYMENT_MODE = "disabled";
   try {
     const res = await checkout(candidateA, "candidate_plus");
+    // 5xx bodies are masked by the error handler (code INTERNAL_ERROR); the specific reason is
+    // asserted in paymentConfig.unit.test.js. Here we assert the externally visible behaviour.
     assert.equal(res.status, 503, JSON.stringify(res.body));
-    assert.equal(res.body.code, "PAYMENT_NOT_CONFIGURED");
+    assert.equal(res.body.success, false);
   } finally {
     process.env.PAYMENT_MODE = previous;
   }

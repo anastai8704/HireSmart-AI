@@ -297,7 +297,7 @@ exports.verifyPayment = asyncHandler(async (req, res) => {
     claimed = await PaymentTransaction.findOneAndUpdate(
       { _id: txn._id, status: "initiated" },
       { $set: { status: "captured", gatewayPaymentId: String(paymentId), gatewaySignature: String(signature) } },
-      { new: true },
+      { returnDocument: "after" },
     );
   } catch (error) {
     if (error?.code === 11000) {
