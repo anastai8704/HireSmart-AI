@@ -8,7 +8,7 @@ const app = require("../app");
 const { startDatabase, stopDatabase, clearDatabase } = require("./setup");
 const { PaymentTransaction } = require("../models/PaymentTransaction");
 const { Membership } = require("../models/Membership");
-const Subscription = require("../models/Subscription");
+const { Subscription } = require("../models/Subscription");
 
 const PASSWORD = "StrongPassword123!";
 const API = "/api/v1";
