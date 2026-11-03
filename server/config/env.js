@@ -6,6 +6,8 @@ dotenv.config({
   quiet: process.env.NODE_ENV === "test",
 });
 
+const { validatePaymentConfig } = require("../services/paymentService");
+
 const nodeEnv = process.env.NODE_ENV || "development";
 const numberEnv = (name, fallback) =>
   process.env[name] === undefined || process.env[name] === ""
@@ -23,6 +25,10 @@ if (nodeEnv === "test") {
     STORAGE_PROVIDER: "local",
     REQUIRE_EMAIL_VERIFICATION: "false",
     CLIENT_URL: "http://localhost:5173",
+    // Test-only sandbox settings. The secret is a throw-away value used to sign
+    // simulated payments inside the automated test suite; it is never a real credential.
+    PAYMENT_MODE: "simulation",
+    PAYMENT_SIMULATION_SECRET: "test_only_payment_simulation_secret_0123456789",
   };
 
   for (const [key, value] of Object.entries(testDefaults)) {
@@ -160,6 +166,9 @@ const validateEnvironment = () => {
   if (missing.length > 0) {
     throw new Error(`Missing required environment variables: ${missing.join(", ")}`);
   }
+
+  // Payment configuration must fail closed: live modes and live credentials are rejected.
+  validatePaymentConfig();
 };
 
 module.exports = { config, validateEnvironment };

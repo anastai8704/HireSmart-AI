@@ -82,6 +82,31 @@ const requireOrganization = (permission) => async (req, res, next) => {
   next();
 };
 
+/**
+ * For routes shared by candidates and organization members. Candidates and platform admins
+ * pass through (the controller applies record-level scoping); every other user must supply
+ * an organization context whose active membership carries `permission`.
+ */
+const requireOrganizationForNonCandidate = (permission) => (req, res, next) => {
+  if (req.user?.role === "candidate" || req.auth?.platformRole === "platform_admin") {
+    return next();
+  }
+  return requireOrganization(permission)(req, res, next);
+};
+
+/** Returns the active membership for (user, organization) with `permission`, or null. */
+const findActiveMembership = async (userId, organizationId, permission) => {
+  if (!organizationId) return null;
+  const membership = await Membership.findOne({
+    organization: organizationId,
+    user: userId,
+    status: "active",
+  });
+  if (!membership) return null;
+  if (permission && !membership.hasPermission(permission)) return null;
+  return membership;
+};
+
 const requireAccountRole =
   (...roles) =>
   (req, res, next) => {
@@ -89,4 +114,11 @@ const requireAccountRole =
       return next(new AppError("You are not permitted to perform this action", 403, "FORBIDDEN"));
     next();
   };
-module.exports = { authenticate, optionalAuthenticate, requireOrganization, requireAccountRole };
+module.exports = {
+  authenticate,
+  optionalAuthenticate,
+  requireOrganization,
+  requireOrganizationForNonCandidate,
+  findActiveMembership,
+  requireAccountRole,
+};

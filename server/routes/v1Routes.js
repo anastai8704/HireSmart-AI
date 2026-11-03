@@ -7,8 +7,10 @@ const {
   authenticate,
   optionalAuthenticate,
   requireOrganization,
+  requireOrganizationForNonCandidate,
   requireAccountRole,
 } = require("../middleware/v1Auth");
+const { ALL_PLANS } = require("../config/subscriptionPlans");
 const candidateOnly = requireAccountRole("candidate");
 const upload = require("../middleware/uploadResumeV1");
 const uploadAvatar = require("../middleware/uploadAvatarV1");
@@ -893,13 +895,42 @@ router.post(
   candidateOnly,
   placement.candidateConfirmJoining,
 );
-router.patch("/placements/:placementId/employment-status", authenticate, placement.updateEmploymentStatus);
+router.patch(
+  "/placements/:placementId/employment-status",
+  authenticate,
+  requireOrganizationForNonCandidate("application.manage"),
+  validate(
+    strict({
+      status: z.enum(["currently_working", "employment_ended"]),
+      startDate: z.string().max(40).optional(),
+      endDate: z.string().max(40).optional(),
+      exitReason: z.string().max(2000).optional(),
+    }),
+  ),
+  placement.updateEmploymentStatus,
+);
 
 // Subscriptions & Billing
 router.get("/subscriptions/plans", subscription.getPlans);
 router.get("/subscriptions/current", authenticate, subscription.getCurrentSubscription);
-router.post("/subscriptions/checkout", authenticate, subscription.checkout);
-router.post("/subscriptions/verify-payment", authenticate, subscription.verifyPayment);
+const planTierSchema = z.enum(Object.keys(ALL_PLANS));
+const checkoutSchema = strict({
+  planTier: planTierSchema,
+  billingCycle: z.literal("monthly").optional(),
+});
+const verifyPaymentSchema = strict({
+  orderId: z.string().min(1).max(100),
+  paymentId: z.string().min(1).max(100),
+  signature: z.string().min(1).max(256),
+  planTier: planTierSchema.optional(),
+});
+router.post("/subscriptions/checkout", authenticate, validate(checkoutSchema), subscription.checkout);
+router.post(
+  "/subscriptions/verify-payment",
+  authenticate,
+  validate(verifyPaymentSchema),
+  subscription.verifyPayment,
+);
 router.post("/subscriptions/cancel", authenticate, subscription.cancelSubscription);
 router.get("/subscriptions/invoices", authenticate, subscription.getInvoices);
 

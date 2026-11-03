@@ -25,7 +25,7 @@ export const CandidateBilling = () => {
 
   const subQuery = useQuery({
     queryKey: ["candidate-subscription"],
-    queryFn: subscriptionApi.current,
+    queryFn: () => subscriptionApi.current(),
   });
 
   const plansQuery = useQuery({
@@ -35,7 +35,7 @@ export const CandidateBilling = () => {
 
   const invoicesQuery = useQuery({
     queryKey: ["candidate-invoices"],
-    queryFn: subscriptionApi.invoices,
+    queryFn: () => subscriptionApi.invoices(),
   });
 
   const checkoutMutation = useMutation({
@@ -86,21 +86,19 @@ export const CandidateBilling = () => {
     setProcessing(true);
 
     const helper = checkoutData.simulationHelper;
-    if (helper) {
-      verifyMutation.mutate({
-        orderId: helper.orderId,
-        paymentId: helper.paymentId,
-        signature: helper.signature,
-        planTier: selectedPlan.tier,
-      });
-    } else {
-      verifyMutation.mutate({
-        orderId: checkoutData.order.orderId,
-        paymentId: `pay_live_${Date.now()}`,
-        signature: `sim_sig_${checkoutData.order.orderId}`,
-        planTier: selectedPlan.tier,
-      });
+    if (!helper) {
+      // The server only issues sandbox payment proofs. Never fabricate one on the client.
+      setProcessing(false);
+      toast.error("Payments are not available on this server. Please contact support.");
+      return;
     }
+    // Sandbox payment: the server issued and signed these values during checkout.
+    verifyMutation.mutate({
+      orderId: helper.orderId,
+      paymentId: helper.paymentId,
+      signature: helper.signature,
+      planTier: selectedPlan.tier,
+    });
   };
 
   const isCareerPlus = sub.planTier === "candidate_plus";

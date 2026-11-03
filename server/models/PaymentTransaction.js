@@ -53,10 +53,10 @@ const paymentTransactionSchema = new mongoose.Schema(
       enum: paymentGateways,
       default: "simulation",
     },
+    // Indexed (unique, partial) below.
     gatewayOrderId: {
       type: String,
       default: "",
-      index: true,
     },
     gatewayPaymentId: {
       type: String,
@@ -83,6 +83,16 @@ const paymentTransactionSchema = new mongoose.Schema(
 
 paymentTransactionSchema.index({ createdAt: -1 });
 paymentTransactionSchema.index({ subscriberType: 1, subscriberId: 1, createdAt: -1 });
+// One gateway order maps to one transaction, and one gateway payment can capture at most one
+// order (replay protection). Partial filters exclude the empty-string defaults.
+paymentTransactionSchema.index(
+  { gatewayOrderId: 1 },
+  { unique: true, partialFilterExpression: { gatewayOrderId: { $gt: "" } } },
+);
+paymentTransactionSchema.index(
+  { gatewayPaymentId: 1 },
+  { unique: true, partialFilterExpression: { gatewayPaymentId: { $gt: "" } } },
+);
 
 module.exports = {
   PaymentTransaction: mongoose.model("PaymentTransaction", paymentTransactionSchema),

@@ -67,6 +67,15 @@ const placementSchema = new mongoose.Schema(
       endDate: { type: Date, default: null },
       exitReason: { type: String, trim: true, maxlength: 2000, default: "" },
     },
+    // Who reported the latest employment status change. Distinct from verification.isVerified,
+    // which is set only by a platform administrator after independent checks.
+    employmentStatusSource: {
+      type: String,
+      enum: ["", "candidate_reported", "organization_reported", "platform_reported"],
+      default: "",
+    },
+    employmentStatusUpdatedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    employmentStatusUpdatedAt: { type: Date, default: null },
   },
   {
     timestamps: true,

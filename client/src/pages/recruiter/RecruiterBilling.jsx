@@ -15,20 +15,22 @@ import Modal from "../../components/ui/Modal";
 import { ErrorState, LoadingState } from "../../components/ui/States";
 import { PageHeader } from "../../components/Product";
 import { subscriptionApi } from "../../lib/api";
+import { useAuth } from "../../context/useAuth";
 import { useToast } from "../../components/ui/useToast";
 import { formatDate } from "../../lib/utils";
 
 export const RecruiterBilling = () => {
   const toast = useToast();
   const qc = useQueryClient();
+  const { organizationId } = useAuth();
 
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [checkoutData, setCheckoutData] = useState(null);
   const [processing, setProcessing] = useState(false);
 
   const subQuery = useQuery({
-    queryKey: ["recruiter-subscription"],
-    queryFn: subscriptionApi.current,
+    queryKey: ["recruiter-subscription", organizationId],
+    queryFn: () => subscriptionApi.current(organizationId),
   });
 
   const plansQuery = useQuery({
@@ -37,12 +39,12 @@ export const RecruiterBilling = () => {
   });
 
   const invoicesQuery = useQuery({
-    queryKey: ["recruiter-invoices"],
-    queryFn: subscriptionApi.invoices,
+    queryKey: ["recruiter-invoices", organizationId],
+    queryFn: () => subscriptionApi.invoices(undefined, organizationId),
   });
 
   const checkoutMutation = useMutation({
-    mutationFn: (planTier) => subscriptionApi.checkout({ planTier }),
+    mutationFn: (planTier) => subscriptionApi.checkout({ planTier }, organizationId),
     onSuccess: (res) => {
       setCheckoutData(res.data);
     },
@@ -52,7 +54,7 @@ export const RecruiterBilling = () => {
   });
 
   const verifyMutation = useMutation({
-    mutationFn: (payload) => subscriptionApi.verifyPayment(payload),
+    mutationFn: (payload) => subscriptionApi.verifyPayment(payload, organizationId),
     onSuccess: (res) => {
       toast.success(res.data?.message || "Plan upgraded successfully!");
       qc.invalidateQueries({ queryKey: ["recruiter-subscription"] });
@@ -90,23 +92,19 @@ export const RecruiterBilling = () => {
     setProcessing(true);
 
     const helper = checkoutData.simulationHelper;
-    if (helper) {
-      // Complete test simulation payment immediately
-      verifyMutation.mutate({
-        orderId: helper.orderId,
-        paymentId: helper.paymentId,
-        signature: helper.signature,
-        planTier: selectedPlan.tier,
-      });
-    } else {
-      // Live fallback
-      verifyMutation.mutate({
-        orderId: checkoutData.order.orderId,
-        paymentId: `pay_live_${Date.now()}`,
-        signature: `sim_sig_${checkoutData.order.orderId}`,
-        planTier: selectedPlan.tier,
-      });
+    if (!helper) {
+      // The server only issues sandbox payment proofs. Never fabricate one on the client.
+      setProcessing(false);
+      toast.error("Payments are not available on this server. Please contact support.");
+      return;
     }
+    // Sandbox payment: the server issued and signed these values during checkout.
+    verifyMutation.mutate({
+      orderId: helper.orderId,
+      paymentId: helper.paymentId,
+      signature: helper.signature,
+      planTier: selectedPlan.tier,
+    });
   };
 
   const activeJobs = sub.usage?.activeJobsCount || 0;

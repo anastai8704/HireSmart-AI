@@ -1,6 +1,5 @@
 const { Placement } = require("../models/Placement");
 const { Application } = require("../models/Application");
-const CandidateProfile = require("../models/CandidateProfile");
 const Organization = require("../models/Organization");
 const Job = require("../models/Job");
 const User = require("../models/User");
@@ -172,90 +171,98 @@ exports.adminVerifyPlacement = asyncHandler(async (req, res) => {
 });
 
 /**
- * Recruiter or Candidate: Update employment status (currently_working or employment_ended)
+ * Candidate, organization member or platform admin: record an employment status change.
+ *
+ * - Candidates may only change their own placements.
+ * - Organization members may only change placements that belong to their organization
+ *   (the route enforces an active `application.manage` membership).
+ * - Every change records its source. Nothing here writes to the candidate's profile:
+ *   employment is never inferred or copied into experience automatically.
+ * - Transitions are validated: currently_working only from hired-stage statuses;
+ *   employment_ended only from currently_working.
  */
+const EMPLOYMENT_SOURCE_BY_ROLE = Object.freeze({
+  candidate: "candidate_reported",
+  organization: "organization_reported",
+  platform_admin: "platform_reported",
+});
+const CURRENTLY_WORKING_FROM = Object.freeze(["hired", "joining_confirmed", "placement_verified"]);
+
 exports.updateEmploymentStatus = asyncHandler(async (req, res) => {
   const { status, startDate, endDate, exitReason } = req.body;
   if (!["currently_working", "employment_ended"].includes(status)) {
-    throw new AppError("Invalid employment status. Expected 'currently_working' or 'employment_ended'", 400, "INVALID_STATUS");
+    throw new AppError(
+      "Invalid employment status. Expected 'currently_working' or 'employment_ended'",
+      400,
+      "INVALID_STATUS",
+    );
   }
 
+  const isPlatformAdmin = req.auth.platformRole === "platform_admin";
+  const isCandidate = !isPlatformAdmin && req.user.role === "candidate";
   const query = { _id: req.params.placementId };
-  // Check authorization
-  if (req.auth.platformRole !== "platform_admin") {
-    if (req.user.role === "candidate") {
-      query.candidate = req.user._id;
-    } else if (req.auth.organizationId) {
-      query.organization = req.auth.organizationId;
+  if (isCandidate) {
+    query.candidate = req.user._id;
+  } else if (!isPlatformAdmin) {
+    if (!req.auth.organizationId) {
+      throw new AppError("Organization context is required", 400, "ORGANIZATION_REQUIRED");
     }
+    query.organization = req.auth.organizationId;
   }
 
-  const placement = await Placement.findOne(query)
-    .populate("organization", "name")
-    .populate("candidate", "name email")
-    .populate("job", "title");
-
+  const placement = await Placement.findOne(query).populate("job", "title");
   if (!placement) {
     throw new AppError("Placement record not found", 404, "RESOURCE_NOT_FOUND");
   }
 
-  const companyName = placement.organization?.name || "Company";
-  const positionTitle = placement.offerDetails?.designation || placement.job?.title || "Software Engineer";
-
+  const previousStatus = placement.status;
   if (status === "currently_working") {
+    if (!CURRENTLY_WORKING_FROM.includes(previousStatus)) {
+      throw new AppError(
+        `Cannot change employment status from ${previousStatus} to ${status}`,
+        409,
+        "INVALID_TRANSITION",
+      );
+    }
     placement.status = "currently_working";
     placement.employmentPeriod.startDate = startDate ? new Date(startDate) : new Date();
-    await placement.save();
-
-    // Automatically update or add to CandidateProfile.experience
-    const profile = await CandidateProfile.findOne({ user: placement.candidate._id || placement.candidate });
-    if (profile) {
-      const existingExp = profile.experience.find(
-        (exp) => exp.company.toLowerCase() === companyName.toLowerCase(),
+  } else {
+    if (previousStatus !== "currently_working") {
+      throw new AppError(
+        `Cannot change employment status from ${previousStatus} to ${status}`,
+        409,
+        "INVALID_TRANSITION",
       );
-      if (existingExp) {
-        existingExp.currentlyWorking = true;
-        existingExp.startDate = placement.employmentPeriod.startDate;
-        existingExp.position = positionTitle;
-      } else {
-        profile.experience.unshift({
-          company: companyName,
-          position: positionTitle,
-          description: `Employed through HireSmart-AI verified placement.`,
-          startDate: placement.employmentPeriod.startDate,
-          currentlyWorking: true,
-        });
-      }
-      await profile.save();
     }
-  } else if (status === "employment_ended") {
     placement.status = "employment_ended";
     placement.employmentPeriod.endDate = endDate ? new Date(endDate) : new Date();
     placement.employmentPeriod.exitReason = String(exitReason || "").slice(0, 2000);
-    await placement.save();
-
-    // Update CandidateProfile.experience
-    const profile = await CandidateProfile.findOne({ user: placement.candidate._id || placement.candidate });
-    if (profile) {
-      const existingExp = profile.experience.find(
-        (exp) => exp.company.toLowerCase() === companyName.toLowerCase() && exp.currentlyWorking,
-      );
-      if (existingExp) {
-        existingExp.currentlyWorking = false;
-        existingExp.endDate = placement.employmentPeriod.endDate;
-        await profile.save();
-      }
-    }
   }
+
+  placement.employmentStatusSource = isPlatformAdmin
+    ? EMPLOYMENT_SOURCE_BY_ROLE.platform_admin
+    : isCandidate
+      ? EMPLOYMENT_SOURCE_BY_ROLE.candidate
+      : EMPLOYMENT_SOURCE_BY_ROLE.organization;
+  placement.employmentStatusUpdatedBy = req.user._id;
+  placement.employmentStatusUpdatedAt = new Date();
+  await placement.save();
 
   await audit({
     req,
-    organization: placement.organization?._id || placement.organization,
+    organization: placement.organization,
     action: `placement.status_${status}`,
     resourceType: "placement",
     resourceId: placement._id,
-    metadata: { status },
+    metadata: {
+      previousStatus,
+      newStatus: placement.status,
+      source: placement.employmentStatusSource,
+    },
   });
 
-  res.json({ data: placement });
+  // Candidate-facing response: keep recruiter/candidate contact details out of employment updates.
+  const response = placement.toObject();
+  delete response.verification?.adminRemarks;
+  res.json({ data: response });
 });

@@ -250,13 +250,19 @@ export const verificationApi = {
   submit: (orgId, body) => api.post(`/organizations/${orgId}/verification`, body),
 };
 
+// Organization billing calls name the organization explicitly. Candidates send no header.
+const orgConfig = (organizationId) =>
+  organizationId ? { headers: { "X-Organization-Id": String(organizationId) } } : undefined;
 export const subscriptionApi = {
   plans: () => api.get("/subscriptions/plans"),
-  current: () => api.get("/subscriptions/current"),
-  checkout: (body) => api.post("/subscriptions/checkout", body),
-  verifyPayment: (body) => api.post("/subscriptions/verify-payment", body),
-  cancel: () => api.post("/subscriptions/cancel"),
-  invoices: (params) => api.get(`/subscriptions/invoices${query(params)}`),
+  current: (organizationId) => api.get("/subscriptions/current", orgConfig(organizationId)),
+  checkout: (body, organizationId) =>
+    api.post("/subscriptions/checkout", body, orgConfig(organizationId)),
+  verifyPayment: (body, organizationId) =>
+    api.post("/subscriptions/verify-payment", body, orgConfig(organizationId)),
+  cancel: (organizationId) => api.post("/subscriptions/cancel", undefined, orgConfig(organizationId)),
+  invoices: (params, organizationId) =>
+    api.get(`/subscriptions/invoices${query(params)}`, orgConfig(organizationId)),
 };
 export const downloadBlob = (blob, name) => {
   const url = URL.createObjectURL(blob);
