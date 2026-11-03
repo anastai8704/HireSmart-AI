@@ -19,13 +19,16 @@ const AppError = require("../utils/AppError");
 const PAYMENT_MODE_DISABLED = "disabled";
 const PAYMENT_MODE_SIMULATION = "simulation";
 const SIMULATION_SECRET_MIN_LENGTH = 32;
+// Allowlist, not denylist: simulation runs only when NODE_ENV is explicitly development or test.
+// An unset or unexpected NODE_ENV (e.g. "staging", "prod") is refused.
+const SIMULATION_ALLOWED_NODE_ENVS = ["development", "test"];
 
 const readPaymentConfig = () => ({
   mode: String(process.env.PAYMENT_MODE || PAYMENT_MODE_DISABLED)
     .trim()
     .toLowerCase(),
   simulationSecret: process.env.PAYMENT_SIMULATION_SECRET || "",
-  isProduction: String(process.env.NODE_ENV || "").toLowerCase() === "production",
+  nodeEnv: String(process.env.NODE_ENV || "").trim().toLowerCase(),
   liveCredentialsPresent: Boolean(process.env.RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_SECRET),
 });
 
@@ -45,8 +48,10 @@ const validatePaymentConfig = (cfg = readPaymentConfig()) => {
     );
   }
   if (cfg.mode === PAYMENT_MODE_SIMULATION) {
-    if (cfg.isProduction) {
-      throw new Error("PAYMENT_MODE=simulation is not allowed when NODE_ENV=production.");
+    if (!SIMULATION_ALLOWED_NODE_ENVS.includes(cfg.nodeEnv)) {
+      throw new Error(
+        `PAYMENT_MODE=simulation is only allowed when NODE_ENV is development or test (current: "${cfg.nodeEnv || "unset"}").`,
+      );
     }
     if (cfg.simulationSecret.length < SIMULATION_SECRET_MIN_LENGTH) {
       throw new Error(

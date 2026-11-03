@@ -212,7 +212,7 @@ exports.adminGetOrgDetails = asyncHandler(async (req, res) => {
     }),
     Placement.countDocuments({
       organization: org._id,
-      status: { $in: ["placement_verified", "verified_placement", "currently_working"] },
+      "verification.isVerified": true,
     }),
   ]);
 

@@ -58,8 +58,21 @@ test("validatePaymentConfig rejects live provider credentials even when payments
 
 test("validatePaymentConfig refuses simulation mode in production", () =>
   withEnv({ NODE_ENV: "production", PAYMENT_MODE: "simulation", PAYMENT_SIMULATION_SECRET: SECRET }, () => {
-    assert.throws(() => ps.validatePaymentConfig(), /not allowed when NODE_ENV=production/);
+    assert.throws(() => ps.validatePaymentConfig(), /only allowed when NODE_ENV is development or test/);
   }));
+
+test("simulation is refused unless NODE_ENV is explicitly development or test", () => {
+  for (const nodeEnv of [undefined, "", "production", "staging", "prod", "Production "]) {
+    const env = { PAYMENT_MODE: "simulation", PAYMENT_SIMULATION_SECRET: SECRET };
+    if (nodeEnv !== undefined) env.NODE_ENV = nodeEnv;
+    withEnv(env, () => {
+      assert.throws(() => ps.validatePaymentConfig(), /only allowed when NODE_ENV is development or test/);
+      // Even with simulation configured, no sandbox proof is accepted in these environments.
+      assert.equal(ps.isSimulationEnabled(), false);
+      assert.equal(ps.verifyPaymentSignature({ orderId: "o", paymentId: "p", signature: "x".repeat(64) }), false);
+    });
+  }
+});
 
 test("validatePaymentConfig requires a long simulation secret", () => {
   withEnv({ NODE_ENV: "development", PAYMENT_MODE: "simulation", PAYMENT_SIMULATION_SECRET: "short" }, () => {

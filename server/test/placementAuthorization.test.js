@@ -12,6 +12,7 @@ const { Placement } = require("../models/Placement");
 const { Membership } = require("../models/Membership");
 const CandidateProfile = require("../models/CandidateProfile");
 const AuditLog = require("../models/AuditLog");
+const User = require("../models/User");
 
 const PASSWORD = "StrongPassword123!";
 const API = "/api/v1";
@@ -258,4 +259,72 @@ test("unknown fields and statuses are rejected before any lookup", async () => {
   );
   assert.equal(extra.status, 422, JSON.stringify(extra.body));
   assert.equal((await Placement.findById(placement._id)).status, "hired");
+});
+
+test("organization-reported employment is not platform-verified; admin verification is separate", async () => {
+  const placement = await newPlacement({
+    organization: orgOwnerX.orgId,
+    candidate: candidate.userId,
+    status: "hired",
+  });
+  const reported = await changeStatus(orgOwnerX, placement._id, { status: "currently_working" }, orgOwnerX.orgId);
+  assert.equal(reported.status, 200);
+  let stored = await Placement.findById(placement._id);
+  assert.equal(stored.verification.isVerified, false, "organization report is not verification");
+  assert.equal(stored.verification.verifiedBy, null);
+
+  // A platform admin is a user with role "admin"; promote a test account directly in the database.
+  const adminEmail = "pl-platform-admin@example.test";
+  await register({ email: adminEmail, intent: "candidate" });
+  await User.updateOne({ email: adminEmail }, { $set: { role: "admin" } });
+  const login = await request(app).post(`${API}/auth/login`).send({ email: adminEmail, password: PASSWORD });
+  const admin = { token: login.body.data.accessToken };
+
+  const verify = await request(app)
+    .post(`${API}/admin/placements/${placement._id}/verify`)
+    .set(auth(admin.token))
+    .send({ adminRemarks: "Checked offer letter" });
+  assert.equal(verify.status, 200, JSON.stringify(verify.body));
+
+  stored = await Placement.findById(placement._id);
+  assert.equal(stored.verification.isVerified, true);
+  assert.ok(stored.verification.verifiedBy);
+  assert.equal(stored.status, "currently_working", "admin verification keeps the employment status");
+  assert.equal(stored.employmentStatusSource, "organization_reported", "source is not rewritten by verification");
+});
+
+test("admin verification of a pre-employment placement still moves it to placement_verified", async () => {
+  const placement = await newPlacement({
+    organization: orgOwnerX.orgId,
+    candidate: candidate.userId,
+    status: "hired",
+  });
+  const login = await request(app)
+    .post(`${API}/auth/login`)
+    .send({ email: "pl-platform-admin@example.test", password: PASSWORD });
+  const res = await request(app)
+    .post(`${API}/admin/placements/${placement._id}/verify`)
+    .set(auth(login.body.data.accessToken))
+    .send({});
+  assert.equal(res.status, 200, JSON.stringify(res.body));
+  const stored = await Placement.findById(placement._id);
+  assert.equal(stored.status, "placement_verified");
+  assert.equal(stored.verification.isVerified, true);
+});
+
+test("candidate joining confirmation does not regress an employment status", async () => {
+  const placement = await newPlacement({
+    organization: orgOwnerX.orgId,
+    candidate: candidate.userId,
+    status: "employment_ended",
+  });
+  const res = await request(app)
+    .post(`${API}/candidates/me/placements/${placement._id}/confirm-joining`)
+    .set(auth(candidate.token))
+    .send({});
+  assert.equal(res.status, 200, JSON.stringify(res.body));
+  const stored = await Placement.findById(placement._id);
+  assert.equal(stored.status, "employment_ended");
+  assert.equal(stored.joiningConfirmation.confirmedByCandidate, true, "candidate confirmation is still recorded");
+  assert.equal(stored.verification.isVerified, false, "candidate confirmation is not platform verification");
 });

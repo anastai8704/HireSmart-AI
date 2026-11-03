@@ -91,7 +91,11 @@ exports.candidateConfirmJoining = asyncHandler(async (req, res) => {
   }
 
   const actualJoiningDate = req.body.actualJoiningDate ? new Date(req.body.actualJoiningDate) : new Date();
-  placement.status = "joining_confirmed";
+  // Candidate confirmation is recorded separately from employment status. It must not move a
+  // placement that already has an employment status back to joining_confirmed.
+  if (!["currently_working", "employment_ended"].includes(placement.status)) {
+    placement.status = "joining_confirmed";
+  }
   placement.joiningConfirmation = {
     confirmedByCandidate: true,
     actualJoiningDate,
@@ -147,7 +151,12 @@ exports.adminVerifyPlacement = asyncHandler(async (req, res) => {
     throw new AppError("Placement record not found", 404, "RESOURCE_NOT_FOUND");
   }
 
-  placement.status = "placement_verified";
+  // Verification is a separate fact from employment status. Keep an organization-reported
+  // employment status (currently_working / employment_ended) intact; only pre-employment
+  // placements move to placement_verified.
+  if (!["currently_working", "employment_ended"].includes(placement.status)) {
+    placement.status = "placement_verified";
+  }
   placement.verification = {
     isVerified: true,
     verifiedBy: req.user._id,

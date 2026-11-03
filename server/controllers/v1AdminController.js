@@ -151,7 +151,8 @@ exports.overviewAnalytics = asyncHandler(async (req, res) => {
   ] = await Promise.all([
     Placement.countDocuments({}),
     Placement.countDocuments({ status: "joining_confirmed" }),
-    Placement.countDocuments({ status: "placement_verified" }),
+    // "Verified" means a platform admin verified it, never an organization- or candidate-reported status.
+    Placement.countDocuments({ "verification.isVerified": true }),
     Placement.countDocuments({ status: "currently_working" }),
     Placement.countDocuments({ status: "employment_ended" }),
   ]);
@@ -182,7 +183,7 @@ exports.overviewAnalytics = asyncHandler(async (req, res) => {
         $group: {
           _id: { $dateToString: { format: "%Y-%m", date: "$createdAt" } },
           verifiedPlacements: {
-            $sum: { $cond: [{ $in: ["$status", ["placement_verified", "currently_working"]] }, 1, 0] },
+            $sum: { $cond: [{ $eq: ["$verification.isVerified", true] }, 1, 0] },
           },
           joinings: {
             $sum: { $cond: [{ $in: ["$status", ["joining_confirmed", "placement_verified", "currently_working"]] }, 1, 0] },
