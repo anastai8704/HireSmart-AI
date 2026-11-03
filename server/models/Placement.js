@@ -1,0 +1,83 @@
+const mongoose = require("mongoose");
+
+const placementStatuses = Object.freeze([
+  "selected",
+  "hired",
+  "joining_confirmed",
+  "placement_verified",
+  "currently_working",
+  "employment_ended",
+]);
+
+const placementSchema = new mongoose.Schema(
+  {
+    application: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Application",
+      required: true,
+      unique: true,
+      index: true,
+    },
+    organization: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Organization",
+      required: true,
+      index: true,
+    },
+    candidate: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true,
+    },
+    job: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Job",
+      required: true,
+      index: true,
+    },
+    status: {
+      type: String,
+      enum: placementStatuses,
+      default: "hired",
+      index: true,
+    },
+    offerDetails: {
+      designation: { type: String, trim: true, default: "" },
+      ctc: { type: Number, min: 0, default: 0 },
+      currency: { type: String, default: "INR" },
+      offerDate: { type: Date, default: Date.now },
+      offeredJoiningDate: { type: Date, default: null },
+    },
+    joiningConfirmation: {
+      confirmedByCandidate: { type: Boolean, default: false },
+      actualJoiningDate: { type: Date, default: null },
+      confirmedAt: { type: Date, default: null },
+      candidateNotes: { type: String, trim: true, maxlength: 2000, default: "" },
+    },
+    verification: {
+      isVerified: { type: Boolean, default: false },
+      verifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+      verifiedAt: { type: Date, default: null },
+      proofDocumentUrl: { type: String, default: "" },
+      adminRemarks: { type: String, trim: true, maxlength: 2000, default: "" },
+    },
+    employmentPeriod: {
+      startDate: { type: Date, default: null },
+      endDate: { type: Date, default: null },
+      exitReason: { type: String, trim: true, maxlength: 2000, default: "" },
+    },
+  },
+  {
+    timestamps: true,
+  },
+);
+
+placementSchema.index({ organization: 1, status: 1 });
+placementSchema.index({ candidate: 1, status: 1 });
+placementSchema.index({ createdAt: -1 });
+
+module.exports = {
+  Placement: mongoose.model("Placement", placementSchema),
+  placementStatuses,
+};

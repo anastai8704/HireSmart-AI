@@ -47,8 +47,9 @@ services:
     restart: unless-stopped
 
     environment:
-      NODE_ENV: production
+      NODE_ENV: development
       PORT: 5000
+      ENABLE_LEGACY_API: "false"
 
       # `mongo` is the service name above. Docker's internal DNS resolves it to
       # that container's IP - this is why containers never need IP addresses.
@@ -56,7 +57,7 @@ services:
 
       # CHANGE THIS before deploying anywhere real. Generate one with:
       #   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-      JWT_SECRET: ${JWT_SECRET:-change_me_in_production_use_a_32_byte_random_hex_string}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET to a random value of at least 32 characters}
       JWT_EXPIRES_IN: 7d
 
       # Nginx proxies /api to this service, so the browser only ever sees one
@@ -65,7 +66,16 @@ services:
       CLIENT_URL: http://localhost:8080
 
       STORAGE_PROVIDER: local
-      REQUIRE_EMAIL_VERIFICATION: "false"
+      REQUIRE_EMAIL_VERIFICATION: "true"
+      ACCESS_TOKEN_EXPIRES_IN: 15m
+      REFRESH_TOKEN_EXPIRES_DAYS: 30
+      COOKIE_SECURE: "false"
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+      SMTP_SECURE: "false"
+      AI_PRIMARY_PROVIDER: deterministic
+      AI_FALLBACK_PROVIDER: deterministic
+      PROCESS_JOBS_INLINE: "false"
 
     volumes:
       # Uploaded resumes must outlive the container.
@@ -75,6 +85,38 @@ services:
       mongo:
         # Wait for Mongo to be genuinely ready, not merely started.
         condition: service_healthy
+      mailpit:
+        condition: service_started
+
+  worker:
+    build:
+      context: ./server
+    restart: unless-stopped
+    command: ["node", "worker.js"]
+    environment:
+      NODE_ENV: development
+      MONGO_URI: mongodb://mongo:27017/hiresmart_ai
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET to a random value of at least 32 characters}
+      CORS_ORIGIN: http://localhost:8080
+      REQUIRE_EMAIL_VERIFICATION: "true"
+      STORAGE_PROVIDER: local
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+      AI_PRIMARY_PROVIDER: deterministic
+      AI_FALLBACK_PROVIDER: deterministic
+    volumes:
+      - resume-uploads:/app/uploads
+    depends_on:
+      mongo:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+
+  mailpit:
+    image: axllent/mailpit:v1.27
+    restart: unless-stopped
+    ports:
+      - "8025:8025"
 
   # ---------------------------------------------------------------------------
   # Frontend (static build served by Nginx, which also proxies /api)
@@ -85,7 +127,7 @@ services:
       args:
         # Relative URL: the browser calls the same origin it loaded from, and
         # Nginx forwards /api to the api service.
-        VITE_API_URL: /api
+        VITE_API_URL: /api/v1
     restart: unless-stopped
 
     ports:

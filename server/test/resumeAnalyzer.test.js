@@ -4,11 +4,11 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 
 const {
-    analyzeResume,
-    analyzeResumeAgainstJob,
-    extractContactInfo,
-    extractSkills,
-    detectSections,
+  analyzeResume,
+  analyzeResumeAgainstJob,
+  extractContactInfo,
+  extractSkills,
+  detectSections,
 } = require("../services/resumeAnalyzerService");
 
 const GOOD_RESUME = `
@@ -58,40 +58,40 @@ I studied at a college.
 // ---------------------------------------------------------------------------
 
 test("extractContactInfo finds email, phone and profile links", () => {
-    const contact = extractContactInfo(GOOD_RESUME);
+  const contact = extractContactInfo(GOOD_RESUME);
 
-    assert.equal(contact.email, "anas.tai@example.com");
-    assert.ok(contact.phone, "a phone number should be detected");
-    assert.ok(contact.linkedin.includes("linkedin.com"));
-    assert.ok(contact.github.includes("github.com"));
+  assert.equal(contact.email, "anas.tai@example.com");
+  assert.ok(contact.phone, "a phone number should be detected");
+  assert.ok(contact.linkedin.includes("linkedin.com"));
+  assert.ok(contact.github.includes("github.com"));
 });
 
 test("extractContactInfo returns nulls rather than throwing on sparse text", () => {
-    const contact = extractContactInfo(POOR_RESUME);
+  const contact = extractContactInfo(POOR_RESUME);
 
-    assert.equal(contact.email, null);
-    assert.equal(contact.linkedin, null);
+  assert.equal(contact.email, null);
+  assert.equal(contact.linkedin, null);
 });
 
 test("extractSkills groups detected technologies by category", () => {
-    const skills = extractSkills(GOOD_RESUME);
+  const skills = extractSkills(GOOD_RESUME);
 
-    assert.ok(skills.all.includes("react"));
-    assert.ok(skills.all.includes("mongodb"));
-    assert.ok(skills.all.includes("docker"));
-    assert.ok(skills.byCategory.frontend.includes("react"));
-    assert.ok(skills.byCategory.database.includes("mongodb"));
-    assert.ok(skills.byCategory.devops.includes("docker"));
+  assert.ok(skills.all.includes("react"));
+  assert.ok(skills.all.includes("mongodb"));
+  assert.ok(skills.all.includes("docker"));
+  assert.ok(skills.byCategory.frontend.includes("react"));
+  assert.ok(skills.byCategory.database.includes("mongodb"));
+  assert.ok(skills.byCategory.devops.includes("docker"));
 });
 
 test("detectSections reports which standard headings exist", () => {
-    const sections = detectSections(GOOD_RESUME);
+  const sections = detectSections(GOOD_RESUME);
 
-    assert.ok(sections.present.includes("Skills"));
-    assert.ok(sections.present.includes("Experience"));
-    assert.ok(sections.present.includes("Education"));
-    assert.ok(sections.present.includes("Projects"));
-    assert.equal(sections.missing.length, 0);
+  assert.ok(sections.present.includes("Skills"));
+  assert.ok(sections.present.includes("Experience"));
+  assert.ok(sections.present.includes("Education"));
+  assert.ok(sections.present.includes("Projects"));
+  assert.equal(sections.missing.length, 0);
 });
 
 // ---------------------------------------------------------------------------
@@ -99,64 +99,64 @@ test("detectSections reports which standard headings exist", () => {
 // ---------------------------------------------------------------------------
 
 test("a well-written resume earns a high ATS score", () => {
-    const report = analyzeResume(GOOD_RESUME);
+  const report = analyzeResume(GOOD_RESUME);
 
-    assert.ok(report.atsScore >= 75, `expected a high score, received ${report.atsScore}`);
-    assert.ok(["A+", "A", "B"].includes(report.grade), `unexpected grade ${report.grade}`);
-    assert.equal(report.experienceYears, 4);
-    assert.ok(report.achievements.count >= 3, "quantified achievements should be detected");
+  assert.ok(report.atsScore >= 75, `expected a high score, received ${report.atsScore}`);
+  assert.ok(["A+", "A", "B"].includes(report.grade), `unexpected grade ${report.grade}`);
+  assert.equal(report.experienceYears, 4);
+  assert.ok(report.achievements.count >= 3, "quantified achievements should be detected");
 });
 
 test("a weak resume scores low and receives critical, actionable advice", () => {
-    const report = analyzeResume(POOR_RESUME);
+  const report = analyzeResume(POOR_RESUME);
 
-    assert.ok(report.atsScore < 50, `expected a low score, received ${report.atsScore}`);
+  assert.ok(report.atsScore < 50, `expected a low score, received ${report.atsScore}`);
 
-    const critical = report.suggestions.filter((s) => s.severity === "critical");
-    assert.ok(critical.length > 0, "missing contact details must be flagged as critical");
+  const critical = report.suggestions.filter((s) => s.severity === "critical");
+  assert.ok(critical.length > 0, "missing contact details must be flagged as critical");
 
-    // Vague phrasing must be called out explicitly.
-    assert.ok(report.weakPhrases.includes("hard worker"));
-    assert.ok(report.weakPhrases.includes("responsible for"));
+  // Vague phrasing must be called out explicitly.
+  assert.ok(report.weakPhrases.includes("hard worker"));
+  assert.ok(report.weakPhrases.includes("responsible for"));
 
-    // Every suggestion must tell the candidate what to actually do.
-    for (const suggestion of report.suggestions) {
-        assert.ok(suggestion.title.length > 5);
-        assert.ok(suggestion.detail.length > 20, "advice must be specific, not a label");
-    }
+  // Every suggestion must tell the candidate what to actually do.
+  for (const suggestion of report.suggestions) {
+    assert.ok(suggestion.title.length > 5);
+    assert.ok(suggestion.detail.length > 20, "advice must be specific, not a label");
+  }
 });
 
 test("suggestions are ordered by severity so the biggest wins come first", () => {
-    const report = analyzeResume(POOR_RESUME);
-    const rank = { critical: 0, high: 1, medium: 2, low: 3 };
+  const report = analyzeResume(POOR_RESUME);
+  const rank = { critical: 0, high: 1, medium: 2, low: 3 };
 
-    for (let i = 1; i < report.suggestions.length; i += 1) {
-        assert.ok(
-            rank[report.suggestions[i - 1].severity] <= rank[report.suggestions[i].severity],
-            "suggestions must be sorted by severity"
-        );
-    }
+  for (let i = 1; i < report.suggestions.length; i += 1) {
+    assert.ok(
+      rank[report.suggestions[i - 1].severity] <= rank[report.suggestions[i].severity],
+      "suggestions must be sorted by severity",
+    );
+  }
 });
 
 test("unreadable or empty resumes fail gracefully with guidance", () => {
-    const report = analyzeResume("");
+  const report = analyzeResume("");
 
-    assert.equal(report.atsScore, 0);
-    assert.equal(report.grade, "F");
-    assert.equal(report.suggestions[0].severity, "critical");
-    assert.ok(report.summary.length > 0);
+  assert.equal(report.atsScore, 0);
+  assert.equal(report.grade, "F");
+  assert.equal(report.suggestions[0].severity, "critical");
+  assert.ok(report.summary.length > 0);
 });
 
 test("every check reports a bounded score and its weight", () => {
-    const report = analyzeResume(GOOD_RESUME);
+  const report = analyzeResume(GOOD_RESUME);
 
-    const totalWeight = report.checks.reduce((sum, check) => sum + check.weight, 0);
-    assert.ok(Math.abs(totalWeight - 1) < 0.001, "check weights must sum to 1");
+  const totalWeight = report.checks.reduce((sum, check) => sum + check.weight, 0);
+  assert.ok(Math.abs(totalWeight - 1) < 0.001, "check weights must sum to 1");
 
-    for (const check of report.checks) {
-        assert.ok(check.score >= 0 && check.score <= 100);
-        assert.ok(check.label.length > 0);
-    }
+  for (const check of report.checks) {
+    assert.ok(check.score >= 0 && check.score <= 100);
+    assert.ok(check.label.length > 0);
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -164,50 +164,48 @@ test("every check reports a bounded score and its weight", () => {
 // ---------------------------------------------------------------------------
 
 test("analyzing against a job reports the exact keyword gaps to fix", () => {
-    const result = analyzeResumeAgainstJob({
-        resumeText: GOOD_RESUME,
-        job: {
-            _id: "job1",
-            title: "Site Reliability Engineer",
-            company: "Acme",
-            description: "You will run Terraform and Ansible across our fleet.",
-            skills: ["Terraform", "Ansible", "Docker"],
-            experience: "3+ years",
-        },
-    });
+  const result = analyzeResumeAgainstJob({
+    resumeText: GOOD_RESUME,
+    job: {
+      _id: "job1",
+      title: "Site Reliability Engineer",
+      company: "Acme",
+      description: "You will run Terraform and Ansible across our fleet.",
+      skills: ["Terraform", "Ansible", "Docker"],
+      experience: "3+ years",
+    },
+  });
 
-    // Docker is present in the resume, the other two are genuinely missing.
-    assert.ok(result.keywordGaps.includes("terraform"));
-    assert.ok(result.keywordGaps.includes("ansible"));
-    assert.ok(!result.keywordGaps.includes("docker"));
+  // Docker is present in the resume, the other two are genuinely missing.
+  assert.ok(result.keywordGaps.includes("terraform"));
+  assert.ok(result.keywordGaps.includes("ansible"));
+  assert.ok(!result.keywordGaps.includes("docker"));
 
-    assert.equal(result.tailoringTips.length, result.keywordGaps.length);
-    assert.ok(result.match.matchScore >= 0 && result.match.matchScore <= 100);
-    assert.equal(result.job.title, "Site Reliability Engineer");
+  assert.equal(result.tailoringTips.length, result.keywordGaps.length);
+  assert.ok(result.match.matchScore >= 0 && result.match.matchScore <= 100);
+  assert.equal(result.job.title, "Site Reliability Engineer");
 });
 
 test("skill detection does not produce substring false positives", () => {
-    // "javascript" must not also register "java"; "github" must not register
-    // "git"; and stray letters must not be read as the C / R languages.
-    const skills = extractSkills(
-        "Skilled in JavaScript and React. Portfolio at github.com/someone."
-    );
+  // "javascript" must not also register "java"; "github" must not register
+  // "git"; and stray letters must not be read as the C / R languages.
+  const skills = extractSkills("Skilled in JavaScript and React. Portfolio at github.com/someone.");
 
-    assert.ok(skills.all.includes("javascript"));
-    assert.ok(skills.all.includes("react"));
-    assert.ok(!skills.all.includes("java"), "java must not match inside javascript");
-    assert.ok(!skills.all.includes("c"), "the letter c must not match as a language");
-    assert.ok(!skills.all.includes("r"), "the letter r must not match as a language");
-    assert.ok(!skills.all.includes("go"), "go must not match inside other words");
+  assert.ok(skills.all.includes("javascript"));
+  assert.ok(skills.all.includes("react"));
+  assert.ok(!skills.all.includes("java"), "java must not match inside javascript");
+  assert.ok(!skills.all.includes("c"), "the letter c must not match as a language");
+  assert.ok(!skills.all.includes("r"), "the letter r must not match as a language");
+  assert.ok(!skills.all.includes("go"), "go must not match inside other words");
 });
 
 test("genuinely mentioned ambiguous languages are still detected", () => {
-    const skills = extractSkills("Languages: Java, C, Go, R and Python. Tools: Git.");
+  const skills = extractSkills("Languages: Java, C, Go, R and Python. Tools: Git.");
 
-    assert.ok(skills.all.includes("java"));
-    assert.ok(skills.all.includes("c"));
-    assert.ok(skills.all.includes("go"));
-    assert.ok(skills.all.includes("r"));
-    assert.ok(skills.all.includes("python"));
-    assert.ok(skills.all.includes("git"));
+  assert.ok(skills.all.includes("java"));
+  assert.ok(skills.all.includes("c"));
+  assert.ok(skills.all.includes("go"));
+  assert.ok(skills.all.includes("r"));
+  assert.ok(skills.all.includes("python"));
+  assert.ok(skills.all.includes("git"));
 });

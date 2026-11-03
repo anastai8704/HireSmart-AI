@@ -1,91 +1,97 @@
-/**
- * Footer.jsx
- * -----------------------------------------------------------------------------
- * Site footer. Kept simple and honest - it links only to pages that exist.
- */
-
 import { Link } from "react-router-dom";
-import { Code2, Sparkles } from "lucide-react";
+import { HeartHandshake } from "lucide-react";
 
-const Footer = () => (
-    <footer className="mt-auto border-t border-ink-200 bg-white">
-        <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-            <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
-                <div className="col-span-2 md:col-span-1">
-                    <Link to="/" className="flex items-center gap-2">
-                        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-white">
-                            <Sparkles className="h-4 w-4" aria-hidden="true" />
-                        </span>
-                        <span className="font-bold text-ink-900">
-                            HireSmart<span className="text-brand-600"> AI</span>
-                        </span>
-                    </Link>
+import Logo from "../brand/Logo";
+import { useAuth } from "../../context/useAuth";
 
-                    <p className="mt-3 max-w-xs text-sm text-ink-500">
-                        An AI-powered applicant tracking system that scores resumes against
-                        jobs and explains every result.
-                    </p>
-                </div>
-
-                <div>
-                    <h3 className="text-sm font-semibold text-ink-900">For candidates</h3>
-                    <ul className="mt-3 space-y-2 text-sm text-ink-500">
-                        <li>
-                            <Link to="/jobs" className="transition-colors hover:text-brand-600">
-                                Browse jobs
-                            </Link>
-                        </li>
-                        <li>
-                            <Link to="/resume-check" className="transition-colors hover:text-brand-600">
-                                Free resume check
-                            </Link>
-                        </li>
-                        <li>
-                            <Link to="/register" className="transition-colors hover:text-brand-600">
-                                Create an account
-                            </Link>
-                        </li>
-                    </ul>
-                </div>
-
-                <div>
-                    <h3 className="text-sm font-semibold text-ink-900">For recruiters</h3>
-                    <ul className="mt-3 space-y-2 text-sm text-ink-500">
-                        <li>
-                            <Link
-                                to="/register?role=recruiter"
-                                className="transition-colors hover:text-brand-600"
-                            >
-                                Post a job
-                            </Link>
-                        </li>
-                        <li>
-                            <Link to="/login" className="transition-colors hover:text-brand-600">
-                                Recruiter sign in
-                            </Link>
-                        </li>
-                    </ul>
-                </div>
-
-                <div>
-                    <h3 className="text-sm font-semibold text-ink-900">Project</h3>
-                    <ul className="mt-3 space-y-2 text-sm text-ink-500">
-                        <li>
-                            <a
-                                href="https://github.com/anastai8704/HireSmart-AI"
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex items-center gap-1.5 transition-colors hover:text-brand-600"
-                            >
-                                <Code2 className="h-3.5 w-3.5" aria-hidden="true" />
-                                Source code
-                            </a>
-                        </li>
-                    </ul>
-                </div>
-            </div>
+/**
+ * Public footer. Every link is a real route in the app — employer links point
+ * into the signed-in employer's workspace when one exists.
+ */
+const Footer = () => {
+  const auth = useAuth();
+  const orgId = auth.organizationId;
+  const columns = [
+    {
+      title: "Product",
+      links: [
+        { to: "/jobs", label: "Find Jobs" },
+        { to: "/resume-check", label: "Resume Check" },
+        { to: "/companies", label: "Companies" },
+        { to: orgId ? `/app/o/${orgId}` : "/auth/register/recruiter", label: "For Employers" },
+      ],
+    },
+    {
+      title: "For Job Seekers",
+      links: [
+        { to: "/jobs", label: "Find Jobs" },
+        { to: "/resume-check", label: "Resume Check" },
+        { to: "/app/candidate/applications", label: "Applications" },
+        { to: "/app/candidate/interviews", label: "Interview Prep" },
+      ],
+    },
+    {
+      title: "For Employers",
+      links: [
+        { to: orgId ? `/app/o/${orgId}` : "/auth/register/recruiter", label: "Post a Job" },
+        {
+          to: orgId ? `/app/o/${orgId}/candidates` : "/auth/register/recruiter",
+          label: "Find Candidates",
+        },
+      ],
+    },
+    {
+      title: "Trust",
+      links: [
+        { to: "/privacy", label: "Privacy" },
+        { to: "/security", label: "Security" },
+        { to: "/terms", label: "Terms" },
+      ],
+    },
+  ];
+  return (
+    <footer className="border-t border-white/10 bg-ink-950 text-white">
+      <div className="mx-auto grid max-w-7xl gap-x-8 gap-y-10 px-4 py-14 sm:grid-cols-2 sm:px-6 lg:grid-cols-[1.6fr_1fr_1fr_1fr_0.8fr] lg:px-8">
+        <div>
+          <Link to="/" className="inline-flex items-center hover:opacity-90" aria-label="HireSmart AI — home">
+            <Logo tone="light" className="h-10 sm:h-11 w-auto" />
+          </Link>
+          <p className="mt-4 max-w-xs text-sm leading-6 text-ink-400">
+            AI-powered job search and hiring for people and companies.
+          </p>
+          <p className="mt-6 flex items-center gap-2 border-t border-white/10 pt-6 text-sm text-ink-300">
+            <HeartHandshake className="h-4 w-4 shrink-0 text-brand-300" aria-hidden="true" />
+            AI supports decisions. People make the final call.
+          </p>
         </div>
+        {columns.map((column) => (
+          <nav key={column.title} aria-label={`${column.title} links`}>
+            <h2 className="text-xs font-bold uppercase tracking-wider text-ink-500">
+              {column.title}
+            </h2>
+            <ul className="mt-4 space-y-2.5">
+              {column.links.map((link) => (
+                <li key={link.label}>
+                  <Link
+                    to={link.to}
+                    className="text-sm text-ink-400 transition-colors hover:text-white"
+                  >
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        ))}
+      </div>
+      <div className="border-t border-white/10">
+        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-2 px-4 py-5 text-xs text-ink-500 sm:flex-row sm:px-6 lg:px-8">
+          <p>© {new Date().getFullYear()} HireSmart AI</p>
+          <p>Find the right job. Hire the right people.</p>
+        </div>
+      </div>
     </footer>
-);
+  );
+};
 
 export default Footer;
