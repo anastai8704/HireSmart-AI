@@ -1,17 +1,62 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 124 24" width="124" height="24" role="img" aria-label="HireSmart AI">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 270 52" width="270" height="52" role="img" aria-label="HireSmart AI">
   <defs>
-    <linearGradient id="hs-tile" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#6f64e3"/>
-      <stop offset="1" stop-color="#413993"/>
+    <linearGradient id="hs-nav-cyan-top-light" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#bae6fd" />
+      <stop offset="100%" stop-color="#38bdf8" />
+    </linearGradient>
+    <linearGradient id="hs-nav-cyan-mid-light" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#0284c7" />
+    </linearGradient>
+    <linearGradient id="hs-nav-cyan-glow-light" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#67e8f9" />
+      <stop offset="100%" stop-color="#0ea5e9" />
+    </linearGradient>
+    <linearGradient id="hs-nav-blue-left-light" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0ea5e9" />
+      <stop offset="100%" stop-color="#0369a1" />
+    </linearGradient>
+    <linearGradient id="hs-nav-blue-deep-light" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0284c7" />
+      <stop offset="100%" stop-color="#0c4a6e" />
+    </linearGradient>
+    <linearGradient id="hs-nav-blue-right-light" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2563eb" />
+      <stop offset="100%" stop-color="#1e40af" />
+    </linearGradient>
+    <linearGradient id="hs-nav-blue-dark-light" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1d4ed8" />
+      <stop offset="100%" stop-color="#172554" />
     </linearGradient>
   </defs>
-  <rect width="24" height="24" rx="6.6" fill="url(#hs-tile)"/>
-  <g fill="#ffffff">
-    <rect x="6.4" y="5.4" width="2.8" height="13.2" rx="1.4"/>
-    <rect x="14.8" y="5.4" width="2.8" height="13.2" rx="1.4"/>
-    <rect x="6.4" y="10.6" width="11.2" height="2.8"/>
+
+  <g id="hiresmart-brand-artwork">
+    <!-- HireSmart wordmark -->
+    <text x="12" y="37" font-family="Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="35" font-weight="800" letter-spacing="-0.6" fill="#ffffff">HireSmart</text>
+
+    <!-- 3D Geometric Faceted Diamond/Cube (small gap, NO overlap with 't' or 'A') -->
+    <g id="diamond-cube">
+      <polygon points="205,9.50 197.86,13.63 205,17.75" fill="url(#hs-nav-cyan-top-light)" />
+      <polygon points="205,9.50 212.14,13.63 205,17.75" fill="url(#hs-nav-cyan-mid-light)" />
+      <polygon points="197.86,13.63 190.71,17.75 205,26.00 205,17.75" fill="url(#hs-nav-cyan-glow-light)" />
+      <polygon points="212.14,13.63 219.29,17.75 205,26.00 205,17.75" fill="url(#hs-nav-cyan-top-light)" />
+      <polygon points="190.71,17.75 190.71,26.00 205,26.00" fill="url(#hs-nav-cyan-mid-light)" />
+      <polygon points="190.71,26.00 190.71,34.25 197.86,30.13 205,26.00" fill="url(#hs-nav-blue-left-light)" />
+      <polygon points="190.71,34.25 197.86,38.38 205,26.00" fill="url(#hs-nav-blue-deep-light)" />
+      <polygon points="197.86,38.38 205,42.50 205,26.00" fill="url(#hs-nav-blue-left-light)" />
+      <polygon points="219.29,17.75 219.29,26.00 205,26.00" fill="url(#hs-nav-blue-right-light)" />
+      <polygon points="219.29,26.00 219.29,34.25 212.14,30.13 205,26.00" fill="url(#hs-nav-blue-right-light)" />
+      <polygon points="219.29,34.25 212.14,38.38 205,26.00" fill="url(#hs-nav-blue-dark-light)" />
+      <polygon points="212.14,38.38 205,42.50 205,26.00" fill="url(#hs-nav-blue-right-light)" />
+      <polygon points="205,17.75 205,26.00 197.86,13.63" fill="#ffffff" opacity="0.45" />
+      <polygon points="205,17.75 205,26.00 212.14,13.63" fill="#bae6fd" opacity="0.3" />
+      <line x1="205" y1="9.50" x2="205" y2="26.00" stroke="#ffffff" stroke-width="0.9" stroke-opacity="0.5" />
+      <line x1="190.71" y1="17.75" x2="205" y2="26.00" stroke="#ffffff" stroke-width="0.7" stroke-opacity="0.35" />
+      <line x1="219.29" y1="17.75" x2="205" y2="26.00" stroke="#ffffff" stroke-width="0.7" stroke-opacity="0.35" />
+      <line x1="205" y1="42.50" x2="205" y2="26.00" stroke="#ffffff" stroke-width="0.7" stroke-opacity="0.35" />
+    </g>
+
+    <!-- AI wordmark (small gap, NO overlap) -->
+    <text x="224" y="37" font-family="Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="35" font-weight="800" letter-spacing="-0.6" fill="#ffffff">AI</text>
   </g>
-  <path d="M12 8.4 L13.03 10.97 L15.6 12 L13.03 13.03 L12 15.6 L10.97 13.03 L8.4 12 L10.97 10.97 Z" fill="#67e8f9"/>
-  <text x="31" y="17.9" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="16.5" font-weight="800" letter-spacing="-0.4" fill="#ffffff" textLength="71" lengthAdjust="spacing">HireSmart</text>
-  <text x="105" y="17.9" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="16.5" font-weight="800" fill="#a8a3f6">AI</text>
 </svg>

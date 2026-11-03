@@ -53,8 +53,8 @@ const Footer = () => {
     <footer className="border-t border-white/10 bg-ink-950 text-white">
       <div className="mx-auto grid max-w-7xl gap-x-8 gap-y-10 px-4 py-14 sm:grid-cols-2 sm:px-6 lg:grid-cols-[1.6fr_1fr_1fr_1fr_0.8fr] lg:px-8">
         <div>
-          <Link to="/" className="inline-flex hover:opacity-90" aria-label="HireSmart AI — home">
-            <Logo tone="light" />
+          <Link to="/" className="inline-flex items-center hover:opacity-90" aria-label="HireSmart AI — home">
+            <Logo tone="light" className="h-10 sm:h-11 w-auto" />
           </Link>
           <p className="mt-4 max-w-xs text-sm leading-6 text-ink-400">
             AI-powered job search and hiring for people and companies.

@@ -97,6 +97,8 @@ const stopDatabase = async () => {
 
   if (mongoServer) {
     await mongoServer.stop();
+    mongoServer = null;
+    delete process.env.MONGO_URI;
   }
 };
 

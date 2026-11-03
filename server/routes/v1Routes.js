@@ -27,6 +27,8 @@ const admin = require("../controllers/v1AdminController");
 const health = require("../controllers/v1HealthController");
 const users = require("../controllers/v1UserController");
 const invites = require("../controllers/v1InviteController");
+const placement = require("../controllers/v1PlacementController");
+const subscription = require("../controllers/v1SubscriptionController");
 const { config } = require("../config/env");
 
 const router = express.Router();
@@ -715,11 +717,11 @@ const interviewSchema = strict({
   applicationId: z.string().length(24),
   title: z.string().min(2).max(150),
   type: z.enum(["phone", "video", "onsite", "technical", "panel", "hr"]).optional(),
-  scheduledStart: z.coerce.date().optional(),
-  scheduledEnd: z.coerce.date().optional(),
+  scheduledStart: z.coerce.date().nullable().optional(),
+  scheduledEnd: z.coerce.date().nullable().optional(),
   timezone: z.string().max(100).optional(),
-  location: z.string().max(500).optional(),
-  meetingUrl: z.string().url().max(2048).optional(),
+  location: z.string().max(500).optional().or(z.literal("")),
+  meetingUrl: z.string().url().max(2048).optional().or(z.literal("")),
   participants: z.array(z.string().length(24)).max(20).optional(),
 });
 router.get(
@@ -735,6 +737,12 @@ router.post(
   validate(interviewSchema),
   interview.create,
 );
+router.get(
+  "/organizations/:organizationId/interviews/:interviewId",
+  authenticate,
+  requireOrganization("interview.feedback"),
+  interview.get,
+);
 router.patch(
   "/organizations/:organizationId/interviews/:interviewId",
   authenticate,
@@ -746,7 +754,7 @@ router.post(
   "/organizations/:organizationId/interviews/:interviewId/cancel",
   authenticate,
   requireOrganization("interview.manage"),
-  validate(strict({ reason: z.string().min(1).max(1000) })),
+  validate(strict({ reason: z.string().max(1000).optional().or(z.literal("")) })),
   interview.cancel,
 );
 router.post(
@@ -756,6 +764,7 @@ router.post(
   interview.complete,
 );
 router.get("/candidates/me/interviews", authenticate, candidateOnly, interview.listMine);
+router.get("/interviews/:interviewId", authenticate, candidateOnly, interview.getCandidateInterview);
 router.post("/interviews/:interviewId/confirm", authenticate, candidateOnly, interview.confirm);
 router.post(
   "/interviews/:interviewId/reschedule",
@@ -845,6 +854,62 @@ router.get(
 );
 router.get("/admin/users", authenticate, admin.users);
 router.get("/admin/organizations", authenticate, admin.organizations);
+router.get("/admin/analytics/overview", authenticate, admin.overviewAnalytics);
+router.get("/admin/analytics/revenue", authenticate, subscription.adminRevenueAnalytics);
+router.get("/admin/organizations/:organizationId/verification", authenticate, org.adminGetOrgDetails);
+router.post("/admin/organizations/:organizationId/verify", authenticate, org.adminVerifyOrg);
+router.post("/admin/organizations/:organizationId/reject", authenticate, org.adminRejectOrg);
+router.post("/admin/organizations/:organizationId/request-info", authenticate, org.adminRequestMoreInfoOrg);
+router.post("/admin/organizations/:organizationId/suspend", authenticate, org.adminSuspendOrg);
+router.post("/admin/organizations/:organizationId/reactivate", authenticate, org.adminReactivateOrg);
+router.get("/admin/placements", authenticate, placement.listAdminPlacements);
+router.post("/admin/placements/:placementId/verify", authenticate, placement.adminVerifyPlacement);
+
+// Company verification for recruiters
+router.get(
+  "/organizations/:organizationId/verification",
+  authenticate,
+  requireOrganization("organization.manage"),
+  org.getVerification,
+);
+router.post(
+  "/organizations/:organizationId/verification",
+  authenticate,
+  requireOrganization("organization.manage"),
+  org.submitVerification,
+);
+router.get(
+  "/organizations/:organizationId/placements",
+  authenticate,
+  requireOrganization("application.manage"),
+  placement.listOrganizationPlacements,
+);
+
+// Placement lifecycle for candidate & recruiters
+router.get("/candidates/me/placements", authenticate, candidateOnly, placement.listCandidatePlacements);
+router.post(
+  "/candidates/me/placements/:placementId/confirm-joining",
+  authenticate,
+  candidateOnly,
+  placement.candidateConfirmJoining,
+);
+router.patch("/placements/:placementId/employment-status", authenticate, placement.updateEmploymentStatus);
+
+// Subscriptions & Billing
+router.get("/subscriptions/plans", subscription.getPlans);
+router.get("/subscriptions/current", authenticate, subscription.getCurrentSubscription);
+router.post("/subscriptions/checkout", authenticate, subscription.checkout);
+router.post("/subscriptions/verify-payment", authenticate, subscription.verifyPayment);
+router.post("/subscriptions/cancel", authenticate, subscription.cancelSubscription);
+router.get("/subscriptions/invoices", authenticate, subscription.getInvoices);
+
+router.get("/admin/moderation/companies", authenticate, admin.companyModerationSummary);
+router.get("/admin/moderation/companies/:organizationId/jobs", authenticate, admin.companyJobsList);
+router.post(
+  "/admin/moderation/companies/:organizationId/approve-all",
+  authenticate,
+  admin.bulkApproveCompanyJobs,
+);
 router.get("/admin/moderation/jobs", authenticate, admin.moderationJobs);
 router.post(
   "/admin/moderation/jobs/:jobId/:action",

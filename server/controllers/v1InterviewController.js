@@ -1,6 +1,7 @@
 const Interview = require("../models/Interview");
 const { Application } = require("../models/Application");
 const Job = require("../models/Job");
+const User = require("../models/User");
 const { notify } = require("../services/notificationService");
 const { Membership } = require("../models/Membership");
 const { run } = require("../services/ai/orchestrator");
@@ -17,53 +18,94 @@ const orgOwner = async (organizationId) =>
     role: "owner",
     status: "active",
   }).select("user"))?.user || null;
+
 const restrictedRoles = new Set(["hiring_manager", "interviewer", "viewer"]);
+
 const getOrgInterview = async (req) => {
   const value = await Interview.findOne({
     _id: req.params.interviewId,
     organization: req.auth.organizationId,
-  }).populate({
-    path: "application",
-    select: "candidate job status appliedAt",
-    populate: { path: "job", select: "hiringTeam title company" },
-  });
+  })
+    .populate({
+      path: "application",
+      select: "candidate job status appliedAt",
+      populate: [
+        { path: "job", select: "hiringTeam title company skills requiredSkills location workplaceMode" },
+        { path: "candidate", select: "name email avatar" },
+      ],
+    })
+    .populate("participants", "name email avatar")
+    .populate("feedback.evaluator", "name email avatar");
+
   if (!value) throw new AppError("Interview not found", 404, "RESOURCE_NOT_FOUND");
+
   if (req.membership && restrictedRoles.has(req.membership.role)) {
+    if (req.membership.role === "viewer") {
+      throw new AppError("Interview not found", 404, "RESOURCE_NOT_FOUND");
+    }
     const assigned = value.application?.job?.hiringTeam?.some(
       (id) => String(id) === String(req.membership._id),
     );
-    const participant = value.participants?.some((id) => String(id) === String(req.user._id));
-    if (!assigned && !participant)
+    const participant = value.participants?.some((p) => {
+      const pid = p?._id || p;
+      return String(pid) === String(req.user._id);
+    });
+    if (!assigned && !participant) {
       throw new AppError("Interview not found", 404, "RESOURCE_NOT_FOUND");
+    }
   }
   return value;
 };
+
+const resolveParticipants = async (organizationId, participantIds) => {
+  if (!participantIds || !Array.isArray(participantIds) || participantIds.length === 0) {
+    return [];
+  }
+  const memberships = await Membership.find({
+    organization: organizationId,
+    status: "active",
+    $or: [{ _id: { $in: participantIds } }, { user: { $in: participantIds } }],
+  }).select("user");
+  return [...new Set(memberships.map((m) => String(m.user)))];
+};
+
 exports.create = asyncHandler(async (req, res) => {
   const idem = await idempotency.begin({
     req,
     scope: `interview.create:${req.body.applicationId}`,
   });
   if (idem.replay) return res.status(idem.replay.statusCode).json(idem.replay.response);
+
   const application = await Application.findOne({
     _id: req.body.applicationId,
     organization: req.auth.organizationId,
   })
-    .populate("candidate", "email name")
+    .populate("candidate", "email name avatar")
     .populate("job", "title company");
   if (!application) throw new AppError("Application not found", 404, "RESOURCE_NOT_FOUND");
+
   if (
     req.body.scheduledEnd &&
     req.body.scheduledStart &&
     new Date(req.body.scheduledEnd) <= new Date(req.body.scheduledStart)
-  )
+  ) {
     throw new AppError("scheduledEnd must be after scheduledStart", 422, "INVALID_SCHEDULE");
+  }
+
+  let participants = [];
+  if (req.body.participants) {
+    participants = await resolveParticipants(req.auth.organizationId, req.body.participants);
+  }
+
   const interview = await Interview.create({
     organization: req.auth.organizationId,
     application: application._id,
     createdBy: req.user._id,
     ...req.body,
+    participants: participants.length > 0 ? participants : (req.body.participants || []),
     status: req.body.scheduledStart ? "invited" : "draft",
   });
+
   if (interview.status === "invited") {
     try {
       await notify({
@@ -94,6 +136,7 @@ exports.create = asyncHandler(async (req, res) => {
       );
     }
   }
+
   await audit({
     req,
     organization: req.auth.organizationId,
@@ -101,6 +144,7 @@ exports.create = asyncHandler(async (req, res) => {
     resourceType: "interview",
     resourceId: interview._id,
   });
+
   const response = { data: interview };
   await idempotency.complete({
     req,
@@ -111,10 +155,15 @@ exports.create = asyncHandler(async (req, res) => {
   });
   res.status(201).json(response);
 });
+
 exports.list = asyncHandler(async (req, res) => {
   const page = parse(req.query);
   const filter = applyCursor({ organization: req.auth.organizationId }, page.after);
+
   if (req.membership && restrictedRoles.has(req.membership.role)) {
+    if (req.membership.role === "viewer") {
+      return res.json({ data: [], meta: meta([], page.limit) });
+    }
     const jobIds = await Job.find({
       organization: req.auth.organizationId,
       hiringTeam: req.membership._id,
@@ -125,47 +174,89 @@ exports.list = asyncHandler(async (req, res) => {
     }).distinct("_id");
     filter.$or = [{ application: { $in: applicationIds } }, { participants: req.user._id }];
   }
+
   if (req.query.status) filter.status = req.query.status;
   if (req.query.applicationId) filter.application = req.query.applicationId;
+  if (req.query.type) filter.type = req.query.type;
+
   const items = await Interview.find(filter)
     .populate({
       path: "application",
       select: "candidate job status appliedAt",
-      populate: { path: "job", select: "title company" },
+      populate: [
+        { path: "job", select: "title company skills requiredSkills location workplaceMode" },
+        { path: "candidate", select: "name email avatar" },
+      ],
     })
-    .sort({ _id: -1 })
+    .populate("participants", "name email avatar")
+    .populate("feedback.evaluator", "name email avatar")
+    .sort({ scheduledStart: 1, _id: -1 })
     .limit(page.limit);
+
   res.json({ data: items, meta: meta(items, page.limit) });
 });
+
+exports.get = asyncHandler(async (req, res) => {
+  const interview = await getOrgInterview(req);
+  res.json({ data: interview });
+});
+
 exports.update = asyncHandler(async (req, res) => {
   const interview = await getOrgInterview(req);
-  if (["cancelled", "completed"].includes(interview.status))
+  if (["cancelled", "completed"].includes(interview.status)) {
     throw new AppError(
       "Completed or cancelled interviews cannot be rescheduled",
       409,
       "INVALID_STATE",
     );
+  }
+
+  const nextStart = req.body.scheduledStart !== undefined ? req.body.scheduledStart : interview.scheduledStart;
+  const nextEnd = req.body.scheduledEnd !== undefined ? req.body.scheduledEnd : interview.scheduledEnd;
+  if (nextStart && nextEnd && new Date(nextEnd) <= new Date(nextStart)) {
+    throw new AppError("scheduledEnd must be after scheduledStart", 422, "INVALID_SCHEDULE");
+  }
+
   for (const key of [
     "scheduledStart",
     "scheduledEnd",
     "timezone",
     "location",
     "meetingUrl",
-    "participants",
     "title",
     "type",
-  ])
+  ]) {
     if (req.body[key] !== undefined) interview[key] = req.body[key];
+  }
+
+  if (req.body.participants !== undefined) {
+    interview.participants = await resolveParticipants(
+      req.auth.organizationId,
+      req.body.participants,
+    );
+  }
+
   const rescheduled = Boolean(req.body.scheduledStart);
-  if (rescheduled) interview.status = "invited";
+  if (rescheduled) {
+    interview.status = "invited";
+    interview.candidateConfirmedAt = null;
+  }
   await interview.save();
+
+  await audit({
+    req,
+    organization: req.auth.organizationId,
+    action: "interview.updated",
+    resourceType: "interview",
+    resourceId: interview._id,
+  });
+
   if (rescheduled && interview.application) {
     try {
-      const candidate = await require("../models/User").findById(
-        interview.application.candidate,
-      ).select("email name");
+      const candidateId = interview.application.candidate?._id || interview.application.candidate;
+      const candidate = await User.findById(candidateId).select("email name");
       await notify({
-        user: interview.application.candidate,
+        user: candidateId,
         organization: interview.organization,
         type: "interview_rescheduled",
         category: "interviews",
@@ -192,20 +283,31 @@ exports.update = asyncHandler(async (req, res) => {
   }
   res.json({ data: interview });
 });
+
 exports.cancel = asyncHandler(async (req, res) => {
   const interview = await getOrgInterview(req);
-  if (interview.status === "completed")
+  if (interview.status === "completed") {
     throw new AppError("Completed interview cannot be cancelled", 409, "INVALID_STATE");
+  }
   interview.status = "cancelled";
   interview.cancelledReason = req.body.reason;
   await interview.save();
+
+  await audit({
+    req,
+    organization: req.auth.organizationId,
+    action: "interview.cancelled",
+    resourceType: "interview",
+    resourceId: interview._id,
+    metadata: { reason: req.body.reason },
+  });
+
   if (interview.application) {
     try {
-      const candidate = await require("../models/User").findById(
-        interview.application.candidate,
-      ).select("email name");
+      const candidateId = interview.application.candidate?._id || interview.application.candidate;
+      const candidate = await User.findById(candidateId).select("email name");
       await notify({
-        user: interview.application.candidate,
+        user: candidateId,
         organization: interview.organization,
         type: "interview_cancelled",
         category: "interviews",
@@ -235,48 +337,102 @@ exports.cancel = asyncHandler(async (req, res) => {
   }
   res.json({ data: interview });
 });
+
 exports.complete = asyncHandler(async (req, res) => {
   const interview = await getOrgInterview(req);
-  if (!interview.scheduledStart || interview.scheduledStart > new Date())
+  if (!interview.scheduledStart || interview.scheduledStart > new Date()) {
     throw new AppError(
       "A future or unscheduled interview cannot be completed",
       409,
       "INVALID_STATE",
     );
+  }
+  if (interview.status === "cancelled") {
+    throw new AppError("Cancelled interview cannot be completed", 409, "INVALID_STATE");
+  }
   interview.status = "completed";
   await interview.save();
+
+  await audit({
+    req,
+    organization: req.auth.organizationId,
+    action: "interview.completed",
+    resourceType: "interview",
+    resourceId: interview._id,
+  });
+
   res.json({ data: interview });
 });
+
 exports.listMine = asyncHandler(async (req, res) => {
   const applications = await Application.find({ candidate: req.user._id }).select("_id");
   const items = await Interview.find({ application: { $in: applications.map((item) => item._id) } })
     .populate({
       path: "application",
       select: "candidate job status appliedAt",
-      populate: { path: "job", select: "title company" },
+      populate: [
+        { path: "job", select: "title company skills requiredSkills location workplaceMode" },
+        { path: "candidate", select: "name email avatar" },
+      ],
     })
+    .populate("participants", "name email avatar")
     .sort({ scheduledStart: 1 });
   res.json({ data: items });
 });
+
+exports.getCandidateInterview = asyncHandler(async (req, res) => {
+  const interview = await Interview.findById(req.params.interviewId)
+    .populate({
+      path: "application",
+      select: "candidate job status appliedAt",
+      populate: [
+        { path: "job", select: "title company skills requiredSkills location workplaceMode" },
+        { path: "candidate", select: "name email avatar" },
+      ],
+    })
+    .populate("participants", "name email avatar");
+
+  if (
+    !interview ||
+    String(interview.application?.candidate?._id || interview.application?.candidate) !==
+      String(req.user._id)
+  ) {
+    throw new AppError("Interview not found", 404, "RESOURCE_NOT_FOUND");
+  }
+  res.json({ data: interview });
+});
+
 exports.confirm = asyncHandler(async (req, res) => {
   const interview = await Interview.findById(req.params.interviewId).populate({
     path: "application",
     select: "candidate job",
     populate: { path: "job", select: "title company" },
   });
-  if (!interview || String(interview.application?.candidate) !== String(req.user._id))
+  if (!interview || String(interview.application?.candidate?._id || interview.application?.candidate) !== String(req.user._id)) {
     throw new AppError("Interview not found", 404, "RESOURCE_NOT_FOUND");
-  if (interview.status !== "invited")
+  }
+  if (interview.status !== "invited") {
     throw new AppError("Interview is not awaiting confirmation", 409, "INVALID_STATE");
+  }
   interview.status = "confirmed";
   interview.candidateConfirmedAt = new Date();
   await interview.save();
+
+  await audit({
+    req,
+    organization: interview.organization,
+    action: "interview.confirmed",
+    resourceType: "interview",
+    resourceId: interview._id,
+  });
+
   try {
     const owner = await orgOwner(interview.organization);
     const ownerEmail = owner
-      ? (await require("../models/User").findById(owner).select("email").lean())?.email || null
+      ? (await User.findById(owner).select("email").lean())?.email || null
       : null;
-    for (const userId of new Set([owner].filter(Boolean))) {
+    const recipientIds = new Set([owner, ...(interview.participants || [])].filter(Boolean));
+    for (const userId of recipientIds) {
       await notify({
         user: userId,
         organization: interview.organization,
@@ -298,7 +454,7 @@ exports.confirm = asyncHandler(async (req, res) => {
           organizationId: interview.organization,
           interviewId: interview._id,
         },
-        idempotencyKey: `interview:${interview._id}:confirmed`,
+        idempotencyKey: `interview:${interview._id}:confirmed:${userId}`,
       });
     }
   } catch (error) {
@@ -306,19 +462,36 @@ exports.confirm = asyncHandler(async (req, res) => {
   }
   res.json({ data: interview });
 });
+
 exports.rescheduleRequest = asyncHandler(async (req, res) => {
   const interview = await Interview.findById(req.params.interviewId).populate({
     path: "application",
-    select: "candidate",
+    select: "candidate job",
+    populate: { path: "job", select: "title company" },
   });
-  if (!interview || String(interview.application?.candidate) !== String(req.user._id))
+  if (!interview || String(interview.application?.candidate?._id || interview.application?.candidate) !== String(req.user._id)) {
     throw new AppError("Interview not found", 404, "RESOURCE_NOT_FOUND");
+  }
+  if (["completed", "cancelled"].includes(interview.status)) {
+    throw new AppError("Completed or cancelled interviews cannot be rescheduled", 409, "INVALID_STATE");
+  }
   interview.status = "reschedule_requested";
   interview.cancelledReason = req.body.reason;
   await interview.save();
+
+  await audit({
+    req,
+    organization: interview.organization,
+    action: "interview.reschedule_requested",
+    resourceType: "interview",
+    resourceId: interview._id,
+    metadata: { reason: req.body.reason },
+  });
+
   try {
     const owner = await orgOwner(interview.organization);
-    for (const userId of new Set([owner].filter(Boolean))) {
+    const recipientIds = new Set([owner, ...(interview.participants || [])].filter(Boolean));
+    for (const userId of recipientIds) {
       await notify({
         user: userId,
         organization: interview.organization,
@@ -330,7 +503,15 @@ exports.rescheduleRequest = asyncHandler(async (req, res) => {
         }.`,
         resourceType: "interview",
         resourceId: interview._id,
-        idempotencyKey: `interview:${interview._id}:reschedule-requested`,
+        emailContext: {
+          candidateName: req.user.name,
+          jobTitle: interview.application?.job?.title || "",
+          company: interview.application?.job?.company,
+          reason: req.body.reason || "",
+          organizationId: interview.organization,
+          interviewId: interview._id,
+        },
+        idempotencyKey: `interview:${interview._id}:reschedule-requested:${userId}`,
       });
     }
   } catch (error) {
@@ -338,15 +519,18 @@ exports.rescheduleRequest = asyncHandler(async (req, res) => {
   }
   res.json({ data: interview });
 });
+
 exports.feedback = asyncHandler(async (req, res) => {
   const interview = await getOrgInterview(req);
-  if (interview.feedback.some((f) => String(f.evaluator) === String(req.user._id)))
+  if (interview.feedback.some((f) => String(f.evaluator?._id || f.evaluator) === String(req.user._id))) {
     throw new AppError("Feedback has already been submitted", 409, "FEEDBACK_EXISTS");
+  }
   interview.feedback.push({
     evaluator: req.user._id,
     ratings: req.body.ratings,
     recommendation: req.body.recommendation,
     summary: req.body.summary,
+    submittedAt: new Date(),
   });
   await interview.save();
   await audit({
@@ -355,9 +539,11 @@ exports.feedback = asyncHandler(async (req, res) => {
     action: "interview.feedback_submitted",
     resourceType: "interview",
     resourceId: interview._id,
+    metadata: { recommendation: req.body.recommendation },
   });
   res.status(201).json({ data: interview.feedback[interview.feedback.length - 1] });
 });
+
 exports.preparation = asyncHandler(async (req, res) => {
   const interview = await Interview.findById(req.params.interviewId).populate({
     path: "application",
@@ -367,9 +553,12 @@ exports.preparation = asyncHandler(async (req, res) => {
       select: "title description requiredSkills preferredSkills skills company",
     },
   });
-  if (!interview || String(interview.application?.candidate) !== String(req.user._id))
+  if (!interview || String(interview.application?.candidate?._id || interview.application?.candidate) !== String(req.user._id)) {
     throw new AppError("Interview not found", 404, "RESOURCE_NOT_FOUND");
-  const job = interview.application.job;
+  }
+  const job = interview.application?.job;
+  if (!job) throw new AppError("Job details not found", 404, "RESOURCE_NOT_FOUND");
+
   const result = await run({
     feature: "interview_preparation",
     input: {
@@ -384,10 +573,13 @@ exports.preparation = asyncHandler(async (req, res) => {
   });
   res.json({ data: result });
 });
+
 exports.questions = asyncHandler(async (req, res) => {
   const interview = await getOrgInterview(req);
   const application = await Application.findById(interview.application._id);
   const job = await Job.findById(application.job);
+  if (!job) throw new AppError("Job details not found", 404, "RESOURCE_NOT_FOUND");
+
   const result = await run({
     feature: "interview_questions",
     input: {

@@ -87,8 +87,8 @@ const Navbar = ({ dark = false }) => {
         aria-label="Main"
         className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-3 px-4 sm:px-6 lg:h-17 lg:px-8"
       >
-        <Link to="/" className="flex shrink-0 transition-opacity hover:opacity-90" aria-label="HireSmart AI — home">
-          <Logo tone={dark ? "light" : "dark"} />
+        <Link to="/" className="flex shrink-0 items-center transition-opacity hover:opacity-90" aria-label="HireSmart AI — home">
+          <Logo tone={dark ? "light" : "dark"} className="h-9.5 sm:h-10 lg:h-10.5 w-auto" />
         </Link>
 
         <div className="hidden items-center gap-1 md:flex">

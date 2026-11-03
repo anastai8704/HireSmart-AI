@@ -2,10 +2,13 @@ import { useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   Bell,
+  Bookmark,
   BriefcaseBusiness,
   Building2,
   ChartNoAxesCombined,
   ChevronDown,
+  CreditCard,
+  DollarSign,
   FileText,
   HeartHandshake,
   LayoutDashboard,
@@ -36,13 +39,21 @@ const candidateGroups = [
     [
       ["/app/candidate", "Home", LayoutDashboard],
       ["/app/candidate/jobs", "Discover", Search],
+      ["/app/candidate/recommendations", "Recommendations", Sparkles],
       ["/app/candidate/applications", "Applications", BriefcaseBusiness],
+      ["/app/candidate/saved", "Saved Jobs", Bookmark],
       ["/app/candidate/interviews", "Interviews", Video],
       ["/app/candidate/resumes", "Resumes", FileText],
       ["/app/candidate/alerts", "Alerts", Bell],
     ],
   ],
-  ["Assistant", [["/app/candidate/copilot", "Career Assistant", Sparkles]]],
+  [
+    "Assistant & Plan",
+    [
+      ["/app/candidate/copilot", "Career Assistant", Sparkles],
+      ["/app/candidate/plans", "Career Plus", CreditCard],
+    ],
+  ],
 ];
 const recruiterGroups = (org) => [
   [
@@ -62,7 +73,13 @@ const recruiterGroups = (org) => [
       [`/app/o/${org}/copilot`, "Hiring Assistant", Sparkles],
     ],
   ],
-  ["Workspace", [[`/app/o/${org}/team`, "Team", Building2]]],
+  [
+    "Workspace",
+    [
+      [`/app/o/${org}/team`, "Team", Building2],
+      [`/app/o/${org}/billing`, "Billing & Quotas", CreditCard],
+    ],
+  ],
 ];
 const managerGroups = (org) => [
   [
@@ -77,7 +94,10 @@ const managerGroups = (org) => [
 // A viewer only has job.read, so only the assigned-jobs view is reachable —
 // keeping a link that 404s would teach the role nothing.
 const viewerGroups = (org) => [
-  [["Hiring", [[`/app/o/${org}/assigned`, "Assigned Jobs", HeartHandshake]]]],
+  [
+    "Hiring",
+    [[`/app/o/${org}/assigned`, "Assigned Jobs", HeartHandshake]],
+  ],
 ];
 const adminGroups = [
   [
@@ -87,6 +107,7 @@ const adminGroups = [
       ["/app/admin/moderation", "Approvals", BriefcaseBusiness],
       ["/app/admin/users", "Users", UserRound],
       ["/app/admin/organizations", "Companies", Building2],
+      ["/app/admin/subscriptions", "Revenue & Plans", DollarSign],
     ],
   ],
   [
@@ -109,6 +130,7 @@ const SECTION_TITLES = [
   ["/app/admin/moderation", "Approvals"],
   ["/app/admin/users", "Users"],
   ["/app/admin/organizations", "Companies"],
+  ["/app/admin/subscriptions", "Revenue & Subscriptions"],
   ["/app/admin/ai-usage", "AI Activity"],
   ["/app/admin/security", "Security & Audit"],
   ["/app/notifications", "Notifications"],

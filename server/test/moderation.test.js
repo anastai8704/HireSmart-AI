@@ -7,6 +7,7 @@ const app = require("../app");
 const { startDatabase, stopDatabase, clearDatabase } = require("./setup");
 const User = require("../models/User");
 const Notification = require("../models/Notification");
+const Organization = require("../models/Organization");
 const auth = (token) => ({ Authorization: `Bearer ${token}` });
 
 let adminToken;
@@ -83,6 +84,10 @@ test("seed admin, two orgs and a candidate", async () => {
   });
   ownerBToken = ownerB.token;
   orgBId = ownerB.organization.id;
+  await Organization.updateMany(
+    { _id: { $in: [orgAId, orgBId] } },
+    { $set: { verificationStatus: "verified", verifiedAt: new Date() } },
+  );
   const candidate = await registerAndLogin({
     email: "candidate@moderation.example",
     intent: "candidate",

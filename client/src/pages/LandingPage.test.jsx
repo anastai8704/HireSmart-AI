@@ -59,9 +59,9 @@ describe("landing page copy", () => {
       screen.getByText(/Search jobs, check your resume, and understand why a role matches/),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /search jobs/i })).toBeInTheDocument();
-    // The two journeys are offered twice: in the hero and in the final call to action.
-    expect(screen.getAllByRole("link", { name: /find a job/i }).length).toBeGreaterThanOrEqual(2);
-    expect(screen.getAllByRole("link", { name: /hire talent/i }).length).toBeGreaterThanOrEqual(2);
+    // Primary CTAs are offered in dedicated action sections (e.g. bottom conversion CTA).
+    expect(screen.getByRole("link", { name: /find a job/i })).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: /hire talent/i }).length).toBeGreaterThanOrEqual(1);
   });
 
   it("no longer uses jargon-heavy marketing claims", () => {

@@ -17,7 +17,19 @@ const {
 } = require("../services/email/templates");
 const { buildNotificationEmail } = require("../services/email/notificationEmails");
 
-const parseJsonTransport = (result) => JSON.parse(result.message);
+const parseJsonTransport = (result) => {
+  if (!result) return {};
+  if (typeof result.message === "string") return JSON.parse(result.message);
+  if (typeof result.message === "object" && result.message !== null) return result.message;
+  return result;
+};
+
+test.before(async () => {
+  await startDatabase();
+});
+test.after(async () => {
+  await stopDatabase();
+});
 
 /* ---------------------------- template engine ---------------------------- */
 
@@ -355,9 +367,7 @@ const waitFor = async (fn, ms = 4000) => {
 };
 
 test("notify() with emailContext delivers a premium email through the queue", async () => {
-  await startDatabase();
   await clearDatabase();
-  try {
     const user = await createUser({ name: "Jane Doe" });
     const notification = await notify({
       user: user._id,
@@ -386,15 +396,10 @@ test("notify() with emailContext delivers a premium email through the queue", as
     const fresh = await Notification.findById(notification._id);
     assert.equal(fresh.delivery.email, "sent");
     assert.equal(job.status, "completed");
-  } finally {
-    await stopDatabase();
-  }
 });
 
 test("recipient email preferences still win over defaults", async () => {
-  await startDatabase();
   await clearDatabase();
-  try {
     const user = await createUser({
       notificationPrefs: {
         events: { application_acknowledged: { inApp: true, email: false } },
@@ -417,15 +422,10 @@ test("recipient email preferences still win over defaults", async () => {
     assert.equal(jobs.length, 0, "no email job when the recipient opted out of email");
     const fresh = await Notification.findById(notification._id);
     assert.equal(fresh.delivery.email, "not_requested");
-  } finally {
-    await stopDatabase();
-  }
 });
 
 test("high-severity security events email the affected user", async () => {
-  await startDatabase();
   await clearDatabase();
-  try {
     const user = await createUser({ name: "Jane Doe" });
     await security({
       user: user._id,
@@ -455,7 +455,4 @@ test("high-severity security events email the affected user", async () => {
     assert.equal(job.payload.context.event, "session.refresh_token_reuse");
     const fresh = await Notification.findById(notification._id);
     assert.equal(fresh.delivery.email, "sent");
-  } finally {
-    await stopDatabase();
-  }
 });

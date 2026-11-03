@@ -14,7 +14,8 @@ const SIZES = {
 };
 
 const Modal = ({
-  isOpen,
+  isOpen: isOpenProp,
+  open: openProp,
   onClose,
   title,
   description,
@@ -23,6 +24,7 @@ const Modal = ({
   footer,
   closeOnBackdrop = true,
 }) => {
+  const isOpen = isOpenProp !== undefined ? isOpenProp : Boolean(openProp);
   const titleId = useId();
   const descriptionId = useId();
   const panelRef = useRef(null);

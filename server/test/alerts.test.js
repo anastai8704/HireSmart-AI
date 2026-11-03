@@ -6,6 +6,7 @@ const request = require("supertest");
 const app = require("../app");
 const { startDatabase, stopDatabase, clearDatabase } = require("./setup");
 const { runAlertScan } = require("../services/alertScanService");
+const Organization = require("../models/Organization");
 const JobAlert = require("../models/JobAlert");
 const Notification = require("../models/Notification");
 const SearchHistory = require("../models/SearchHistory");
@@ -57,6 +58,10 @@ test("phase 2: seed candidate, owner and two published jobs", async () => {
   });
   ownerToken = owner.token;
   organizationId = owner.organization.id;
+  await Organization.updateOne(
+    { _id: organizationId },
+    { $set: { verificationStatus: "verified", verifiedAt: new Date() } },
+  );
   const candidate = await registerAndLogin({
     email: "candidate@alerts.example",
     intent: "candidate",

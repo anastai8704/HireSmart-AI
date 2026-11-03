@@ -1,18 +1,53 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" role="img" aria-label="HireSmart AI">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" role="img" aria-label="HireSmart AI Mark">
   <defs>
-    <linearGradient id="hs-tile" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#6f64e3"/>
-      <stop offset="1" stop-color="#413993"/>
+    <linearGradient id="hs-cube-top" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#bae6fd" />
+      <stop offset="100%" stop-color="#38bdf8" />
+    </linearGradient>
+    <linearGradient id="hs-cube-mid" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#0284c7" />
+    </linearGradient>
+    <linearGradient id="hs-cube-glow" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#67e8f9" />
+      <stop offset="100%" stop-color="#0ea5e9" />
+    </linearGradient>
+    <linearGradient id="hs-cube-blue-left" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0ea5e9" />
+      <stop offset="100%" stop-color="#0369a1" />
+    </linearGradient>
+    <linearGradient id="hs-cube-blue-deep" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0284c7" />
+      <stop offset="100%" stop-color="#0c4a6e" />
+    </linearGradient>
+    <linearGradient id="hs-cube-blue-right" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2563eb" />
+      <stop offset="100%" stop-color="#1e40af" />
+    </linearGradient>
+    <linearGradient id="hs-cube-blue-dark" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1d4ed8" />
+      <stop offset="100%" stop-color="#172554" />
     </linearGradient>
   </defs>
-  <!-- tile -->
-  <rect width="24" height="24" rx="6.6" fill="url(#hs-tile)"/>
-  <!-- the H: two people (verticals) + the bridge of hiring (crossbar) -->
-  <g fill="#ffffff">
-    <rect x="6.4" y="5.4" width="2.8" height="13.2" rx="1.4"/>
-    <rect x="14.8" y="5.4" width="2.8" height="13.2" rx="1.4"/>
-    <rect x="6.4" y="10.6" width="11.2" height="2.8"/>
+
+  <g id="faceted-cube-mark">
+    <polygon points="50,6.00 30.95,17.00 50,28.00" fill="url(#hs-cube-top)" />
+    <polygon points="50,6.00 69.05,17.00 50,28.00" fill="url(#hs-cube-mid)" />
+    <polygon points="30.95,17.00 11.89,28.00 50,50.00 50,28.00" fill="url(#hs-cube-glow)" />
+    <polygon points="69.05,17.00 88.11,28.00 50,50.00 50,28.00" fill="url(#hs-cube-top)" />
+    <polygon points="11.89,28.00 11.89,50.00 50,50.00" fill="url(#hs-cube-mid)" />
+    <polygon points="11.89,50.00 11.89,72.00 30.95,61.00 50,50.00" fill="url(#hs-cube-blue-left)" />
+    <polygon points="11.89,72.00 30.95,83.00 50,50.00" fill="url(#hs-cube-blue-deep)" />
+    <polygon points="30.95,83.00 50,94.00 50,50.00" fill="url(#hs-cube-blue-left)" />
+    <polygon points="88.11,28.00 88.11,50.00 50,50.00" fill="url(#hs-cube-blue-right)" />
+    <polygon points="88.11,50.00 88.11,72.00 69.05,61.00 50,50.00" fill="url(#hs-cube-blue-right)" />
+    <polygon points="88.11,72.00 69.05,83.00 50,50.00" fill="url(#hs-cube-blue-dark)" />
+    <polygon points="69.05,83.00 50,94.00 50,50.00" fill="url(#hs-cube-blue-right)" />
+    <polygon points="50,28.00 50,50.00 30.95,17.00" fill="#ffffff" opacity="0.45" />
+    <polygon points="50,28.00 50,50.00 69.05,17.00" fill="#bae6fd" opacity="0.3" />
+    <line x1="50" y1="6.00" x2="50" y2="50.00" stroke="#ffffff" stroke-width="1.2" stroke-opacity="0.5" />
+    <line x1="11.89" y1="28.00" x2="50" y2="50.00" stroke="#ffffff" stroke-width="0.9" stroke-opacity="0.35" />
+    <line x1="88.11" y1="28.00" x2="50" y2="50.00" stroke="#ffffff" stroke-width="0.9" stroke-opacity="0.35" />
+    <line x1="50" y1="94.00" x2="50" y2="50.00" stroke="#ffffff" stroke-width="0.9" stroke-opacity="0.35" />
   </g>
-  <!-- the AI match moment at the crossing -->
-  <path d="M12 8.4 L13.03 10.97 L15.6 12 L13.03 13.03 L12 15.6 L10.97 13.03 L8.4 12 L10.97 10.97 Z" fill="#67e8f9"/>
 </svg>

@@ -64,6 +64,29 @@ const builders = {
       },
     }),
 
+  job_changes_submitted: ({ context: c }) =>
+    renderEmail({
+      subject: `Job changes submitted for review: ${c.jobTitle}`,
+      preheader: "Your updated job details are waiting for review.",
+      title: "Job changes submitted",
+      body: [
+        `Updated details for "${c.jobTitle}" have been submitted for review. The current approved version remains visible until changes are approved.`,
+      ],
+      details: [
+        { label: "Role", value: c.jobTitle },
+        { label: "Company", value: c.company },
+        { label: "Location", value: c.location },
+        { label: "Status", value: "Review pending" },
+      ],
+      cta: c.organizationId && c.jobId
+        ? { label: "View Job", url: appUrl(`/app/o/${c.organizationId}/jobs/${c.jobId}/edit`) }
+        : null,
+      note: {
+        tone: "info",
+        text: "You will receive an update once the platform moderation team reviews your changes.",
+      },
+    }),
+
   job_moderation: ({ context: c }) => {
     const approved = Boolean(c.approved);
     const isChangeReview = Boolean(c.isChangeReview);
@@ -126,6 +149,28 @@ const builders = {
       },
     }),
 
+  new_application: ({ context: c }) =>
+    renderEmail({
+      subject: `New application: ${c.jobTitle}`,
+      preheader: `${c.applicantName || "A candidate"} applied for ${c.jobTitle}.`,
+      title: "New application received",
+      body: [
+        `A new candidate application was submitted for the ${c.jobTitle} position.`,
+      ],
+      details: [
+        { label: "Role", value: c.jobTitle },
+        { label: "Candidate", value: c.applicantName || "Candidate" },
+        { label: "Applied", value: c.appliedAt ? fmtDate(c.appliedAt) : fmtDate(new Date()) },
+      ],
+      cta: c.organizationId && c.applicationId
+        ? { label: "Review Application", url: appUrl(`/app/o/${c.organizationId}/applications/${c.applicationId}`) }
+        : null,
+      note: {
+        tone: "brand",
+        text: "Review candidate qualifications, hybrid match breakdown, and resume details in your hiring workspace.",
+      },
+    }),
+
   application_status_changed: ({ context: c, greeting }) => {
     const toStatus = String(c.toStatus || "");
     const shortlisted = toStatus === "shortlisted";
@@ -159,6 +204,41 @@ const builders = {
           : null,
     });
   },
+
+  application_withdrawn: ({ context: c }) =>
+    renderEmail({
+      subject: `Application withdrawn: ${c.jobTitle}`,
+      preheader: `${c.candidateName || "A candidate"} withdrew their application.`,
+      title: "Application withdrawn",
+      body: [
+        `${c.candidateName || "A candidate"} withdrew their application for the ${c.jobTitle} role.`,
+      ],
+      details: [
+        { label: "Role", value: c.jobTitle },
+        { label: "Candidate", value: c.candidateName || "" },
+      ],
+      cta: c.organizationId
+        ? { label: "View Applications", url: appUrl(`/app/o/${c.organizationId}/jobs`) }
+        : null,
+    }),
+
+  recruiter_message: ({ context: c, greeting, message }) =>
+    renderEmail({
+      subject: `Message from hiring team: ${c.jobTitle || "Application"}`,
+      preheader: "A message was sent regarding your application.",
+      greeting,
+      title: "Message from hiring team",
+      body: [
+        message || "You have received a direct message from the hiring team regarding your application.",
+      ],
+      details: [
+        { label: "Role", value: c.jobTitle },
+        { label: "Company", value: c.company },
+      ],
+      cta: c.applicationId
+        ? { label: "View Application", url: appUrl(`/app/candidate/applications/${c.applicationId}`) }
+        : null,
+    }),
 
   /* ---------------------------- interviews ---------------------------- */
   interview_invitation: ({ context: c, greeting }) =>
@@ -215,6 +295,24 @@ const builders = {
         : null,
     }),
 
+  interview_reschedule_requested: ({ context: c }) =>
+    renderEmail({
+      subject: `Interview reschedule requested: ${c.jobTitle || "Interview"}`,
+      preheader: `${c.candidateName || "A candidate"} requested a new interview time.`,
+      title: "Reschedule requested",
+      body: [
+        `${c.candidateName || "The candidate"} requested a new interview time${c.reason ? `: "${c.reason}"` : ""}.`,
+      ],
+      details: [
+        { label: "Candidate", value: c.candidateName || "" },
+        { label: "Role", value: c.jobTitle || "" },
+        { label: "Reason", value: c.reason || "Candidate requested alternative time" },
+      ],
+      cta: c.organizationId && c.interviewId
+        ? { label: "Reschedule Interview", url: appUrl(`/app/o/${c.organizationId}/interviews/${c.interviewId}`) }
+        : null,
+    }),
+
   interview_cancelled: ({ context: c, greeting }) =>
     renderEmail({
       subject: `Interview cancelled: ${c.jobTitle}`,
@@ -231,6 +329,168 @@ const builders = {
       cta: c.interviewId
         ? { label: "Review Interview", url: appUrl(`/app/candidate/interviews/${c.interviewId}`) }
         : null,
+    }),
+
+  /* ----------------------------- team ----------------------------- */
+  member_invited: ({ context: c }) =>
+    renderEmail({
+      subject: `Team member invited to ${c.orgName || "Company"}`,
+      preheader: `${c.email} was invited as a ${roleLabel(c.role)}.`,
+      title: "Team invitation sent",
+      body: [
+        `An invitation to join ${c.orgName || "your company"} as a ${roleLabel(c.role)} was sent to ${c.email}.`,
+      ],
+      details: [
+        { label: "Invited Email", value: c.email },
+        { label: "Assigned Role", value: roleLabel(c.role) },
+        { label: "Invited By", value: c.inviterName || "" },
+      ],
+      cta: c.organizationId
+        ? { label: "View Team", url: appUrl(`/app/o/${c.organizationId}/team`) }
+        : null,
+    }),
+
+  invitation_accepted: ({ context: c }) =>
+    renderEmail({
+      subject: `Invitation accepted: ${c.memberName || "New teammate"} joined`,
+      preheader: `${c.memberName || "A new member"} joined ${c.orgName || "your company"}.`,
+      title: "New member joined your team",
+      body: [
+        `${c.memberName || "A team member"} accepted the invitation and joined ${c.orgName || "your company"} as a ${roleLabel(c.role)}.`,
+      ],
+      details: [
+        { label: "Member Name", value: c.memberName || "" },
+        { label: "Email", value: c.email || "" },
+        { label: "Role", value: roleLabel(c.role) },
+      ],
+      cta: c.organizationId
+        ? { label: "View Team", url: appUrl(`/app/o/${c.organizationId}/team`) }
+        : null,
+    }),
+
+  member_role_changed: ({ context: c }) =>
+    renderEmail({
+      subject: `Role updated for ${c.memberName || "team member"}`,
+      preheader: `Role updated to ${roleLabel(c.role)}.`,
+      title: "Team member role changed",
+      body: [
+        `The organization role for ${c.memberName || "a team member"} was updated to ${roleLabel(c.role)}.`,
+      ],
+      details: [
+        { label: "Member", value: c.memberName || "" },
+        { label: "New Role", value: roleLabel(c.role) },
+      ],
+      cta: c.organizationId
+        ? { label: "View Team", url: appUrl(`/app/o/${c.organizationId}/team`) }
+        : null,
+    }),
+
+  member_removed: ({ context: c }) =>
+    renderEmail({
+      subject: `Member removed from ${c.orgName || "team"}`,
+      preheader: `${c.memberName || "A member"} was removed from the organization.`,
+      title: "Team member removed",
+      body: [
+        `${c.memberName || "A team member"} was removed from ${c.orgName || "the organization"}.`,
+      ],
+      details: [
+        { label: "Member", value: c.memberName || "" },
+        { label: "Organization", value: c.orgName || "" },
+      ],
+    }),
+
+  /* ----------------------------- AI & resume ----------------------------- */
+  resume_processed: ({ context: c, greeting }) =>
+    renderEmail({
+      subject: "Your resume is processed and ready",
+      preheader: "AI analysis and ATS readiness scores are available.",
+      greeting,
+      title: "Resume processed successfully",
+      body: [
+        "Your resume has been processed. We extracted your skill evidence and calculated ATS readiness scores to help optimize your job applications.",
+      ],
+      details: [
+        { label: "Resume File", value: c.fileName || "Uploaded resume" },
+        { label: "Skills Detected", value: c.skillsCount ? `${c.skillsCount} skills` : "Extracted" },
+      ],
+      cta: c.versionId
+        ? { label: "View Resume Analysis", url: appUrl(`/app/candidate/resumes/${c.versionId}`) }
+        : { label: "View Resumes", url: appUrl("/app/candidate/resumes") },
+      note: {
+        tone: "brand",
+        text: "Review extracted skills and ATS suggestions to ensure your profile highlights your verified achievements.",
+      },
+    }),
+
+  resume_processing_failed: ({ context: c, greeting }) =>
+    renderEmail({
+      subject: "Resume processing issue",
+      preheader: "We could not read your uploaded resume.",
+      greeting,
+      title: "Resume processing problem",
+      body: [
+        "There was a problem reading your resume file. Please ensure it is a valid PDF or DOCX file under 10MB.",
+      ],
+      details: [
+        { label: "Resume File", value: c.fileName || "Uploaded resume" },
+        { label: "Issue", value: c.reason || "File formatting could not be parsed" },
+      ],
+      cta: { label: "Upload New Resume", url: appUrl("/app/candidate/resumes") },
+      note: {
+        tone: "warning",
+        text: "You can re-upload your resume at any time from your resume management dashboard.",
+      },
+    }),
+
+  job_alert: ({ context: c, greeting }) =>
+    renderEmail({
+      subject: `New job matches: ${c.alertName || "Saved Alert"}`,
+      preheader: "New roles matching your search criteria are available.",
+      greeting,
+      title: "New job opportunities",
+      body: [
+        `New job postings matching your saved criteria "${c.alertName || "job alert"}" have been published on HireSmart AI.`,
+      ],
+      details: [
+        { label: "Alert", value: c.alertName || "Job Search" },
+        { label: "Matching Jobs", value: c.count ? `${c.count} new roles` : "New openings" },
+      ],
+      cta: { label: "View Matches", url: appUrl("/app/candidate/jobs") },
+    }),
+
+  /* ----------------------------- platform & admin ----------------------------- */
+  organization_registered: ({ context: c }) =>
+    renderEmail({
+      subject: `New company registered: ${c.orgName}`,
+      preheader: `${c.orgName} registered on HireSmart AI.`,
+      title: "New company registered",
+      body: [
+        `A new employer organization "${c.orgName}" was registered on the platform.`,
+      ],
+      details: [
+        { label: "Company", value: c.orgName },
+        { label: "Industry", value: c.industry || "General" },
+        { label: "Created By", value: c.creatorName || c.email || "Employer" },
+      ],
+      cta: c.orgId
+        ? { label: "View Company", url: appUrl(`/app/admin/organizations/${c.orgId}`) }
+        : null,
+    }),
+
+  user_registered: ({ context: c }) =>
+    renderEmail({
+      subject: `New user registration: ${c.userName || c.email}`,
+      preheader: `New ${roleLabel(c.role || "user")} registered.`,
+      title: "New user account created",
+      body: [
+        `A new user account was registered on HireSmart AI.`,
+      ],
+      details: [
+        { label: "Name", value: c.userName || "User" },
+        { label: "Email", value: c.email || "" },
+        { label: "Account Type", value: roleLabel(c.role || "candidate") },
+      ],
+      cta: { label: "Admin Users", url: appUrl("/app/admin/users") },
     }),
 
   /* ----------------------------- security ----------------------------- */
@@ -273,6 +533,8 @@ const builders = {
   security_alert: ({ context: c, greeting }) => {
     const eventLabels = {
       "session.refresh_token_reuse": "Possible session takeover",
+      "suspicious_login": "Unusual login activity",
+      "privilege_escalation": "Unauthorized permission attempt",
     };
     const label = eventLabels[c.event] || roleLabel(String(c.event || "security event"));
     return renderEmail({
@@ -319,4 +581,4 @@ const buildNotificationEmail = ({ type, subject, message, context = {} }) => {
   return builder({ context, subject, message, greeting });
 };
 
-module.exports = { buildNotificationEmail };
+module.exports = { buildNotificationEmail, builders };

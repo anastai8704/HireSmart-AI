@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+
 const notificationSchema = new mongoose.Schema(
   {
     user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
@@ -22,13 +23,20 @@ const notificationSchema = new mongoose.Schema(
         enum: ["not_requested", "queued", "sent", "failed"],
         default: "not_requested",
       },
+      push: {
+        type: String,
+        enum: ["not_requested", "queued", "sent", "failed"],
+        default: "not_requested",
+      },
       providerId: String,
     },
     idempotencyKey: { type: String, default: undefined },
   },
   { timestamps: true },
 );
+
 notificationSchema.index({ user: 1, category: 1, createdAt: -1 });
 notificationSchema.index({ user: 1, createdAt: -1 });
 notificationSchema.index({ user: 1, idempotencyKey: 1 }, { unique: true, sparse: true });
+
 module.exports = mongoose.model("Notification", notificationSchema);
