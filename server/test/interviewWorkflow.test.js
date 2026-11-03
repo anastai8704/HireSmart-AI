@@ -8,7 +8,7 @@ const {
   formatDuration,
   isValidMeetingUrl,
   generateIcsContent,
-} = require("../../client/src/lib/utils");
+} = require("../../client/src/lib/interviewFormat");
 
 /* ----------------------------- 1. Interview Domain Model & Schema ----------------------------- */
 
