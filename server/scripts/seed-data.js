@@ -27,7 +27,7 @@ const seedFreshData = async () => {
     User.deleteMany({}),
     Job.deleteMany({}),
     CandidateProfile.deleteMany({}),
-    Application.deleteMany({}),
+    Application.deleteMany({}).setOptions({ allowHardDelete: true }),
   ]);
   console.log("✓ Cleared all previous data from database.");
 

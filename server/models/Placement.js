@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { protectRecords } = require("./plugins/protectRecords");
 
 const placementStatuses = Object.freeze([
   "selected",
@@ -85,6 +86,8 @@ const placementSchema = new mongoose.Schema(
 placementSchema.index({ organization: 1, status: 1 });
 placementSchema.index({ candidate: 1, status: 1 });
 placementSchema.index({ createdAt: -1 });
+
+placementSchema.plugin(protectRecords);
 
 module.exports = {
   Placement: mongoose.model("Placement", placementSchema),

@@ -894,7 +894,9 @@ const cleanupLegacy = async () => {
   await run("ParsedResume", () => ParsedResume.deleteMany({ resumeVersion: { $in: versionIds } }));
   await run("ResumeVersion", () => ResumeVersion.deleteMany({ candidate: { $in: userIds } }));
   await run("Resume", () => Resume.deleteMany({ candidate: { $in: userIds } }));
-  await run("Application", () => Application.deleteMany({ _id: { $in: appIds } }));
+  await run("Application", () =>
+    Application.deleteMany({ _id: { $in: appIds } }).setOptions({ allowHardDelete: true }),
+  );
   await run("Job", () => Job.deleteMany({ _id: { $in: jobIds } }));
   await run("CandidateProfile", () => CandidateProfile.deleteMany({ user: { $in: userIds } }));
   await run("Membership", () =>

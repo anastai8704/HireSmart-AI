@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { protectRecords } = require("./plugins/protectRecords");
 const { applicationStatuses } = require("../constants/enums");
 
 const statusHistorySchema = new mongoose.Schema(
@@ -127,6 +128,8 @@ const applicationSchema = new mongoose.Schema(
 applicationSchema.index({ job: 1, candidate: 1 }, { unique: true });
 applicationSchema.index({ job: 1, status: 1, appliedAt: -1 });
 applicationSchema.index({ candidate: 1, appliedAt: -1 });
+
+applicationSchema.plugin(protectRecords);
 
 module.exports = {
   Application: mongoose.model("Application", applicationSchema),

@@ -668,14 +668,8 @@ exports.applications = asyncHandler(async (req, res) => {
     .limit(page.limit);
   res.json({ data: items, meta: meta(items, page.limit) });
 });
-const transitions = {
-  submitted: ["under_review", "shortlisted", "rejected"],
-  under_review: ["shortlisted", "interview", "rejected"],
-  shortlisted: ["interview", "rejected"],
-  interview: ["offer", "rejected"],
-  offer: ["hired", "rejected"],
-  Applied: ["under_review", "shortlisted", "rejected"],
-};
+// Application stage rules live in domain/stateMachines.js (identical to the previous local map).
+const { applicationStageTransitions: transitions } = require("../domain/stateMachines");
 exports.transition = asyncHandler(async (req, res) => {
   const app = await Application.findOne({
     _id: req.params.applicationId,

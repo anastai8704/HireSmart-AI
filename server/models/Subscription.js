@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { protectRecords } = require("./plugins/protectRecords");
 
 const planTiers = Object.freeze([
   "candidate_free",
@@ -75,6 +76,8 @@ const subscriptionSchema = new mongoose.Schema(
 );
 
 subscriptionSchema.index({ subscriberType: 1, subscriberId: 1 }, { unique: true });
+
+subscriptionSchema.plugin(protectRecords);
 
 module.exports = {
   Subscription: mongoose.model("Subscription", subscriptionSchema),

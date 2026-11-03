@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { protectRecords } = require("./plugins/protectRecords");
 
 const transactionStatuses = Object.freeze(["initiated", "captured", "failed", "refunded"]);
 const paymentGateways = Object.freeze(["razorpay", "simulation"]);
@@ -93,6 +94,8 @@ paymentTransactionSchema.index(
   { gatewayPaymentId: 1 },
   { unique: true, partialFilterExpression: { gatewayPaymentId: { $gt: "" } } },
 );
+
+paymentTransactionSchema.plugin(protectRecords);
 
 module.exports = {
   PaymentTransaction: mongoose.model("PaymentTransaction", paymentTransactionSchema),
