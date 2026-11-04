@@ -59,18 +59,29 @@ ${delimiter}
   }
 };
 
+// A file that stops making progress must not hold the whole suite: it is killed, reported
+// as failed with its output tail, and the remaining files still run.
+const FILE_TIMEOUT_MS = Number(process.env.TEST_FILE_TIMEOUT_MS) || 300000;
+
 const runFile = (file) =>
   new Promise((resolve) => {
     const child = spawn(process.execPath, ["--test", file], { stdio: ["ignore", "pipe", "pipe"] });
     let out = "";
+    let timedOut = false;
     const relay = (chunk) => {
       const text = chunk.toString();
       process.stdout.write(text);
       out += text;
     };
+    const timer = setTimeout(() => {
+      timedOut = true;
+      out += `\n[runner] no completion after ${FILE_TIMEOUT_MS / 1000}s; killing this file\n`;
+      child.kill("SIGKILL");
+    }, FILE_TIMEOUT_MS);
     child.stdout.on("data", relay);
     child.stderr.on("data", relay);
     child.on("error", (error) => {
+      clearTimeout(timer);
       resolve({
         file: path.basename(file),
         failed: true,
@@ -78,7 +89,8 @@ const runFile = (file) =>
       });
     });
     child.on("close", (code, signal) => {
-      if (code === 0) {
+      clearTimeout(timer);
+      if (code === 0 && !timedOut) {
         resolve({ file: path.basename(file), failed: false });
         return;
       }
