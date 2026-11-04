@@ -5,7 +5,27 @@ process.env.PROCESS_JOBS_INLINE = "true";
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const test = require("node:test");
+const nodeTest = require("node:test");
+
+// Failure summary printed last, so CI log tails show which assertions failed.
+const failedTests = [];
+process.on("exit", () => {
+  if (failedTests.length) {
+    process.stderr.write(`\nCOMPANY-VERIFICATION FAILURES (${failedTests.length}):\n${failedTests.join("\n")}\n`);
+  }
+});
+const test = Object.assign(
+  (name, fn) =>
+    nodeTest(name, async (t) => {
+      try {
+        await fn(t);
+      } catch (error) {
+        failedTests.push(`- ${name}: ${String(error && error.message).slice(0, 400).replace(/\s+/g, " ")}`);
+        throw error;
+      }
+    }),
+  { before: nodeTest.before, after: nodeTest.after },
+);
 const request = require("supertest");
 const app = require("../app");
 const { startDatabase, stopDatabase, clearDatabase } = require("./setup");
