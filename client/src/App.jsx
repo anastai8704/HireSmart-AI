@@ -57,6 +57,7 @@ const Notifications = pick(() => import("./pages/SystemPages"), "NotificationsPa
   AdminHome = pick(() => import("./pages/admin/AdminPages"), "AdminHome"),
   AdminUsers = pick(() => import("./pages/admin/AdminPages"), "AdminUsers"),
   AdminOrgs = pick(() => import("./pages/admin/AdminPages"), "AdminOrganizations"),
+  AdminVerification = pick(() => import("./pages/admin/AdminVerificationReview"), "AdminVerificationReview"),
   AdminAI = pick(() => import("./pages/admin/AdminPages"), "AdminAIUsage"),
   AdminSecurity = pick(() => import("./pages/admin/AdminPages"), "AdminSecurity"),
   AdminModeration = pick(() => import("./pages/admin/AdminPages"), "AdminModeration"),
@@ -184,6 +185,8 @@ const App = () => (
                 <Route path="/app/admin/users" element={<AdminUsers />} />
                 <Route path="/app/admin/organizations" element={<AdminOrgs />} />
                 <Route path="/app/admin/organizations/:organizationId" element={<AdminOrgs />} />
+                <Route path="/app/admin/verification" element={<AdminVerification />} />
+                <Route path="/app/admin/verification/:caseId" element={<AdminVerification />} />
                 <Route path="/app/admin/subscriptions" element={<AdminSubscriptions />} />
                 <Route path="/app/admin/ai-usage" element={<AdminAI />} />
                 <Route path="/app/admin/security" element={<AdminSecurity />} />

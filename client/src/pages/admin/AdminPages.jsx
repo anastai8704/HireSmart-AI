@@ -695,8 +695,25 @@ export const AdminOrganizations = () => {
             const riskFlags = org.riskFlags || [];
             const docs = org.documents || [];
 
+            const verificationCase = detailQuery.data.data.verificationCase;
+
             return (
               <div className="space-y-6">
+                {verificationCase ? (
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand-200 bg-brand-50 p-4 text-sm">
+                    <p>
+                      Case status: <strong>{verificationCase.case.status.replaceAll("_", " ")}</strong>
+                      {verificationCase.case.risk.requiresManualReview ? " · elevated risk, manual review" : ""}
+                    </p>
+                    <Button as={Link} to={`/app/admin/verification/${verificationCase.case.id}`} size="sm" variant="outline">
+                      Open full case review
+                    </Button>
+                  </div>
+                ) : (
+                  <p className="rounded-xl border border-ink-100 p-4 text-sm text-ink-600">
+                    No verification case exists for this company yet.
+                  </p>
+                )}
                 {/* Legal & Business Overview */}
                 <div className="grid gap-4 rounded-xl border border-ink-100 bg-ink-50/50 p-4 sm:grid-cols-2">
                   <div>

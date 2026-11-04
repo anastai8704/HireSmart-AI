@@ -16,6 +16,11 @@ const upload = require("../middleware/uploadResumeV1");
 const uploadAvatar = require("../middleware/uploadAvatarV1");
 const auth = require("../controllers/v1AuthController");
 const org = require("../controllers/v1OrganizationController");
+const verification = require("../controllers/v1CompanyVerificationController");
+const uploadVerificationDocument = require("../middleware/uploadVerificationDocumentV1");
+const { BUSINESS_TYPES, CHECK_TYPES, DOCUMENT_TYPES } = require("../domain/verificationRules");
+const { isValidGstin } = require("../domain/companyVerificationPolicy");
+const AppError = require("../utils/AppError");
 const resume = require("../controllers/v1ResumeController");
 const candidate = require("../controllers/v1CandidateController");
 const recruitment = require("../controllers/v1RecruitmentController");
@@ -864,21 +869,147 @@ router.post("/admin/organizations/:organizationId/reject", authenticate, org.adm
 router.post("/admin/organizations/:organizationId/request-info", authenticate, org.adminRequestMoreInfoOrg);
 router.post("/admin/organizations/:organizationId/suspend", authenticate, org.adminSuspendOrg);
 router.post("/admin/organizations/:organizationId/reactivate", authenticate, org.adminReactivateOrg);
+
+// Company verification review (Phase 2). Platform administrators only; others receive 404.
+const reviewReasonSchema = strict({ reason: z.string().trim().min(3).max(2000) });
+const reviewReasonOptionalSchema = strict({ reason: z.string().trim().max(2000).optional() });
+const checkRecordSchema = strict({
+  type: z.enum(CHECK_TYPES),
+  result: z.enum(["match", "mismatch", "concern", "unavailable"]),
+  note: z.string().trim().min(10).max(1000),
+});
+const requestChangesSchema = strict({
+  items: z.array(z.string().trim().min(3).max(300)).min(1).max(20),
+});
+router.get("/admin/verification/cases", authenticate, verification.adminListCases);
+router.get("/admin/verification/cases/:caseId", authenticate, verification.adminCaseDetail);
+router.post(
+  "/admin/verification/cases/:caseId/checks",
+  authenticate,
+  validate(checkRecordSchema),
+  verification.adminRecordCheck,
+);
+router.post(
+  "/admin/verification/cases/:caseId/registry-check",
+  authenticate,
+  verification.adminRegistryCheck,
+);
+router.post(
+  "/admin/verification/cases/:caseId/request-changes",
+  authenticate,
+  validate(requestChangesSchema),
+  verification.adminRequestChanges,
+);
+router.post("/admin/verification/cases/:caseId/approve", authenticate, verification.adminApprove);
+router.post(
+  "/admin/verification/cases/:caseId/reject",
+  authenticate,
+  validate(reviewReasonSchema),
+  verification.adminReject,
+);
+router.post(
+  "/admin/verification/cases/:caseId/suspend",
+  authenticate,
+  validate(reviewReasonSchema),
+  verification.adminSuspend,
+);
+router.post(
+  "/admin/verification/cases/:caseId/restore",
+  authenticate,
+  validate(reviewReasonOptionalSchema),
+  verification.adminRestore,
+);
+router.get("/admin/verification/documents/:documentId", authenticate, verification.adminDownloadDocument);
 router.get("/admin/placements", authenticate, placement.listAdminPlacements);
 router.post("/admin/placements/:placementId/verify", authenticate, placement.adminVerifyPlacement);
 
-// Company verification for recruiters
+// Company verification for recruiters (Phase 2). Validation is strict: unknown fields are rejected.
+const verificationAddress = strict({
+  street: z.string().trim().max(200).optional(),
+  city: z.string().trim().min(2).max(100),
+  state: z.string().trim().min(2).max(100),
+  pincode: z.string().trim().max(10).optional(),
+  country: z.string().trim().min(2).max(100),
+});
+const verificationSubmitSchema = strict({
+  businessEmail: z.string().trim().email().max(254),
+  website: z.string().trim().max(2048).optional(),
+  phone: z.string().trim().max(30).optional(),
+  businessType: z
+    .enum(BUSINESS_TYPES)
+    .refine((value) => value !== "unspecified", { message: "Choose a business type" }),
+  registrationNumber: z
+    .string()
+    .trim()
+    .max(30)
+    .regex(/^[A-Za-z0-9-]*$/, { message: "Use letters, digits and hyphens only" })
+    .optional(),
+  gstin: z
+    .string()
+    .trim()
+    .max(15)
+    .optional()
+    .refine((value) => !value || isValidGstin(value), {
+      message: "GSTIN must be a valid 15-character GST number",
+    }),
+  address: verificationAddress,
+  authorizedRepresentative: strict({
+    name: z.string().trim().min(2).max(120),
+    designation: z.string().trim().min(2).max(120),
+  }),
+  consent: strict({ accepted: z.literal(true) }),
+});
+const businessEmailConfirmSchema = strict({
+  code: z.string().trim().min(10).max(100),
+});
+const verificationCodeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  keyGenerator: (req) => (req.user?._id ? `user:${req.user._id}` : ipKeyGenerator(req.ip)),
+  handler: (req, res) =>
+    res.status(429).json({ success: false, status: "fail", code: "RATE_LIMITED", message: "Too many attempts. Try again later." }),
+});
 router.get(
   "/organizations/:organizationId/verification",
   authenticate,
   requireOrganization("organization.manage"),
-  org.getVerification,
+  verification.getVerification,
 );
 router.post(
   "/organizations/:organizationId/verification",
   authenticate,
   requireOrganization("organization.manage"),
-  org.submitVerification,
+  validate(verificationSubmitSchema),
+  verification.submitVerification,
+);
+router.post(
+  "/organizations/:organizationId/verification/business-email",
+  authenticate,
+  requireOrganization("organization.manage"),
+  verification.sendBusinessEmailCode,
+);
+router.post(
+  "/organizations/:organizationId/verification/business-email/confirm",
+  authenticate,
+  requireOrganization("organization.manage"),
+  verificationCodeLimiter,
+  validate(businessEmailConfirmSchema),
+  verification.confirmBusinessEmailCode,
+);
+router.post(
+  "/organizations/:organizationId/verification/documents",
+  authenticate,
+  requireOrganization("organization.manage"),
+  uploadVerificationDocument,
+  (req, res, next) => {
+    if (!DOCUMENT_TYPES.includes(req.body?.documentType)) {
+      return next(new AppError("Choose a valid document type", 422, "VALIDATION_ERROR"));
+    }
+    return next();
+  },
+  verification.uploadDocument,
 );
 router.get(
   "/organizations/:organizationId/placements",

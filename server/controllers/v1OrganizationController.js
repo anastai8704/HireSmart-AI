@@ -15,7 +15,7 @@ const { notify } = require("../services/notificationService");
 const organizationOwner = require("../utils/organizationOwner");
 const logger = require("../utils/logger");
 const { parse, applyCursor, meta } = require("../utils/pagination");
-const { evaluateOrganizationRisk } = require("../services/fraudDetectionService");
+const verificationService = require("../services/companyVerificationService");
 const { getOrCreateOrgSubscription } = require("../middleware/subscriptionCheck");
 const { ALL_PLANS, RECRUITER_PLANS } = require("../config/subscriptionPlans");
 
@@ -40,14 +40,14 @@ exports.create = asyncHandler(async (req, res) => {
   const base = slug;
   for (let i = 1; await Organization.exists({ slug }); i += 1) slug = `${base}-${i}`;
 
-  const { riskScore, riskFlags } = await evaluateOrganizationRisk(req.body);
-
+  // Risk indicators are computed when verification details are submitted, never here.
   const organization = await Organization.create({
     ...req.body,
     slug,
     verificationStatus: "pending",
-    riskScore,
-    riskFlags,
+    riskScore: 0,
+    riskFlags: [],
+    websiteHost: verificationService.normalizeWebsiteHost(req.body.website),
   });
 
   await Membership.create({ organization: organization._id, user: req.user._id, role: "owner" });
@@ -85,24 +85,14 @@ exports.mine = asyncHandler(async (req, res) => {
 exports.get = asyncHandler(async (req, res) => {
   const org = await Organization.findById(req.auth.organizationId);
   if (!org) throw new AppError("Organization not found", 404, "RESOURCE_NOT_FOUND");
-  res.json({ data: org });
+  // Risk indicators and admin notes are internal to the platform.
+  res.json({ data: verificationService.publicOrganization(org) });
 });
 
 exports.update = asyncHandler(async (req, res) => {
-  const allowed = [
-    "name",
-    "industry",
-    "size",
-    "website",
-    "logo",
-    "about",
-    "timezone",
-    "businessEmail",
-    "phone",
-    "address",
-    "registrationNumber",
-    "gstin",
-  ];
+  // Only display fields here. Verification identifiers (registration number, GSTIN, business email,
+  // address, documents) change only through the verification workflow, so evidence cannot drift.
+  const allowed = ["name", "industry", "size", "website", "logo", "about", "timezone"];
   const update = {};
   for (const key of allowed) if (req.body[key] !== undefined) update[key] = req.body[key];
 
@@ -113,10 +103,10 @@ exports.update = asyncHandler(async (req, res) => {
   if (!org) throw new AppError("Organization not found", 404, "RESOURCE_NOT_FOUND");
 
   Object.assign(org, update);
-  const { riskScore, riskFlags } = await evaluateOrganizationRisk(org, org._id);
-  org.riskScore = riskScore;
-  org.riskFlags = riskFlags;
+  if (update.website !== undefined) org.websiteHost = verificationService.normalizeWebsiteHost(update.website);
   await org.save();
+  // A changed name or website changes the identity the open case was built on.
+  await verificationService.refreshOpenCase(org);
 
   await audit({
     req,
@@ -132,47 +122,6 @@ exports.update = asyncHandler(async (req, res) => {
 /**
  * Recruiter: Submit/Update Company Verification Details & Documents
  */
-exports.submitVerification = asyncHandler(async (req, res) => {
-  const org = await Organization.findById(req.auth.organizationId);
-  if (!org) throw new AppError("Organization not found", 404, "RESOURCE_NOT_FOUND");
-
-  const fields = ["businessEmail", "phone", "address", "registrationNumber", "gstin", "documents"];
-  for (const f of fields) {
-    if (req.body[f] !== undefined) org[f] = req.body[f];
-  }
-
-  const { riskScore, riskFlags } = await evaluateOrganizationRisk(org, org._id);
-  org.riskScore = riskScore;
-  org.riskFlags = riskFlags;
-  org.verificationStatus = "under_review";
-  await org.save();
-
-  await audit({
-    req,
-    organization: org._id,
-    action: "organization.verification_submitted",
-    resourceType: "organization",
-    resourceId: org._id,
-    metadata: { riskScore },
-  });
-
-  res.json({
-    data: org,
-    message: "Verification documents submitted successfully. Our team is reviewing your company details.",
-  });
-});
-
-/**
- * Recruiter: Get Current Verification Status and Risk Indicators
- */
-exports.getVerification = asyncHandler(async (req, res) => {
-  const org = await Organization.findById(req.auth.organizationId).select(
-    "name slug verificationStatus businessEmail phone address registrationNumber gstin documents riskScore riskFlags verificationNotes verifiedAt rejectionReason",
-  );
-  if (!org) throw new AppError("Organization not found", 404, "RESOURCE_NOT_FOUND");
-  res.json({ data: org });
-});
-
 /**
  * Admin: Get complete organization details with owner, jobs, and verification details
  */
@@ -216,9 +165,19 @@ exports.adminGetOrgDetails = asyncHandler(async (req, res) => {
     }),
   ]);
 
+  const currentCase = await verificationService.findCurrentCase(org._id);
+  const verificationCase = currentCase ? await verificationService.caseDetail(currentCase._id) : null;
+
   res.json({
     data: {
-      organization: org,
+      // Platform admins see the internal risk summary; recruiters never do (see publicOrganization).
+      organization: {
+        ...verificationService.publicOrganization(org),
+        riskScore: org.riskScore,
+        riskFlags: org.riskFlags,
+        verificationNotes: org.verificationNotes,
+      },
+      verificationCase,
       owner: ownerMembership?.user || null,
       stats: {
         activeJobsCount: approvedJobs,
@@ -240,206 +199,84 @@ exports.adminGetOrgDetails = asyncHandler(async (req, res) => {
   });
 });
 
+const requirePlatformAdmin = (req) => {
+  if (req.auth.platformRole !== "platform_admin") {
+    throw new AppError("Resource not found", 404, "RESOURCE_NOT_FOUND");
+  }
+};
+
+const loadOrgForAdmin = async (organizationId) => {
+  const org = await Organization.findById(organizationId);
+  if (!org) throw new AppError("Organization not found", 404, "RESOURCE_NOT_FOUND");
+  return org;
+};
+
 /**
- * Admin: Approve and Verify Organization
+ * Admin: Approve and Verify Organization.
+ * Delegates to the verification workflow: approval needs passing evidence (see
+ * companyVerificationService.approveCase). Responses keep their previous shape.
  */
 exports.adminVerifyOrg = asyncHandler(async (req, res) => {
-  if (req.auth.platformRole !== "platform_admin") {
-    throw new AppError("Resource not found", 404, "RESOURCE_NOT_FOUND");
-  }
-
-  const org = await Organization.findById(req.params.organizationId);
-  if (!org) throw new AppError("Organization not found", 404, "RESOURCE_NOT_FOUND");
-
-  org.verificationStatus = "verified";
-  org.verifiedAt = new Date();
-  org.verifiedBy = req.user._id;
-  org.verificationNotes = String(req.body.notes || "").slice(0, 5000);
-  org.rejectionReason = "";
-  await org.save();
-
-  // Notify company owner
-  try {
-    const owner = await organizationOwner(org._id);
-    if (owner) {
-      await notify({
-        user: owner.id,
-        organization: org._id,
-        type: "job_moderation",
-        category: "companies",
-        title: "Company Verified Successfully",
-        message: `Congratulations! ${org.name} has been verified by platform administrators. You can now publish jobs and receive applications.`,
-        resourceType: "organization",
-        resourceId: org._id,
-      });
-    }
-  } catch (_e) {}
-
-  await audit({
+  requirePlatformAdmin(req);
+  const org = await loadOrgForAdmin(req.params.organizationId);
+  const caseDoc = await verificationService.ensureCurrentCase(org, req.user);
+  await verificationService.approveCase({
+    caseId: caseDoc._id,
+    actor: req.user,
     req,
-    organization: org._id,
-    action: "admin.organization_verified",
-    resourceType: "organization",
-    resourceId: org._id,
-    metadata: { notes: org.verificationNotes },
+    notes: String(req.body?.notes || ""),
   });
-
-  res.json({ data: org });
+  res.json({ data: await Organization.findById(org._id) });
 });
 
-/**
- * Admin: Reject Organization Verification
- */
+/** Admin: Reject Organization Verification (reason required). */
 exports.adminRejectOrg = asyncHandler(async (req, res) => {
-  if (req.auth.platformRole !== "platform_admin") {
-    throw new AppError("Resource not found", 404, "RESOURCE_NOT_FOUND");
-  }
-
-  const reason = String(req.body.reason || "").trim().slice(0, 2000);
+  requirePlatformAdmin(req);
+  const reason = String(req.body?.reason || "").trim().slice(0, 2000);
   if (!reason) throw new AppError("Rejection reason is required", 422, "MISSING_REASON");
-
-  const org = await Organization.findById(req.params.organizationId);
-  if (!org) throw new AppError("Organization not found", 404, "RESOURCE_NOT_FOUND");
-
-  org.verificationStatus = "rejected";
-  org.rejectionReason = reason;
-  await org.save();
-
-  // Pause active jobs
-  await Job.updateMany({ organization: org._id, status: "published" }, { status: "draft" });
-
-  try {
-    const owner = await organizationOwner(org._id);
-    if (owner) {
-      await notify({
-        user: owner.id,
-        organization: org._id,
-        type: "job_moderation",
-        category: "companies",
-        title: "Company Verification Rejected",
-        message: `Your company verification was not approved. Reason: ${reason}. Please update your company documents and resubmit.`,
-        resourceType: "organization",
-        resourceId: org._id,
-      });
-    }
-  } catch (_e) {}
-
-  await audit({
-    req,
-    organization: org._id,
-    action: "admin.organization_rejected",
-    resourceType: "organization",
-    resourceId: org._id,
-    metadata: { reason },
-  });
-
-  res.json({ data: org });
+  const org = await loadOrgForAdmin(req.params.organizationId);
+  const caseDoc = await verificationService.ensureCurrentCase(org, req.user);
+  await verificationService.rejectCase({ caseId: caseDoc._id, actor: req.user, req, reason });
+  res.json({ data: await Organization.findById(org._id) });
 });
 
-/**
- * Admin: Request More Info from Organization
- */
+/** Admin: Request More Info from Organization (creates a request for changes). */
 exports.adminRequestMoreInfoOrg = asyncHandler(async (req, res) => {
-  if (req.auth.platformRole !== "platform_admin") {
-    throw new AppError("Resource not found", 404, "RESOURCE_NOT_FOUND");
-  }
-
-  const notes = String(req.body.notes || "").trim().slice(0, 5000);
+  requirePlatformAdmin(req);
+  const notes = String(req.body?.notes || "").trim().slice(0, 5000);
   if (!notes) throw new AppError("Notes explaining required information are required", 422, "MISSING_NOTES");
-
-  const org = await Organization.findById(req.params.organizationId);
-  if (!org) throw new AppError("Organization not found", 404, "RESOURCE_NOT_FOUND");
-
-  org.verificationStatus = "under_review";
-  org.verificationNotes = notes;
-  await org.save();
-
-  try {
-    const owner = await organizationOwner(org._id);
-    if (owner) {
-      await notify({
-        user: owner.id,
-        organization: org._id,
-        type: "job_moderation",
-        category: "companies",
-        title: "Additional Information Required for Verification",
-        message: `Our verification team requested additional details: ${notes}`,
-        resourceType: "organization",
-        resourceId: org._id,
-      });
-    }
-  } catch (_e) {}
-
-  await audit({
-    req,
-    organization: org._id,
-    action: "admin.organization_more_info_requested",
-    resourceType: "organization",
-    resourceId: org._id,
-    metadata: { notes },
-  });
-
-  res.json({ data: org });
+  const org = await loadOrgForAdmin(req.params.organizationId);
+  const caseDoc = await verificationService.ensureCurrentCase(org, req.user);
+  await verificationService.requestChanges({ caseId: caseDoc._id, actor: req.user, req, items: [notes] });
+  res.json({ data: await Organization.findById(org._id) });
 });
 
-/**
- * Admin: Suspend Organization Verification & Pause Jobs
- */
+/** Admin: Suspend Organization. Closes live listings and records each change. */
 exports.adminSuspendOrg = asyncHandler(async (req, res) => {
-  if (req.auth.platformRole !== "platform_admin") {
-    throw new AppError("Resource not found", 404, "RESOURCE_NOT_FOUND");
-  }
-
-  const org = await Organization.findById(req.params.organizationId);
-  if (!org) throw new AppError("Organization not found", 404, "RESOURCE_NOT_FOUND");
-
-  org.verificationStatus = "suspended";
-  org.rejectionReason = String(req.body.reason || "Suspended by platform administrator").slice(0, 2000);
-  await org.save();
-
-  // Unpublish active jobs
-  await Job.updateMany({ organization: org._id, status: "published" }, { status: "closed" });
-
-  await audit({
+  requirePlatformAdmin(req);
+  const org = await loadOrgForAdmin(req.params.organizationId);
+  const caseDoc = await verificationService.ensureCurrentCase(org, req.user);
+  await verificationService.suspendCase({
+    caseId: caseDoc._id,
+    actor: req.user,
     req,
-    organization: org._id,
-    action: "admin.organization_suspended",
-    resourceType: "organization",
-    resourceId: org._id,
-    metadata: { reason: org.rejectionReason },
+    reason: req.body?.reason,
   });
-
-  res.json({ data: org });
+  res.json({ data: await Organization.findById(org._id) });
 });
 
-/**
- * Admin: Reactivate Suspended Organization
- */
+/** Admin: Reinstate a suspended organization after review (evidence is checked again). */
 exports.adminReactivateOrg = asyncHandler(async (req, res) => {
-  if (req.auth.platformRole !== "platform_admin") {
-    throw new AppError("Resource not found", 404, "RESOURCE_NOT_FOUND");
-  }
-
-  const org = await Organization.findById(req.params.organizationId);
-  if (!org) throw new AppError("Organization not found", 404, "RESOURCE_NOT_FOUND");
-
-  org.verificationStatus = "verified";
-  org.verifiedAt = new Date();
-  org.verifiedBy = req.user._id;
-  org.rejectionReason = "";
-  await org.save();
-
-  // Audit log
-  await audit({
+  requirePlatformAdmin(req);
+  const org = await loadOrgForAdmin(req.params.organizationId);
+  const caseDoc = await verificationService.ensureCurrentCase(org, req.user);
+  await verificationService.restoreCase({
+    caseId: caseDoc._id,
+    actor: req.user,
     req,
-    organization: org._id,
-    action: "admin.organization_reactivated",
-    resourceType: "organization",
-    resourceId: org._id,
-    metadata: { reason: req.body.reason || "Reactivated by platform administrator" },
+    reason: req.body?.reason,
   });
-
-  res.json({ data: org, message: "Organization reactivated successfully" });
+  res.json({ data: await Organization.findById(org._id), message: "Organization reactivated successfully" });
 });
 
 exports.settings = asyncHandler(async (req, res) => {

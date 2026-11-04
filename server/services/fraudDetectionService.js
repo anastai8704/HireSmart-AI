@@ -1,22 +1,18 @@
-const Job = require("../models/Job");
+// Gathers the facts behind company risk indicators (Phase 2) from authorized database records.
+//
+// The scoring itself is pure and lives in domain/companyVerificationPolicy.js. This module only
+// reads records. It never changes a company's status: risk output is an input to manual review.
 
-const FREE_WEBMAIL_DOMAINS = new Set([
-  "gmail.com",
-  "yahoo.com",
-  "yahoo.co.in",
-  "hotmail.com",
-  "outlook.com",
-  "rediffmail.com",
-  "proton.me",
-  "protonmail.com",
-  "mail.com",
-  "aol.com",
-  "icloud.com",
-  "zoho.com",
-]);
+const Job = require("../models/Job");
+const Organization = require("../models/Organization");
+const User = require("../models/User");
+const { Membership } = require("../models/Membership");
+const policy = require("../domain/companyVerificationPolicy");
+const { FREE_WEBMAIL_DOMAINS, POSTING_RULES } = require("../domain/verificationRules");
 
 const GSTIN_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
 
+// Phrases that ask candidates to pay before hiring. Matching is a review prompt, not proof.
 const SUSPICIOUS_PAYMENT_KEYWORDS = [
   "registration fee",
   "processing fee",
@@ -32,146 +28,168 @@ const SUSPICIOUS_PAYMENT_KEYWORDS = [
   "joining fee",
 ];
 
+const jobSignals = async (orgId, now) => {
+  const windowStart = new Date(now.getTime() - POSTING_RULES.recentWindowHours * 60 * 60 * 1000);
+  const [rejectedJobCount, recentJobCount, jobs] = await Promise.all([
+    Job.countDocuments({ organization: orgId, "moderation.status": "rejected" }),
+    Job.countDocuments({ organization: orgId, createdAt: { $gte: windowStart } }),
+    Job.find({ organization: orgId })
+      .select("title description salary experience")
+      .limit(500)
+      .lean(),
+  ]);
+
+  const titles = new Map();
+  for (const job of jobs) {
+    const key = String(job.title || "").trim().toLowerCase();
+    titles.set(key, (titles.get(key) || 0) + 1);
+  }
+  const duplicateJobTitles = [...titles.values()].some(
+    (count) => count >= POSTING_RULES.duplicateTitleCount,
+  );
+
+  let paymentDemandKeyword = "";
+  for (const job of jobs) {
+    const text = `${job.title} ${job.description}`.toLowerCase();
+    const hit = SUSPICIOUS_PAYMENT_KEYWORDS.find((keyword) => text.includes(keyword));
+    if (hit) {
+      paymentDemandKeyword = hit;
+      break;
+    }
+  }
+
+  const unrealisticSalary = jobs.some(
+    (job) =>
+      (job.salary > 10000000 && String(job.experience || "").includes("0")) ||
+      job.salary > 50000000,
+  );
+
+  return { rejectedJobCount, recentJobCount, duplicateJobTitles, paymentDemandKeyword, unrealisticSalary };
+};
+
 /**
- * Evaluates risk score and risk indicators for an organization.
- * Returns { riskScore, riskFlags }
+ * Reads the records needed for risk indicators and duplicate detection.
+ * @returns {Promise<{ facts: object, duplicateRegistration: object[], duplicateProfile: object[] }>}
  */
-const evaluateOrganizationRisk = async (orgData = {}, existingOrgId = null) => {
-  let score = 0;
-  const flags = [];
-  const now = new Date();
+const gatherRiskFacts = async (org, { recruiterUserId = null, now = new Date() } = {}) => {
+  const businessEmail = String(org.businessEmail || "").trim().toLowerCase();
+  const emailDomain = policy.emailDomainOf(businessEmail);
+  const isWebmail = Boolean(emailDomain) && FREE_WEBMAIL_DOMAINS.has(emailDomain);
+  const websiteHost = policy.normalizeWebsiteHost(org.website);
+  const registrationNumber = policy.normalizeRegistrationNumber(org.registrationNumber);
+  const gstin = policy.normalizeGstin(org.gstin);
 
-  // 1. Business Email Verification Check
-  const email = String(orgData.businessEmail || "").trim().toLowerCase();
-  if (email) {
-    const domain = email.split("@")[1];
-    if (domain && FREE_WEBMAIL_DOMAINS.has(domain)) {
-      score += 25;
-      flags.push({
-        code: "FREE_WEBMAIL_DOMAIN",
-        severity: "medium",
-        message: `Business email (@${domain}) uses a public consumer webmail provider instead of a corporate domain.`,
-        flaggedAt: now,
-      });
-    }
-  } else {
-    score += 15;
-    flags.push({
-      code: "NO_BUSINESS_EMAIL",
-      severity: "low",
-      message: "No dedicated official business email address was provided.",
-      flaggedAt: now,
-    });
-  }
+  // Duplicate candidates: other profiles sharing an identifier. Found by identifier only.
+  const identifierMatches = [];
+  if (registrationNumber) identifierMatches.push({ normalizedRegistrationNumber: registrationNumber });
+  if (gstin) identifierMatches.push({ normalizedGstin: gstin });
+  if (websiteHost) identifierMatches.push({ websiteHost });
+  if (emailDomain && !isWebmail) identifierMatches.push({ emailDomain });
 
-  // 2. GSTIN Format Check
-  const gstin = String(orgData.gstin || "").trim().toUpperCase();
-  if (gstin) {
-    if (!GSTIN_REGEX.test(gstin)) {
-      score += 30;
-      flags.push({
-        code: "INVALID_GSTIN_FORMAT",
-        severity: "medium",
-        message: "Provided GSTIN does not adhere to the standard 15-character Indian GST format.",
-        flaggedAt: now,
-      });
-    }
-  } else {
-    score += 15;
-    flags.push({
-      code: "MISSING_GSTIN",
-      severity: "low",
-      message: "No GSTIN identification number was submitted.",
-      flaggedAt: now,
-    });
-  }
+  const others = identifierMatches.length
+    ? await Organization.find({ _id: { $ne: org._id }, $or: identifierMatches })
+        .select(
+          "name verificationStatus normalizedRegistrationNumber normalizedGstin websiteHost emailDomain",
+        )
+        .limit(50)
+        .lean()
+    : [];
 
-  // 3. Documentation Completeness Check
-  const docs = Array.isArray(orgData.documents) ? orgData.documents : [];
-  if (!docs.length) {
-    score += 20;
-    flags.push({
-      code: "MISSING_VERIFICATION_DOCS",
-      severity: "low",
-      message: "No legal incorporation certificates or government tax documents have been uploaded.",
-      flaggedAt: now,
-    });
-  }
+  const duplicateRegistration = others.filter(
+    (other) =>
+      (registrationNumber && other.normalizedRegistrationNumber === registrationNumber) ||
+      (gstin && other.normalizedGstin === gstin),
+  );
+  const duplicateProfile = others.filter(
+    (other) =>
+      !duplicateRegistration.includes(other) &&
+      ((websiteHost && other.websiteHost === websiteHost) ||
+        (emailDomain && !isWebmail && other.emailDomain === emailDomain)),
+  );
 
-  // 4. Job-Related Checks (if org already exists and has jobs)
-  if (existingOrgId) {
-    try {
-      const orgJobs = await Job.find({ organization: existingOrgId });
+  // Previous enforcement: related profiles already rejected or suspended, including profiles
+  // owned by the same user.
+  const ownerIds = await Membership.find({ organization: org._id, role: "owner" }).distinct("user");
+  const ownedElsewhere = ownerIds.length
+    ? await Membership.find({
+        user: { $in: ownerIds },
+        role: "owner",
+        organization: { $ne: org._id },
+      }).distinct("organization")
+    : [];
+  const ownedEnforced = ownedElsewhere.length
+    ? await Organization.countDocuments({
+        _id: { $in: ownedElsewhere },
+        verificationStatus: { $in: ["rejected", "suspended"] },
+      })
+    : 0;
+  const identifierEnforced = others.filter((other) =>
+    ["rejected", "suspended"].includes(other.verificationStatus),
+  ).length;
 
-      if (orgJobs.length > 0) {
-        // Check for duplicate job postings
-        const titles = new Map();
-        for (const job of orgJobs) {
-          const t = job.title.trim().toLowerCase();
-          titles.set(t, (titles.get(t) || 0) + 1);
-        }
-        const duplicateCount = Array.from(titles.values()).filter((c) => c >= 3).length;
-        if (duplicateCount > 0) {
-          score += 20;
-          flags.push({
-            code: "DUPLICATE_JOB_POSTINGS",
-            severity: "medium",
-            message: "Company has 3 or more job postings with identical titles submitted in close succession.",
-            flaggedAt: now,
-          });
-        }
+  const signals = await jobSignals(org._id, now);
+  const recruiterEmailVerified = recruiterUserId
+    ? Boolean(await User.exists({ _id: recruiterUserId, emailVerified: true }))
+    : false;
 
-        // Check for suspicious payment demands in job descriptions
-        let paymentDemandFound = false;
-        let suspiciousKeyword = "";
-        for (const job of orgJobs) {
-          const desc = `${job.title} ${job.description}`.toLowerCase();
-          for (const kw of SUSPICIOUS_PAYMENT_KEYWORDS) {
-            if (desc.includes(kw)) {
-              paymentDemandFound = true;
-              suspiciousKeyword = kw;
-              break;
-            }
-          }
-          if (paymentDemandFound) break;
-        }
-
-        if (paymentDemandFound) {
-          score += 50;
-          flags.push({
-            code: "SUSPICIOUS_PAYMENT_DEMAND",
-            severity: "high",
-            message: `Job description mentions suspicious upfront candidate payment terms: "${suspiciousKeyword}".`,
-            flaggedAt: now,
-          });
-        }
-
-        // Check for unrealistic salary claims
-        const unrealisticSalary = orgJobs.some(
-          (j) => (j.salary && j.salary > 10000000 && j.experience && j.experience.includes("0")) || (j.salary && j.salary > 50000000),
-        );
-        if (unrealisticSalary) {
-          score += 15;
-          flags.push({
-            code: "UNREALISTIC_SALARY_CLAIMS",
-            severity: "low",
-            message: "One or more job listings advertise salaries exceeding 5x typical market compensation for entry requirements.",
-            flaggedAt: now,
-          });
-        }
-      }
-    } catch (_err) {
-      // Best-effort check
-    }
-  }
+  const websiteEmailMismatch = Boolean(
+    websiteHost &&
+      emailDomain &&
+      !isWebmail &&
+      websiteHost !== emailDomain &&
+      !websiteHost.endsWith(`.${emailDomain}`) &&
+      !emailDomain.endsWith(`.${websiteHost}`),
+  );
 
   return {
-    riskScore: Math.min(score, 100),
-    riskFlags: flags,
+    facts: {
+      businessEmail,
+      emailDomain,
+      isWebmail,
+      businessEmailVerified: Boolean(org.businessEmailVerifiedAt),
+      websiteHost,
+      websiteEmailMismatch,
+      gstin,
+      gstinValid: policy.isValidGstin(gstin),
+      registrationNumber,
+      documentCount: Array.isArray(org.documents) ? org.documents.length : 0,
+      duplicates: {
+        registration: duplicateRegistration.length,
+        profile: duplicateProfile.length,
+      },
+      previousEnforcementCount: identifierEnforced + ownedEnforced,
+      recruiterEmailVerified,
+      ...signals,
+    },
+    duplicateRegistration,
+    duplicateProfile,
+  };
+};
+
+/**
+ * Compatibility wrapper: risk indicators for an organization without changing any status.
+ * Prefer the verification service, which also records the result on the case.
+ */
+const evaluateOrganizationRisk = async (org, { recruiterUserId = null } = {}) => {
+  const { facts } = await gatherRiskFacts(org, { recruiterUserId });
+  const risk = policy.computeRisk(facts);
+  return {
+    riskScore: risk.score,
+    riskLevel: risk.level,
+    requiresManualReview: risk.requiresManualReview,
+    riskFlags: risk.indicators.map((indicator) => ({
+      code: indicator.code,
+      severity: indicator.severity,
+      message: indicator.explanation,
+      flaggedAt: new Date(),
+    })),
+    indicators: risk.indicators,
+    disclaimer: risk.disclaimer,
   };
 };
 
 module.exports = {
+  gatherRiskFacts,
   evaluateOrganizationRisk,
   FREE_WEBMAIL_DOMAINS,
   GSTIN_REGEX,

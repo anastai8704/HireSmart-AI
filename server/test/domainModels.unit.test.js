@@ -17,7 +17,13 @@ const errorFor = (doc, path) => doc.validateSync()?.errors?.[path];
 const caseDoc = (overrides = {}) =>
   new CompanyVerificationCase({ organization: oid(), ...overrides });
 
-const evidence = { type: "business_email_domain", value: "acme.example", verified: true };
+const evidence = {
+  type: "business_email",
+  value: "acme.example",
+  method: "email_token",
+  result: "match",
+  verified: true,
+};
 
 test("a new verification case starts pending with an unassessed record", () => {
   const doc = caseDoc();
@@ -50,8 +56,20 @@ test("rejected and suspended companies need a recorded reason", () => {
 });
 
 test("evidence types are restricted and values are bounded", () => {
-  assert.ok(errorFor(caseDoc({ evidence: [{ type: "social_security_number", value: "x" }] }), "evidence.0.type"));
-  assert.ok(errorFor(caseDoc({ evidence: [{ type: "website", value: "x".repeat(501) }] }), "evidence.0.value"));
+  assert.ok(
+    errorFor(
+      caseDoc({ evidence: [{ type: "social_security_number", method: "system_rule", result: "match" }] }),
+      "evidence.0.type",
+    ),
+  );
+  assert.ok(
+    errorFor(
+      caseDoc({
+        evidence: [{ type: "business_email", method: "system_rule", result: "match", value: "x".repeat(501) }],
+      }),
+      "evidence.0.value",
+    ),
+  );
 });
 
 test("moderation events accept only valid lifecycle and moderation transitions", () => {

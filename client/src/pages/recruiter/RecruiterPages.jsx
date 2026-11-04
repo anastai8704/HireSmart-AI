@@ -63,6 +63,7 @@ import {
   downloadInterviewIcs,
 } from "../../lib/utils";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
+import { CompanyVerificationCard } from "./CompanyVerificationCard";
 const greeting = () => {
   const hour = new Date().getHours();
   return hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
@@ -503,6 +504,7 @@ export const RecruiterDashboard = () => {
         </div>
       </section>
       <CompanyProfileCard />
+      <CompanyVerificationCard orgId={orgId} />
       <section className="mt-8">
         <div className="flex items-end justify-between">
           <div>
@@ -3705,6 +3707,8 @@ const CompanyProfileCard = () => {
     mutationFn: (body) => organizationApi.update(orgId, body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["org", orgId] });
+      // The verification form reads the same name and website; keep both views in step.
+      qc.invalidateQueries({ queryKey: ["verification", orgId] });
       toast.success("Company profile saved");
     },
     onError: (error) => toast.error(error.message),

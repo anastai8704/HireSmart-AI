@@ -18,6 +18,7 @@
     "migrate:applications": "node scripts/migrate-legacy-applications.js",
     "migrate:v1": "node scripts/migrate-v1-foundation.js",
     "indexes:create": "node scripts/create-indexes.js",
+    "backfill:company-verification": "node scripts/backfill-company-verification.js",
     "seed": "node scripts/seed-data.js",
     "pro": "node scripts/professional-data.js"
   },

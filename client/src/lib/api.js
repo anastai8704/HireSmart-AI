@@ -245,9 +245,34 @@ export const placementApi = {
     api.patch(`/placements/${placementId}/employment-status`, body),
 };
 
+// Company verification (Phase 2). Recruiters see only their own status; admins see the full case.
 export const verificationApi = {
   get: (orgId) => api.get(`/organizations/${orgId}/verification`),
   submit: (orgId, body) => api.post(`/organizations/${orgId}/verification`, body),
+  sendBusinessEmailCode: (orgId) => api.post(`/organizations/${orgId}/verification/business-email`),
+  confirmBusinessEmailCode: (orgId, code) =>
+    api.post(`/organizations/${orgId}/verification/business-email/confirm`, { code }),
+  uploadDocument: (orgId, file, documentType) => {
+    const form = new FormData();
+    form.append("documentType", documentType);
+    form.append("file", file);
+    return api.post(`/organizations/${orgId}/verification/documents`, form, {
+      headers: { "Content-Type": undefined },
+      timeout: 60000,
+    });
+  },
+  adminQueue: (params) => api.get(`/admin/verification/cases${query(params)}`),
+  adminCase: (caseId) => api.get(`/admin/verification/cases/${caseId}`),
+  adminRecordCheck: (caseId, body) => api.post(`/admin/verification/cases/${caseId}/checks`, body),
+  adminRegistryCheck: (caseId) => api.post(`/admin/verification/cases/${caseId}/registry-check`),
+  adminRequestChanges: (caseId, items) =>
+    api.post(`/admin/verification/cases/${caseId}/request-changes`, { items }),
+  adminApprove: (caseId, notes) => api.post(`/admin/verification/cases/${caseId}/approve`, { notes }),
+  adminReject: (caseId, reason) => api.post(`/admin/verification/cases/${caseId}/reject`, { reason }),
+  adminSuspend: (caseId, reason) => api.post(`/admin/verification/cases/${caseId}/suspend`, { reason }),
+  adminRestore: (caseId, reason) => api.post(`/admin/verification/cases/${caseId}/restore`, { reason }),
+  downloadDocument: (documentId) =>
+    api.get(`/admin/verification/documents/${documentId}`, { responseType: "blob" }),
 };
 
 // Organization billing calls name the organization explicitly. Candidates send no header.
