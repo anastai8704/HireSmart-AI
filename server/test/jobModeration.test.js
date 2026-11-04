@@ -336,10 +336,12 @@ test("bulk: a company that is not verified skips every eligible job, with the re
 });
 
 test("bulk rejection requires a reason for the whole request", async () => {
-  const res = await adminBulk({ action: "reject", jobIds: [ctx.bulkP2] });
+  // A fresh pending job: the earlier bulk test has already approved bulkP2.
+  const fresh = await createPendingJob(ctx.nimbus, "Reason Required Role");
+  const res = await adminBulk({ action: "reject", jobIds: [fresh] });
   assert.equal(res.status, 422);
   assert.equal(res.body.code, "REASON_REQUIRED");
-  assert.equal((await stateOf(ctx.bulkP2)).moderation, "pending");
+  assert.equal((await stateOf(fresh)).moderation, "pending");
 });
 
 test("concurrency: two admins approve the same pending job at once, and only one wins", async () => {
@@ -434,8 +436,10 @@ test("queue filters: status, job title search and recruiter filter; invalid date
 test("job detail: returns the job with its moderation history for the admin only", async () => {
   const detail = await request(app).get(`/api/v1/admin/moderation/jobs/${ctx.jobB}`).set(auth(ctx.admin.token));
   assert.equal(detail.status, 200);
-  assert.equal(detail.body.data.moderation.status, "pending");
-  assert.ok(detail.body.data.history.length >= 3);
+  // The company's approve-all test may already have approved this job, so compare with the record.
+  assert.equal(detail.body.data.moderation.status, (await stateOf(ctx.jobB)).moderation);
+  assert.ok(detail.body.data.history.length >= 1, "the decision trail is returned");
+  assert.equal(detail.body.data.history.length, (await eventsOf(ctx.jobB)).length);
   const asRecruiter = await request(app).get(`/api/v1/admin/moderation/jobs/${ctx.jobB}`).set(auth(ctx.nimbus.token));
   assert.equal(asRecruiter.status, 404);
 });
