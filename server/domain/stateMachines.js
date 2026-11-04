@@ -22,14 +22,18 @@ const jobLifecycle = freeze({
 });
 
 /**
- * Job moderation (Job.moderation.status). "approved" is terminal for this machine; edits to an
- * approved job go through Job.pendingChanges, not through a status change here.
+ * Job moderation (Job.moderation.status). Phase 3 adds "changes_requested" (the reviewer asked
+ * for edits; the recruiter resubmits) and "suspended" (a live job restricted by an admin; it
+ * can be reinstated). Edits to an approved job still go through Job.pendingChanges.
  */
 const jobModeration = freeze({
   none: ["pending"],
-  pending: ["approved", "rejected"],
+  pending: ["approved", "rejected", "changes_requested"],
   rejected: ["pending"],
-  approved: [],
+  changes_requested: ["pending"],
+  // A closed, approved job that is published again goes back through review.
+  approved: ["suspended", "pending"],
+  suspended: ["approved"],
 });
 
 /**

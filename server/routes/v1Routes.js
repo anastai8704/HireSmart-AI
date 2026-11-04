@@ -1065,19 +1065,31 @@ router.post(
 router.post("/subscriptions/cancel", authenticate, subscription.cancelSubscription);
 router.get("/subscriptions/invoices", authenticate, subscription.getInvoices);
 
-router.get("/admin/moderation/companies", authenticate, admin.companyModerationSummary);
-router.get("/admin/moderation/companies/:organizationId/jobs", authenticate, admin.companyJobsList);
+const moderation = require("../controllers/v1ModerationController");
+const moderationDecisionSchema = strict({ reason: z.string().max(500).optional() });
+const bulkModerationSchema = strict({
+  action: z.enum(["approve", "reject"]),
+  jobIds: z.array(z.string().regex(/^[a-f\d]{24}$/i)).min(1).max(200),
+  reason: z.string().max(500).optional(),
+  organizationId: z.string().regex(/^[a-f\d]{24}$/i).optional(),
+});
+
+router.get("/admin/moderation/companies", authenticate, moderation.companyModerationSummary);
+router.get("/admin/moderation/companies/:organizationId/jobs", authenticate, moderation.companyJobsList);
 router.post(
   "/admin/moderation/companies/:organizationId/approve-all",
   authenticate,
-  admin.bulkApproveCompanyJobs,
+  moderation.bulkApproveCompanyJobs,
 );
-router.get("/admin/moderation/jobs", authenticate, admin.moderationJobs);
+router.post("/admin/moderation/bulk", authenticate, validate(bulkModerationSchema), moderation.bulkModerateJobs);
+router.get("/admin/moderation/jobs", authenticate, moderation.moderationJobs);
+router.get("/admin/moderation/jobs/:jobId", authenticate, moderation.moderationJobDetail);
+router.get("/admin/moderation/jobs/:jobId/history", authenticate, moderation.moderationJobHistory);
 router.post(
   "/admin/moderation/jobs/:jobId/:action",
   authenticate,
-  validate(strict({ reason: z.string().max(500).optional() })),
-  admin.moderateJob,
+  validate(moderationDecisionSchema),
+  moderation.moderateJob,
 );
 router.get("/admin/ai-usage", authenticate, admin.aiUsage);
 router.get("/admin/ai-activity", authenticate, admin.aiActivity);

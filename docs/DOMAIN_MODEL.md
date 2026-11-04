@@ -38,7 +38,8 @@ The Master Prompt names were adapted to the existing enums. Existing data is not
 | Company `under_review`, `verified`, `rejected`, `suspended` | same | same |
 | Job `draft`, `approved`, `rejected`, `closed` | `status` = `draft` / `published` / `closed`; `moderation.status` = `none` / `pending` / `approved` / `rejected` | `Job` |
 | Job `pending_review` | `moderation.status` = `pending` | `Job` |
-| Job `changes_requested`, `suspended`, `expired` | **Missing.** Phase 3 decides whether to add them. | — |
+| Job `changes_requested`, `suspended` | `moderation.status` = `changes_requested` / `suspended` (added in Phase 3; see `docs/JOB_MODERATION.md`) | `Job` |
+| Job `expired` | **Missing.** Not part of Phase 3; needs a decision on `closesAt` handling. | — |
 | Application `applied` | `submitted` (and legacy `Applied`) | `Application.status` |
 | Application `screening` | `under_review` | `Application.status` |
 | Application `shortlisted`, `interview`, `offer`, `hired`, `rejected`, `withdrawn` | same | same |

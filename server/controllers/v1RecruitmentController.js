@@ -296,15 +296,17 @@ exports.updateJob = asyncHandler(async (req, res) => {
   if (Object.keys(changes).length === 0)
     return res.json({ data: jobDto(job) });
 
+  // A suspended job is hidden, but its content must still go through review before it can
+  // be reinstated, so edits to it take the same route as edits to a live job.
   const isLive =
-    job.status === "published" && ["approved", "none"].includes(job.moderation?.status);
+    job.status === "published" && ["approved", "none", "suspended"].includes(job.moderation?.status);
   if (!isLive) {
     // Drafts, closed and rejected jobs edit normally — nothing public is
     // affected. A rejected job goes back to the queue when republished.
     for (const [key, value] of Object.entries(changes)) job[key] = value;
     if (req.body.requiredSkills) job.skills = req.body.requiredSkills;
     await job.save();
-    res.json({ data: jobDto(job) });
+    return res.json({ data: jobDto(job) });
   }
 
   // Published, approved job: proposed edits wait for review; live content
@@ -382,6 +384,14 @@ exports.publish = asyncHandler(async (req, res) => {
     // Already public and approved — republishing must not re-review the job.
     return res.json({ data: jobDto(job) });
   }
+  if (job.moderation?.status === "suspended") {
+    throw new AppError(
+      "This job is suspended by the platform and cannot be resubmitted. Contact support.",
+      409,
+      "JOB_SUSPENDED",
+    );
+  }
+  const previousModeration = job.moderation?.status || "none";
   job.status = "published";
   job.publishedAt = job.publishedAt || new Date();
   // Publishing always submits the job for platform review. The job only
@@ -391,6 +401,17 @@ exports.publish = asyncHandler(async (req, res) => {
   job.moderation.reviewedAt = null;
   job.moderation.reason = "";
   await job.save();
+  if (previousModeration !== "pending") {
+    await JobModerationEvent.create({
+      job: job._id,
+      organization: job.organization,
+      area: "moderation",
+      fromStatus: previousModeration === "none" ? "" : previousModeration,
+      toStatus: "pending",
+      actor: req.user._id,
+      reason: "",
+    });
+  }
   await audit({
     req,
     organization: req.auth.organizationId,
@@ -670,6 +691,7 @@ exports.applications = asyncHandler(async (req, res) => {
 });
 // Application stage rules live in domain/stateMachines.js (identical to the previous local map).
 const { applicationStageTransitions: transitions } = require("../domain/stateMachines");
+const { JobModerationEvent } = require("../models/JobModerationEvent");
 exports.transition = asyncHandler(async (req, res) => {
   const app = await Application.findOne({
     _id: req.params.applicationId,

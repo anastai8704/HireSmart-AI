@@ -79,7 +79,11 @@ const jobSchema = new mongoose.Schema(
     benefits: { type: [String], default: [] },
     industry: { type: String, trim: true, maxlength: 100, default: "" },
     moderation: {
-      status: { type: String, enum: ["none", "pending", "approved", "rejected"], default: "none" },
+      status: {
+        type: String,
+        enum: ["none", "pending", "approved", "rejected", "changes_requested", "suspended"],
+        default: "none",
+      },
       reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
       reviewedAt: { type: Date, default: null },
       reason: { type: String, maxlength: 500, default: "" },

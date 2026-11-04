@@ -18,6 +18,7 @@ const { parse, applyCursor, meta } = require("../utils/pagination");
 const verificationService = require("../services/companyVerificationService");
 const { getOrCreateOrgSubscription } = require("../middleware/subscriptionCheck");
 const { ALL_PLANS, RECRUITER_PLANS } = require("../config/subscriptionPlans");
+const { needsReviewQuery } = require("../domain/jobModerationPolicy");
 
 const slugify = (v) =>
   String(v)
@@ -148,7 +149,7 @@ exports.adminGetOrgDetails = asyncHandler(async (req, res) => {
   ] = await Promise.all([
     Membership.findOne({ organization: org._id, role: "owner" }).populate("user", "name email phone"),
     Job.countDocuments({ organization: org._id }),
-    Job.countDocuments({ organization: org._id, "moderation.status": "pending" }),
+    Job.countDocuments({ organization: org._id, ...needsReviewQuery() }),
     Job.countDocuments({ organization: org._id, "moderation.status": "approved" }),
     Job.countDocuments({ organization: org._id, "moderation.status": "rejected" }),
     Application.countDocuments({ organization: org._id }),

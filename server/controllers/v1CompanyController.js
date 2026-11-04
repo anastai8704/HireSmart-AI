@@ -39,7 +39,10 @@ exports.companies = asyncHandler(async (req, res) => {
           {
             $or: [
               { organization: { $in: approvalOrgIds }, "moderation.status": "approved" },
-              { organization: { $nin: approvalOrgIds }, "moderation.status": { $ne: "rejected" } },
+              {
+                organization: { $nin: approvalOrgIds },
+                "moderation.status": { $nin: ["rejected", "suspended", "changes_requested"] },
+              },
             ],
           },
         ],

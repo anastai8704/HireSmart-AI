@@ -234,6 +234,9 @@ export const adminApi = {
   moderation: (params = {}) => api.get(`/admin/moderation/jobs${query(params)}`),
   moderate: (jobId, action, reason) =>
     api.post(`/admin/moderation/jobs/${jobId}/${action}`, reason ? { reason } : {}),
+  moderationJobDetail: (jobId) => api.get(`/admin/moderation/jobs/${jobId}`),
+  bulkModerate: ({ action, jobIds, reason, organizationId }) =>
+    api.post("/admin/moderation/bulk", { action, jobIds, reason: reason || undefined, organizationId }),
 };
 
 export const placementApi = {
