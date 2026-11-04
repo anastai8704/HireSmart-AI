@@ -20,7 +20,10 @@ test("job lifecycle and moderation are separate machines", () => {
   assert.equal(sm.canTransition("jobLifecycle", "closed", "published"), false, "closed is terminal");
   assert.equal(sm.canTransition("jobModeration", "none", "pending"), true);
   assert.equal(sm.canTransition("jobModeration", "pending", "approved"), true);
-  assert.equal(sm.canTransition("jobModeration", "approved", "rejected"), false, "approved is terminal here");
+  // An admin may take down an approved job with a reason (existing platform behaviour, moderation.test.js);
+  // the job is then hidden from public listings. Suspension is the reversible alternative.
+  assert.equal(sm.canTransition("jobModeration", "approved", "rejected"), true, "admin takedown of an approved job");
+  assert.equal(sm.canTransition("jobModeration", "approved", "changes_requested"), false, "approved cannot be sent back for changes");
   assert.equal(sm.canTransition("jobModeration", "none", "approved"), false, "moderation must be reviewed");
 });
 

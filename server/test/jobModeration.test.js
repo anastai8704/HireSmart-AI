@@ -124,6 +124,13 @@ test.after(async () => {
   process.stderr.write("JOB-MODERATION STEP: database closed\n");
   finished = true;
   clearTimeout(watchdog);
+  // Diagnostics only: report anything still keeping the process alive, then fail fast.
+  setTimeout(() => {
+    process.stderr.write(
+      `JOB-MODERATION ACTIVE HANDLES AFTER TEARDOWN: ${JSON.stringify(process.getActiveResourcesInfo())}\n`,
+    );
+    process.exit(1);
+  }, 30000);
 });
 
 test("seed: an admin, a candidate, and two verified companies", async () => {
@@ -220,9 +227,10 @@ test("duplicate requests and invalid transitions are refused with stable codes",
   assert.equal(suspendPending.status, 409);
   assert.equal(suspendPending.body.code, "INVALID_TRANSITION");
 
-  const rejectApproved = await adminDecide(ctx.jobA, "reject", { reason: "Changed my mind" });
-  assert.equal(rejectApproved.status, 409);
-  assert.equal(rejectApproved.body.code, "INVALID_TRANSITION");
+  // An approved job cannot be sent back for changes; that is not a valid transition.
+  const changesApproved = await adminDecide(ctx.jobA, "request-changes", { reason: "Please edit" });
+  assert.equal(changesApproved.status, 409);
+  assert.equal(changesApproved.body.code, "INVALID_TRANSITION");
   assert.equal((await stateOf(ctx.jobA)).moderation, "approved");
 });
 

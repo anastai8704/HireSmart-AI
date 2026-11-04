@@ -32,7 +32,8 @@ const jobModeration = freeze({
   rejected: ["pending"],
   changes_requested: ["pending"],
   // A closed, approved job that is published again goes back through review.
-  approved: ["suspended", "pending"],
+  // A platform admin can take down an approved job with a reason (rejected); the job is then hidden.
+  approved: ["suspended", "pending", "rejected"],
   suspended: ["approved"],
 });
 

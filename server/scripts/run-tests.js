@@ -63,6 +63,27 @@ ${delimiter}
 // as failed with its output tail, and the remaining files still run.
 const FILE_TIMEOUT_MS = Number(process.env.TEST_FILE_TIMEOUT_MS) || 300000;
 
+// Failure details: the names and first error lines of failing tests come first, so a
+// truncated annotation still shows what broke; the raw tail follows.
+const failureDetails = (output) => {
+  const lines = String(output).split("\n");
+  const picked = [];
+  lines.forEach((line, index) => {
+    if (/^\s*not ok /.test(line) || /JOB-MODERATION|^\s*error:/.test(line)) {
+      picked.push(line.slice(0, 300));
+      const next = lines[index + 1] || "";
+      if (/^\s*error:/.test(line) === false && /^\s*error:/.test(next)) picked.push(next.slice(0, 300));
+    }
+  });
+  const tail = lines
+    .map((line) => line.slice(0, 300))
+    .filter((line) => line.trim().length > 0)
+    .slice(-25)
+    .join("\n");
+  const head = picked.length ? `--- failing tests ---\n${picked.slice(0, 25).join("\n")}\n` : "";
+  return `${head}--- output tail ---\n${tail}`;
+};
+
 const runFile = (file) =>
   new Promise((resolve) => {
     const child = spawn(process.execPath, ["--test", file], { stdio: ["ignore", "pipe", "pipe"] });
@@ -88,7 +109,7 @@ const runFile = (file) =>
       resolve({
         file: path.basename(file),
         failed: true,
-        info: `no completion after ${FILE_TIMEOUT_MS / 1000}s; killed\n--- output tail ---\n${tailOf()}`,
+        info: `no completion after ${FILE_TIMEOUT_MS / 1000}s; killed\n${failureDetails(out)}`,
       });
     }, FILE_TIMEOUT_MS);
     child.stdout.on("data", relay);
@@ -109,16 +130,10 @@ const runFile = (file) =>
         resolve({ file: path.basename(file), failed: false });
         return;
       }
-      const tail = out
-        .split("\n")
-        .map((line) => line.slice(0, 300))
-        .filter((line) => line.trim().length > 0)
-        .slice(-60)
-        .join("\n");
       resolve({
         file: path.basename(file),
         failed: true,
-        info: `exit code=${code} signal=${signal}\n--- output tail ---\n${tail}`,
+        info: `exit code=${code} signal=${signal}\n${failureDetails(out)}`,
       });
     });
   });
