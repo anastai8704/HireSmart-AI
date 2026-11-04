@@ -125,12 +125,13 @@ test.after(async () => {
   finished = true;
   clearTimeout(watchdog);
   // Diagnostics only: report anything still keeping the process alive, then fail fast.
+  // unref: this timer alone must not keep the process alive; it only fires if something else does.
   setTimeout(() => {
     process.stderr.write(
       `JOB-MODERATION ACTIVE HANDLES AFTER TEARDOWN: ${JSON.stringify(process.getActiveResourcesInfo())}\n`,
     );
     process.exit(1);
-  }, 30000);
+  }, 30000).unref();
 });
 
 test("seed: an admin, a candidate, and two verified companies", async () => {

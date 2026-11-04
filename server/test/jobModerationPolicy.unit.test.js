@@ -78,6 +78,14 @@ test("an incomplete job cannot be approved", () => {
   assert.equal(decide(live("pending", { description: "short" }), "approve").code, "JOB_INCOMPLETE");
 });
 
+test("a suspended job with an edit is reinstated first, then its edit is reviewed as a change", () => {
+  const suspendedWithEdit = live("suspended", { pendingChanges: { status: "pending", fields: { title: "New title" } } });
+  const reinstated = decide(suspendedWithEdit, "reinstate");
+  assert.equal(reinstated.ok, true, JSON.stringify(reinstated));
+  assert.equal(reinstated.target, "listing");
+  assert.equal(reinstated.to, "approved");
+});
+
 test("a pending change is reviewed as a change, and only approved or rejected", () => {
   const withChange = live("approved", {
     pendingChanges: { status: "pending", fields: { title: "New title" } },

@@ -74,7 +74,11 @@ const isChangeReview = (job) =>
  * Which review a decision applies to. A pending change review takes precedence over the listing
  * status, because the listing itself is already live.
  */
-const reviewTargetOf = (job) => (isChangeReview(job) ? "changes" : "listing");
+// Edits are reviewed as a change only while the live listing is approved. A suspended or
+// rejected job is reviewed as a listing first (reinstating it), and its pending edit is then
+// reviewed as a change.
+const reviewTargetOf = (job) =>
+  isChangeReview(job) && (job.moderation?.status || "none") === "approved" ? "changes" : "listing";
 
 /** Current state a decision must start from, for the given review target. */
 const sourceStateOf = (action, target) => {
