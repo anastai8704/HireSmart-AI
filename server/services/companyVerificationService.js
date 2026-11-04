@@ -1055,7 +1055,7 @@ const restoreCase = async ({ caseId, actor, req, reason, now = new Date() }) => 
     orgSet: { verifiedAt: now, verifiedBy: actor._id, rejectionReason: "" },
   });
   // Closed listings are not reopened automatically. Each one needs a new decision.
-  const stillClosed = await Job.countDocuments({ organization: org._id, status: "closed", "moderation.status": "approved" });
+  const stillClosed = await Job.countDocuments({ organization: org._id, status: "closed" });
   await notifyOwner(org, {
     title: "Company reinstated",
     message: `${org.name} has been reinstated after review. Closed job postings must be published again.`,
