@@ -13,9 +13,21 @@ process.on("exit", () => {
     process.stderr.write(`\nJOB-MODERATION FAILURES (${failedTests.length}):\n${failedTests.join("\n")}\n`);
   }
 });
+// Progress marker and watchdog: if the file stalls, the last step is printed and the
+// process exits non-zero, so the runner's annotation shows where it stopped.
+let lastStep = "file start";
+let finished = false;
+const watchdog = setTimeout(() => {
+  process.stderr.write(
+    `\nJOB-MODERATION WATCHDOG: ${finished ? "all tests finished but the process did not exit" : `stalled at "${lastStep}"`}\n`,
+  );
+  process.exit(1);
+}, 240000);
 const test = Object.assign(
   (name, fn) =>
     nodeTest(name, async (t) => {
+      lastStep = name;
+      process.stderr.write(`JOB-MODERATION STEP: ${name}\n`);
       try {
         await fn(t);
       } catch (error) {
@@ -107,7 +119,11 @@ test.before(async () => {
 });
 test.after(async () => {
   emailService.sendMail = originalSendMail;
+  process.stderr.write("JOB-MODERATION STEP: closing database\n");
   await stopDatabase();
+  process.stderr.write("JOB-MODERATION STEP: database closed\n");
+  finished = true;
+  clearTimeout(watchdog);
 });
 
 test("seed: an admin, a candidate, and two verified companies", async () => {
