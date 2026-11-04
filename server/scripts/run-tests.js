@@ -73,10 +73,23 @@ const runFile = (file) =>
       process.stdout.write(text);
       out += text;
     };
+    // The database helper starts mongod as a child that inherits these pipes, so 'close' may
+    // never fire after a kill. On timeout we therefore report the file immediately.
+    const tailOf = () =>
+      out
+        .split("\n")
+        .map((line) => line.slice(0, 300))
+        .filter((line) => line.trim().length > 0)
+        .slice(-60)
+        .join("\n");
     const timer = setTimeout(() => {
       timedOut = true;
-      out += `\n[runner] no completion after ${FILE_TIMEOUT_MS / 1000}s; killing this file\n`;
       child.kill("SIGKILL");
+      resolve({
+        file: path.basename(file),
+        failed: true,
+        info: `no completion after ${FILE_TIMEOUT_MS / 1000}s; killed\n--- output tail ---\n${tailOf()}`,
+      });
     }, FILE_TIMEOUT_MS);
     child.stdout.on("data", relay);
     child.stderr.on("data", relay);
@@ -88,9 +101,11 @@ const runFile = (file) =>
         info: `runner failed to start: ${error.message}`,
       });
     });
-    child.on("close", (code, signal) => {
+    // 'exit' gives the file's own status even when a leftover mongod still holds the pipes.
+    child.on("exit", (code, signal) => {
       clearTimeout(timer);
-      if (code === 0 && !timedOut) {
+      if (timedOut) return;
+      if (code === 0) {
         resolve({ file: path.basename(file), failed: false });
         return;
       }
