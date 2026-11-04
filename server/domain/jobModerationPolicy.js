@@ -119,7 +119,10 @@ const evaluateDecision = ({ job, action, org, actorId, isReviewerConflict, reaso
   if (!from) return { ok: false, code: "INVALID_ACTION", message: "Unknown moderation action" };
 
   const current = job.moderation?.status || "none";
-  if (target === "listing" && current !== from) {
+  // A platform admin may take down an approved listing with a reason (rejected). Every other
+  // listing decision starts from its source state.
+  const allowedFrom = target === "listing" && action === "reject" ? ["pending", "approved"] : [from];
+  if (target === "listing" && !allowedFrom.includes(current)) {
     const already = current === spec.to;
     return {
       ok: false,
@@ -128,6 +131,7 @@ const evaluateDecision = ({ job, action, org, actorId, isReviewerConflict, reaso
       current,
     };
   }
+  const effectiveFrom = target === "listing" ? current : from;
   if (target === "changes" && current !== "approved") {
     return { ok: false, code: "INVALID_TRANSITION", message: "The live listing must be approved before its changes are reviewed", current };
   }
@@ -146,7 +150,7 @@ const evaluateDecision = ({ job, action, org, actorId, isReviewerConflict, reaso
     if (!complete) return { ok: false, code: "JOB_INCOMPLETE", message: "The job needs a description and required skills before approval" };
   }
 
-  return { ok: true, target, from, to: target === "changes" ? (action === "approve" ? "approved" : "rejected") : spec.to };
+  return { ok: true, target, from: effectiveFrom, to: target === "changes" ? (action === "approve" ? "approved" : "rejected") : spec.to };
 };
 
 /** Maps a failed decision to an HTTP error for the single-job endpoints. */

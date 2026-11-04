@@ -73,7 +73,7 @@ const registerAndLogin = async ({ email, intent, organizationName }) => {
   return {
     token: login.body.data.accessToken,
     userId: registration.body.data.user.id,
-    orgId: registration.body.data.organization.id,
+    orgId: registration.body.data.organization?.id,
   };
 };
 

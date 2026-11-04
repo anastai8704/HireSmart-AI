@@ -34,6 +34,10 @@ test("invalid transitions are refused with a stable code", () => {
   assert.equal(decide(live("approved"), "reinstate").code, "ALREADY_DECIDED", "an approved job is already in the reinstated state");
   assert.equal(decide(live("rejected"), "approve").code, "INVALID_TRANSITION");
   assert.equal(decide(live("changes_requested"), "reject").code, "INVALID_TRANSITION");
+  // Admin takedown of an approved listing is allowed and records approved as the source state.
+  assert.equal(decide(live("approved"), "reject").to, "rejected");
+  assert.equal(decide(live("approved"), "reject").from, "approved");
+  assert.equal(decide(live("approved"), "request_changes").code, "INVALID_TRANSITION");
 });
 
 test("a repeated decision is reported as already decided, not as a new change (duplicate requests)", () => {
