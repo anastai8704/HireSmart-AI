@@ -488,7 +488,7 @@ test("unauthorized verification actions are refused", async () => {
 });
 
 test("a reviewer who belongs to the company cannot decide on it", async () => {
-  await Membership.create({ organization: ctx.gamma.orgId, user: ctx.admin.userId, role: "member", status: "active" });
+  await Membership.create({ organization: ctx.gamma.orgId, user: ctx.admin.userId, role: "recruiter", status: "active" });
   const approve = await request(app).post(`/api/v1/admin/verification/cases/${ctx.gamma.caseId}/approve`).set(auth(ctx.admin.token)).send({});
   assert.equal(approve.status, 403);
   assert.equal(approve.body.code, "REVIEWER_CONFLICT");

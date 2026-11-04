@@ -119,7 +119,7 @@ const organizationSchema = new mongoose.Schema(
     // Consent to verification, with the time it was given and the wording version.
     consent: {
       acceptedAt: { type: Date, default: null },
-      version: { type: String, trim: true, maxlength: 20, default: "" },
+      version: { type: String, trim: true, maxlength: 40, default: "" },
     },
     // Set only after the business email owner confirmed a one-time code. Never set by the recruiter.
     businessEmailVerifiedAt: { type: Date, default: null },
