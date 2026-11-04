@@ -30,11 +30,16 @@ const request = require("supertest");
 const app = require("../app");
 const { startDatabase, stopDatabase, clearDatabase } = require("./setup");
 const User = require("../models/User");
+const emailService = require("../services/emailService");
 const Organization = require("../models/Organization");
 const Job = require("../models/Job");
 const AuditLog = require("../models/AuditLog");
 const { Membership } = require("../models/Membership");
 const { JobModerationEvent } = require("../models/JobModerationEvent");
+
+// Outbound email is mocked: notifications to recruiters must never reach a real mail transport.
+const originalSendMail = emailService.sendMail;
+emailService.sendMail = async () => ({ messageId: "test" });
 
 const PASSWORD = "StrongPassword123!";
 const auth = (token) => ({ Authorization: `Bearer ${token}` });
@@ -101,6 +106,7 @@ test.before(async () => {
   await startDatabase();
 });
 test.after(async () => {
+  emailService.sendMail = originalSendMail;
   await stopDatabase();
 });
 
