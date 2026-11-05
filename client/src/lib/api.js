@@ -211,6 +211,9 @@ export const adminApi = {
   users: (params) => api.get(`/admin/users${query(params)}`),
   organizations: (params) => api.get(`/admin/organizations${query(params)}`),
   overviewAnalytics: (params) => api.get(`/admin/analytics/overview${query(params)}`),
+  // CSV export of one platform report. Same date range rules as the dashboard; the server audits each export.
+  reportCsv: (type, params) =>
+    api.get(`/admin/reports/${encodeURIComponent(type)}${query({ ...params, format: "csv" })}`, { responseType: "blob" }),
   revenueAnalytics: () => api.get("/admin/analytics/revenue"),
   orgVerificationDetails: (orgId) => api.get(`/admin/organizations/${orgId}/verification`),
   verifyOrg: (orgId, notes) => api.post(`/admin/organizations/${orgId}/verify`, { notes }),

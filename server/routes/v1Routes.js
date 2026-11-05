@@ -33,6 +33,7 @@ const interview = require("../controllers/v1InterviewController");
 const notifications = require("../controllers/v1NotificationController");
 const ai = require("../controllers/v1AIController");
 const analytics = require("../controllers/v1AnalyticsController");
+const reports = require("../controllers/v1ReportController");
 const admin = require("../controllers/v1AdminController");
 const health = require("../controllers/v1HealthController");
 const users = require("../controllers/v1UserController");
@@ -881,6 +882,12 @@ router.get(
   analytics.recruiter,
 );
 router.get(
+  "/organizations/:organizationId/reports/:reportType",
+  authenticate,
+  requireOrganization("analytics.read"),
+  reports.organizationReport,
+);
+router.get(
   "/organizations/:organizationId/analytics/ai-usage",
   authenticate,
   requireOrganization("analytics.read"),
@@ -904,6 +911,7 @@ router.use("/admin", authenticate, requirePlatformAdmin);
 router.get("/admin/users", authenticate, admin.users);
 router.get("/admin/organizations", authenticate, admin.organizations);
 router.get("/admin/analytics/overview", authenticate, admin.overviewAnalytics);
+router.get("/admin/reports/:reportType", authenticate, reports.adminReport);
 router.get("/admin/analytics/revenue", authenticate, subscription.adminRevenueAnalytics);
 router.get("/admin/organizations/:organizationId/verification", authenticate, org.adminGetOrgDetails);
 router.post("/admin/organizations/:organizationId/verify", authenticate, org.adminVerifyOrg);

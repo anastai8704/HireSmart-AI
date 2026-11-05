@@ -1,5 +1,6 @@
 // Range-aware admin analytics (Phase 5): KPI cards with drill-downs, charts with data tables.
 // All numbers come from /admin/analytics/overview. Nothing is computed from raw records in the browser.
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Bar,
@@ -224,7 +225,25 @@ const HiringOutcomesPie = ({ rows }) => {
   );
 };
 
-export const AdminAnalyticsPanel = ({ analytics, range, onRangeChange, customError }) => {
+// Platform reports that can be exported as CSV. Labels match the server report catalogue (services/reportService.js).
+const EXPORT_REPORTS = [
+  { value: "revenue", label: "Revenue (daily, cash basis)" },
+  { value: "candidate_registrations", label: "Candidate registrations (daily)" },
+  { value: "company_verification", label: "Company verification" },
+  { value: "job_moderation", label: "Job moderation" },
+  { value: "job_postings", label: "Job postings" },
+  { value: "applications", label: "Applications" },
+  { value: "hiring_pipeline", label: "Hiring pipeline" },
+  { value: "employment_records", label: "Employment records" },
+  { value: "subscriptions", label: "Subscriptions" },
+  { value: "payments", label: "Payments" },
+  { value: "platform_activity", label: "Platform activity (daily)" },
+];
+
+export const AdminAnalyticsPanel = ({ analytics, range, onRangeChange, customError, onExportReport }) => {
+  const [exportType, setExportType] = useState("revenue");
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
   const kpis = analytics?.kpis || {};
   const series = analytics?.series || {};
   const breakdowns = analytics?.breakdowns || {};
@@ -233,6 +252,43 @@ export const AdminAnalyticsPanel = ({ analytics, range, onRangeChange, customErr
 
   return (
     <section className="space-y-6" aria-label="Analytics">
+      {onExportReport && (
+        <div className="flex flex-wrap items-end gap-2 rounded-xl border border-ink-100 bg-white p-4">
+          <label className="flex flex-col gap-1 text-sm font-medium text-ink-800">
+            Report
+            <select
+              className="rounded-lg border border-ink-200 px-3 py-2 text-sm"
+              value={exportType}
+              onChange={(e) => setExportType(e.target.value)}
+            >
+              {EXPORT_REPORTS.map((r) => (
+                <option key={r.value} value={r.value}>
+                  {r.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={exporting}
+            onClick={async () => {
+              setExporting(true);
+              setExportError("");
+              try {
+                await onExportReport(exportType);
+              } catch (error) {
+                setExportError(error?.response?.data?.error?.message || "Export failed. Narrow the date range and try again.");
+              } finally {
+                setExporting(false);
+              }
+            }}
+          >
+            {exporting ? "Exporting…" : "Export CSV"}
+          </Button>
+          {exportError && <p role="alert" className="w-full text-sm text-red-700">{exportError}</p>}
+        </div>
+      )}
       <div className="flex flex-col gap-3 rounded-xl border border-ink-100 bg-white p-4 lg:flex-row lg:items-end lg:justify-between">
         <div role="group" aria-label="Date range" className="flex flex-wrap gap-2">
           {RANGE_PRESETS.map((p) => (

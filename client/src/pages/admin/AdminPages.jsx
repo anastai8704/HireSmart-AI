@@ -44,6 +44,7 @@ import {
   formatDateTime,
   initials,
   humanizeAction,
+  downloadBlob,
 } from "../../lib/utils";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 
@@ -156,6 +157,13 @@ export const AdminHome = () => {
         : Promise.resolve({ data: null }),
   });
 
+  const exportReport = async (type) => {
+    const res = await adminApi.reportCsv(type, rangeParams);
+    const from = range.preset === "custom" ? range.from : range.preset;
+    const to = range.preset === "custom" ? range.to : "today";
+    downloadBlob(res.data, `hiresmart-${type}-${from}-to-${to}.csv`);
+  };
+
   const isLoading =
     usersQuery.isLoading ||
     orgsQuery.isLoading ||
@@ -267,7 +275,7 @@ export const AdminHome = () => {
           onRetry={() => overviewQuery.refetch()}
         />
       )}
-      <AdminAnalyticsPanel analytics={stats} range={range} onRangeChange={setRange} customError={customError} />
+      <AdminAnalyticsPanel analytics={stats} range={range} onRangeChange={setRange} customError={customError} onExportReport={exportReport} />
 
       {/* Deep Dive Banner if Company Selected */}
       {deepDive && (
