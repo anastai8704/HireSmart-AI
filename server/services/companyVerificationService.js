@@ -23,7 +23,7 @@ const AppError = require("../utils/AppError");
 const organizationOwner = require("../utils/organizationOwner");
 const logger = require("../utils/logger");
 const { audit } = require("./auditService");
-const { notify } = require("./notificationService");
+const { notify, notifyAdmins } = require("./notificationService");
 const emailService = require("./emailService");
 const registry = require("./registryProvider");
 const fraud = require("./fraudDetectionService");
@@ -352,6 +352,18 @@ const applyCompanyDetails = (org, body, now) => {
  * Recruiter submits or resubmits company details. Allowed from pending or rejected, or while
  * changes are requested. Duplicate submissions while under review are refused.
  */
+/** Tells platform admins that a company's verification needs review. Best effort; never blocks the submission. */
+const notifySubmission = (org, caseId, now, { resubmitted = false } = {}) =>
+  notifyAdmins({
+    type: "company_verification_submitted",
+    category: "companies",
+    title: `${resubmitted ? "Resubmitted" : "New"} company verification: ${org.name}`,
+    message: `${org.name} ${resubmitted ? "resubmitted" : "submitted"} its verification details for review.`,
+    resourceType: "organization",
+    resourceId: org._id,
+    idempotencyKey: `verification-submitted:${caseId}:${now.toISOString()}`,
+  }).catch(() => {});
+
 const submitVerification = async ({ org, body, actor, req, now = new Date() }) => {
   if (org.verificationStatus === "verified") {
     throw fail(409, "ALREADY_VERIFIED", "This company is already verified");
@@ -400,6 +412,7 @@ const submitVerification = async ({ org, body, actor, req, now = new Date() }) =
       caseId: String(open._id),
       missing: checklist.missing,
     });
+    await notifySubmission(org, open._id, now, { resubmitted: true });
     return { case: open, org: freshOrg };
   }
 
@@ -420,6 +433,7 @@ const submitVerification = async ({ org, body, actor, req, now = new Date() }) =
     const freshOrg = await Organization.findById(org._id);
     await refreshAssessment(legacy, freshOrg, { now });
     await auditEvent(req, org, "organization.verification_submitted", { caseId: String(legacy._id) });
+    await notifySubmission(org, legacy._id, now);
     return { case: legacy, org: freshOrg };
   }
 
@@ -459,6 +473,7 @@ const submitVerification = async ({ org, body, actor, req, now = new Date() }) =
     caseId: String(caseDoc._id),
     previousStatus: from,
   });
+  await notifySubmission(org, caseDoc._id, now);
   return { case: caseDoc, org: freshOrg };
 };
 

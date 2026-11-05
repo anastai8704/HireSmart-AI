@@ -1,6 +1,7 @@
 const { Subscription } = require("../models/Subscription");
 const { PaymentTransaction } = require("../models/PaymentTransaction");
 const { audit } = require("./auditService");
+const { notifySubscriptionEvent } = require("./billingNotifications");
 
 // Shared payment processing (Phase 7). Used by the HTTP verify-payment path and by the provider webhook,
 // so both paths follow the same rules: one claim per order, activation only after a captured payment,
@@ -123,7 +124,15 @@ const captureTransaction = async ({
     resourceType: "subscription",
     resourceId: sub._id,
     metadata: { planTier: claimed.planTier, amount: claimed.amount, invoiceNumber: claimed.invoiceNumber, source },
+    newState: { planTier: claimed.planTier, status: "active", currentPeriodEnd: sub.currentPeriodEnd },
   });
+  // Best effort: a notification failure must never undo a captured payment.
+  notifySubscriptionEvent(sub, {
+    type: "subscription_activated",
+    title: "Your plan is active",
+    message: `Your ${claimed.planTier} plan is now active.`,
+    key: `subscription-activated:${claimed._id}`,
+  }).catch(() => {});
   return { sub, txn: finalTxn };
 };
 

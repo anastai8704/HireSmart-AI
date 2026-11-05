@@ -217,6 +217,9 @@ const applyOne = async ({ job, org, action, actor, req, reason, now, batchId }) 
     action: isChange ? CHANGE_AUDIT_ACTIONS[action] : AUDIT_ACTIONS[action],
     resourceType: "job",
     resourceId: job._id,
+    reason: reason || "",
+    previousState: { [decision.target]: decision.from },
+    newState: { [decision.target]: decision.to },
     metadata: {
       target: decision.target,
       from: decision.from,

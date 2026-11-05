@@ -23,6 +23,15 @@
 
 const views = (entry) => entry;
 
+/** A billing event view for the `billing` preference group (not a security event: users can opt out). */
+const billingView = (label, description, emailDefault) => ({
+  group: "billing",
+  label,
+  description,
+  emailDefault,
+  push: false,
+});
+
 const EVENTS = {
   /* ----------------------------- candidates ----------------------------- */
   application_acknowledged: views({
@@ -299,6 +308,74 @@ const EVENTS = {
     },
   }),
 
+  /* ----------------- company verification, offers, joining ----------------- */
+  company_verification_submitted: views({
+    admin: {
+      group: "companies",
+      label: "Company verification submitted",
+      description: "A company submitted verification details for review.",
+      emailDefault: false,
+      push: false,
+    },
+  }),
+  company_verification: views({
+    recruiter: {
+      group: "company",
+      label: "Company verification decisions",
+      description: "Approval, rejection, information requests and suspension of your company.",
+      emailDefault: true,
+      push: false,
+    },
+  }),
+  offer_issued: views({
+    candidate: {
+      group: "applications",
+      label: "Job offers",
+      description: "When a company issues you an offer.",
+      emailDefault: true,
+      push: false,
+    },
+  }),
+  joining_status_updated: views({
+    recruiter: {
+      group: "candidates",
+      label: "Joining and employment updates",
+      description: "When a hired candidate confirms joining or reports an employment change.",
+      emailDefault: false,
+      push: false,
+    },
+  }),
+
+  /* ------------------------------- billing ------------------------------- */
+  subscription_activated: views({
+    candidate: billingView("Subscription activated", "Your plan is now active.", true),
+    recruiter: billingView("Subscription activated", "Your company's plan is now active.", true),
+  }),
+  subscription_renewed: views({
+    candidate: billingView("Subscription renewed", "Your plan renewed successfully.", false),
+    recruiter: billingView("Subscription renewed", "Your company's plan renewed successfully.", false),
+  }),
+  subscription_expiring: views({
+    candidate: billingView("Subscription expiring", "Your plan ends soon and will not renew automatically.", true),
+    recruiter: billingView("Subscription expiring", "Your company's plan ends soon and will not renew automatically.", true),
+  }),
+  subscription_payment_failed: views({
+    candidate: billingView("Payment failed", "A subscription payment did not go through.", true),
+    recruiter: billingView("Payment failed", "A subscription payment for your company did not go through.", true),
+  }),
+  subscription_halted: views({
+    candidate: billingView("Subscription paused for payment", "Retries were exhausted; update your payment method.", true),
+    recruiter: billingView("Subscription paused for payment", "Retries for your company's plan were exhausted.", true),
+  }),
+  subscription_cancelled: views({
+    candidate: billingView("Subscription cancelled", "Your subscription was cancelled.", true),
+    recruiter: billingView("Subscription cancelled", "Your company's subscription was cancelled.", true),
+  }),
+  refund_processed: views({
+    candidate: billingView("Refund processed", "A refund for a subscription payment was processed.", true),
+    recruiter: billingView("Refund processed", "A refund for your company's subscription payment was processed.", true),
+  }),
+
   /* ------------------- security & account (always on) ------------------- */
   password_changed: views({
     candidate: {
@@ -383,12 +460,15 @@ const GROUPS = {
     ["applications", "Applications", "Submissions, updates and messages about your applications."],
     ["interviews", "Interviews", "Invitations, schedule changes and cancellations."],
     ["jobs", "Jobs", "Roles that match your saved alerts."],
+    ["billing", "Billing", "Subscription, payment and refund updates."],
     ["ai_career", "AI & Career", "AI review results and suggestions for your profile."],
     ["security", "Account & Security", "Password, email and security events."],
   ],
   recruiter: [
     ["jobs", "Jobs", "Approvals and review updates for your company's jobs."],
     ["candidates", "Candidates", "New applications and candidate updates."],
+    ["company", "Company", "Verification decisions for your company."],
+    ["billing", "Billing", "Subscription, payment and refund updates."],
     ["interviews", "Interviews", "Confirmations, reschedules and candidate responses."],
     ["team", "Team", "Invitations, role changes and membership updates."],
     ["security", "Account & Security", "Password, email and security events."],

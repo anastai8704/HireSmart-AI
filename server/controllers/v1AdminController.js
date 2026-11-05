@@ -13,6 +13,7 @@ const { audit } = require("../services/auditService");
 const { parse, applyCursor, meta } = require("../utils/pagination");
 const { resolveRange, AnalyticsRangeError } = require("../domain/analyticsDefinitions");
 const { computeAnalytics } = require("../services/adminAnalyticsService");
+const { redact } = require("../utils/redact");
 
 const requireAdmin = (req) => {
   if (req.auth.platformRole !== "platform_admin")
@@ -365,12 +366,23 @@ exports.audit = asyncHandler(async (req, res) => {
     const pattern = new RegExp(escapeRegex(req.query.search).slice(0, 100), "i");
     filter.$or = [{ action: pattern }, { resourceType: pattern }, { outcome: pattern }];
   }
+  if (req.query.action) filter.action = String(req.query.action).slice(0, 120);
+  if (req.query.resourceType) filter.resourceType = String(req.query.resourceType).slice(0, 80);
+  if (req.query.actorId && /^[a-f\d]{24}$/i.test(req.query.actorId)) filter.actor = req.query.actorId;
   const items = await AuditLog.find(applyCursor(filter, page.after))
     .populate("actor", "name email")
     .populate("organization", "name")
     .sort({ _id: -1 })
-    .limit(page.limit);
-  res.json({ data: items, meta: meta(items, page.limit) });
+    .limit(page.limit)
+    .lean();
+  // Defence in depth: rows written before redaction existed are cleaned on the way out too.
+  const data = items.map((item) => ({
+    ...item,
+    metadata: redact(item.metadata || {}),
+    previousState: item.previousState === undefined ? undefined : redact(item.previousState),
+    newState: item.newState === undefined ? undefined : redact(item.newState),
+  }));
+  res.json({ data, meta: meta(items, page.limit) });
 });
 
 exports.security = asyncHandler(async (req, res) => {
@@ -448,12 +460,14 @@ exports.suspend = asyncHandler(async (req, res) => {
   requireAdmin(req);
   if (String(req.user._id) === req.params.userId)
     throw new AppError("Administrators cannot suspend themselves", 409, "SELF_SUSPEND");
-  const user = await User.findByIdAndUpdate(
+  // "before" returns the stored status as it was when this update applied, for the audit trail.
+  const before = await User.findByIdAndUpdate(
     req.params.userId,
     { isActive: false, accountStatus: "suspended", tokenInvalidBefore: new Date() },
-    { returnDocument: "after" },
+    { returnDocument: "before" },
   ).select("name email role accountStatus");
-  if (!user) throw new AppError("User not found", 404, "RESOURCE_NOT_FOUND");
+  if (!before) throw new AppError("User not found", 404, "RESOURCE_NOT_FOUND");
+  const user = { _id: before._id, accountStatus: "suspended" };
   await AuthSession.updateMany(
     { user: user._id, revokedAt: null },
     { revokedAt: new Date(), revokeReason: req.body.reason },
@@ -463,25 +477,31 @@ exports.suspend = asyncHandler(async (req, res) => {
     action: "admin.user_suspended",
     resourceType: "user",
     resourceId: user._id,
-    metadata: { reason: req.body.reason },
+    previousState: { accountStatus: before.accountStatus },
+    newState: { accountStatus: "suspended" },
+    reason: req.body.reason,
+    metadata: {},
   });
   res.json({ data: { id: user._id, status: user.accountStatus } });
 });
 
 exports.reactivate = asyncHandler(async (req, res) => {
   requireAdmin(req);
-  const user = await User.findOneAndUpdate(
+  const before = await User.findOneAndUpdate(
     { _id: req.params.userId, accountStatus: "suspended" },
     { isActive: true, accountStatus: "active", tokenInvalidBefore: new Date() },
-    { returnDocument: "after", runValidators: true },
+    { returnDocument: "before", runValidators: true },
   ).select("name email role accountStatus");
-  if (!user) throw new AppError("Suspended user not found", 404, "RESOURCE_NOT_FOUND");
+  if (!before) throw new AppError("Suspended user not found", 404, "RESOURCE_NOT_FOUND");
   await audit({
     req,
     action: "admin.user_reactivated",
     resourceType: "user",
-    resourceId: user._id,
-    metadata: { reason: req.body.reason },
+    resourceId: before._id,
+    previousState: { accountStatus: "suspended" },
+    newState: { accountStatus: "active" },
+    reason: req.body.reason,
+    metadata: {},
   });
-  res.json({ data: { id: user._id, status: user.accountStatus } });
+  res.json({ data: { id: before._id, status: "active" } });
 });

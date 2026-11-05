@@ -11,6 +11,7 @@ const {
 const { audit } = require("../services/auditService");
 const asyncHandler = require("../middleware/asyncHandler");
 const AppError = require("../utils/AppError");
+const { notifySubscriptionEvent } = require("../services/billingNotifications");
 
 /**
  * Razorpay webhook receiver (Phase 7).
@@ -53,6 +54,17 @@ const SUBSCRIPTION_STATUS_EVENTS = new Set([
   "subscription.updated",
 ]);
 
+/** Tells the subscriber a refund was processed. Keyed by the provider refund id, so a replay never repeats it. */
+const notifyRefund = (txn, refund) =>
+  notifySubscriptionEvent(txn, {
+    type: "refund_processed",
+    title: "Refund processed",
+    message: `A refund of ₹${Number(refund.amount) / 100} for your ${txn.planTier} plan payment was processed.`,
+    key: `refund:${refund.id}`,
+    resourceType: "payment_transaction",
+    resourceId: txn._id,
+  }).catch(() => {});
+
 const handleRefundProcessed = async (refund) => {
   const txn = await PaymentTransaction.findOne({ gatewayPaymentId: String(refund.payment_id) });
   if (!txn || txn.gateway !== "razorpay") return { outcome: "unknown_payment" };
@@ -68,6 +80,7 @@ const handleRefundProcessed = async (refund) => {
       resourceId: txn._id,
       metadata: { providerRefundId: refund.id, refundAmountPaise: refund.amount },
     });
+    await notifyRefund(txn, refund);
     return { outcome: "partial_refund_review" };
   }
 
@@ -99,7 +112,10 @@ const handleRefundProcessed = async (refund) => {
     resourceType: "payment_transaction",
     resourceId: txn._id,
     metadata: { planTier: txn.planTier, providerRefundId: refund.id, amount: txn.amount },
+    previousState: { status: "captured" },
+    newState: { status: "refunded" },
   });
+  await notifyRefund(txn, refund);
   return { outcome: "refunded" };
 };
 

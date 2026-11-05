@@ -3,6 +3,7 @@ const { validateEnvironment } = require("./config/env");
 const { processNext } = require("./services/jobQueueService");
 const { tickAlertScan } = require("./services/alertScanService");
 const { tickRecommendationRefresh } = require("./services/recommendationSnapshotService");
+const { tickSubscriptionNotices } = require("./services/subscriptionNoticeService");
 const logger = require("./utils/logger");
 let stopping = false;
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -17,6 +18,9 @@ const run = async () => {
       tickAlertScan().catch((error) => logger.error(`Alert scan tick failed: ${error.message}`));
       tickRecommendationRefresh().catch((error) =>
         logger.error(`Recommendation tick failed: ${error.message}`),
+      );
+      tickSubscriptionNotices().catch((error) =>
+        logger.error(`Subscription notice tick failed: ${error.message}`),
       );
     }
   }

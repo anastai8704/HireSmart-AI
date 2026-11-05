@@ -935,7 +935,7 @@ exports.issueOffer = asyncHandler(async (req, res) => {
     await notify({
       user: app.candidate._id,
       organization: app.organization,
-      type: "application_status_changed",
+      type: "offer_issued",
       category: "applications",
       title: "You have an offer",
       message: `${app.job?.company || "The company"} has issued an offer for ${app.job?.title || "a role"}. Review it in your applications.`,

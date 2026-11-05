@@ -14,6 +14,10 @@ const auditLogSchema = new mongoose.Schema(
     outcome: { type: String, enum: ["success", "denied", "failure"], default: "success" },
     requestId: { type: String, default: "", index: true },
     metadata: { type: mongoose.Schema.Types.Mixed, default: {} },
+    // Before/after state for changes that have one (for example a status). Sanitised by services/auditService.
+    previousState: { type: mongoose.Schema.Types.Mixed, default: undefined },
+    newState: { type: mongoose.Schema.Types.Mixed, default: undefined },
+    reason: { type: String, default: "", maxlength: 1000 },
   },
   { timestamps: { createdAt: true, updatedAt: false } },
 );

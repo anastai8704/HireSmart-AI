@@ -385,7 +385,10 @@ test("hiring chain shortlisted -> interview -> offer -> hired persists (invalid 
   const history = after.body.data.application.statusHistory.map((h) => h.status);
   assert.ok(history.includes("interview") && history.includes("offer") && history.includes("hired"));
   const notifications = await request(app).get("/api/v1/notifications").set(auth(candidateToken));
-  const statusUpdates = notifications.body.data.filter((n) => n.type === "application_status_changed");
+  // Offers have their own event (offer_issued) and count as candidate updates alongside stage changes.
+  const statusUpdates = notifications.body.data.filter((n) =>
+    ["application_status_changed", "offer_issued"].includes(n.type),
+  );
   assert.ok(statusUpdates.length >= 2, "candidate should be notified of stage changes");
 });
 test("admin console endpoints expose totals, populated context and real AI activity", async () => {

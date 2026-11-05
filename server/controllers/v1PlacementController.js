@@ -4,6 +4,7 @@ const Organization = require("../models/Organization");
 const Job = require("../models/Job");
 const User = require("../models/User");
 const { notify } = require("../services/notificationService");
+const { notifyCompanyLeads } = require("../services/billingNotifications");
 const { audit } = require("../services/auditService");
 const asyncHandler = require("../middleware/asyncHandler");
 const AppError = require("../utils/AppError");
@@ -121,22 +122,16 @@ exports.candidateConfirmJoining = asyncHandler(async (req, res) => {
 
   await placement.save();
 
-  // Notify recruiter
-  try {
-    const orgOwner = await require("../utils/organizationOwner")(placement.organization._id || placement.organization);
-    if (orgOwner) {
-      await notify({
-        user: orgOwner.id,
-        organization: placement.organization._id || placement.organization,
-        type: "application_status_changed",
-        category: "candidates",
-        title: "Candidate Confirmed Joining",
-        message: `${req.user.name} confirmed acceptance for ${placement.offerDetails?.designation || "the offered role"}. Joining Date: ${actualJoiningDate.toLocaleDateString()}.`,
-        resourceType: "placement",
-        resourceId: placement._id,
-      });
-    }
-  } catch (_e) {}
+  // Notify the company's owners and admins (best effort; the confirmation itself is already saved).
+  const organizationId = placement.organization._id || placement.organization;
+  notifyCompanyLeads(organizationId, {
+    type: "joining_status_updated",
+    title: "Candidate confirmed joining",
+    message: `${req.user.name} confirmed acceptance for ${placement.offerDetails?.designation || "the offered role"}. Joining date: ${actualJoiningDate.toLocaleDateString()}.`,
+    resourceType: "placement",
+    resourceId: placement._id,
+    key: `joining:${placement._id}:confirmed`,
+  }).catch(() => {});
 
   await audit({
     req,
@@ -279,12 +274,26 @@ exports.updateEmploymentStatus = asyncHandler(async (req, res) => {
     action: `placement.status_${status}`,
     resourceType: "placement",
     resourceId: placement._id,
+    previousState: { employmentStatus: previousStatus },
+    newState: { employmentStatus: placement.status },
     metadata: {
       previousStatus,
       newStatus: placement.status,
       source: placement.employmentStatusSource,
     },
   });
+
+  // A change the candidate reported is shown to the company. Recruiter-entered changes are not echoed back to them.
+  if (isCandidate) {
+    notifyCompanyLeads(placement.organization._id || placement.organization, {
+      type: "joining_status_updated",
+      title: "Candidate reported an employment update",
+      message: `A candidate reported that their employment status for ${placement.offerDetails?.designation || "a placement"} changed to "${placement.status.replace(/_/g, " ")}". Source: candidate-reported.`,
+      resourceType: "placement",
+      resourceId: placement._id,
+      key: `employment:${placement._id}:${placement.employmentStatusUpdatedAt.toISOString()}`,
+    }).catch(() => {});
+  }
 
   // Candidate-facing response: keep recruiter/candidate contact details out of employment updates.
   const response = placement.toObject();
