@@ -16,6 +16,7 @@ const { Subscription } = require("../models/Subscription");
 const { audit } = require("../services/auditService");
 const { runSubscriptionExpiryNotices } = require("../services/subscriptionNoticeService");
 const { notifySubscriptionEvent } = require("../services/billingNotifications");
+const { getOrCreateOrgSubscription } = require("../middleware/subscriptionCheck");
 
 const PASSWORD = "StrongPassword123!";
 const API = "/api/v1";
@@ -123,7 +124,9 @@ test("suspending a user records the previous and new state and the reason", asyn
 });
 
 test("subscription expiry: one reminder per owner, none for auto-renewing or free plans, and no repeats", async () => {
-  // Registration creates one active subscription per subscriber, so the fixtures update those records.
+  // The company's subscription is created lazily by the platform; create it the same way the app does,
+  // then move it into the state under test. Candidates already have one from registration.
+  await getOrCreateOrgSubscription(ctx.recruiter.orgId);
   // Paid, cancelled at period end, ending in 3 days: should be reminded.
   const orgSub = await Subscription.updateOne(
     { subscriberType: "organization", subscriberId: ctx.recruiter.orgId, status: "active" },
