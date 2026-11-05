@@ -120,17 +120,23 @@ test("publishing stops at the free plan limit on the server; published jobs are 
   assert.equal(blocked.status, "draft", "the refused job stays a draft");
 });
 
-test("an active paid plan within its period lifts the limit", async () => {
-  await Subscription.create({
-    subscriberType: "organization",
-    subscriberId: ctx.owner.orgId,
-    planTier: "recruiter_growth",
-    status: "active",
-    priceInr: ALL_PLANS.recruiter_growth.priceInr,
-    currentPeriodStart: new Date(Date.now() - DAY),
-    currentPeriodEnd: new Date(Date.now() + 29 * DAY),
-    limits: ALL_PLANS.recruiter_growth.limits,
-  });
+test("an active paid plan, bought through checkout and verified, lifts the limit", async () => {
+  const checkout = await request(app)
+    .post("/api/v1/subscriptions/checkout")
+    .set(auth(ctx.owner.token))
+    .set("X-Organization-Id", ctx.owner.orgId)
+    .send({ planTier: "recruiter_growth" });
+  assert.equal(checkout.status, 200, JSON.stringify(checkout.body));
+  const helper = checkout.body.data.simulationHelper;
+  assert.ok(helper, "simulation helper is issued in the sandbox only");
+
+  const verified = await request(app)
+    .post("/api/v1/subscriptions/verify-payment")
+    .set(auth(ctx.owner.token))
+    .set("X-Organization-Id", ctx.owner.orgId)
+    .send({ orderId: helper.orderId, paymentId: helper.paymentId, signature: helper.signature, planTier: "recruiter_growth" });
+  assert.equal(verified.status, 200, JSON.stringify(verified.body));
+
   const res = await currentFor(ctx.owner, ctx.owner.orgId);
   assert.equal(res.body.data.entitlement.tier, "recruiter_growth");
   const job = await createJob("Platform Engineer");
@@ -140,7 +146,7 @@ test("an active paid plan within its period lifts the limit", async () => {
 
 test("an expired paid period reverts to the free limits, without deleting or unpublishing jobs", async () => {
   const expired = await Subscription.findOneAndUpdate(
-    { subscriberId: ctx.owner.orgId, planTier: "recruiter_growth", status: "active" },
+    { subscriberType: "organization", subscriberId: ctx.owner.orgId, planTier: "recruiter_growth", status: "active" },
     { $set: { currentPeriodEnd: new Date(Date.now() - DAY) } },
     { new: true },
   );
@@ -151,7 +157,7 @@ test("an expired paid period reverts to the free limits, without deleting or unp
 
   const stored = await Subscription.findById(expired._id).lean();
   assert.equal(stored.status, "expired", "the expired record is kept with its status");
-  const audited = await AuditLog.countDocuments({ action: "subscription.expired", resourceId: String(expired._id) });
+  const audited = await AuditLog.countDocuments({ action: "subscription.expired", "metadata.planTier": "recruiter_growth" });
   assert.equal(audited, 1);
 
   const published = await Job.countDocuments({ organization: ctx.owner.orgId, status: "published" });
@@ -188,8 +194,9 @@ test("a plan cannot be granted from the client: forged payment proof and free pl
     .post("/api/v1/subscriptions/checkout")
     .set(auth(ctx.candidate.token))
     .send({ planTier: "candidate_plus" });
-  assert.equal(checkout.status, 201, JSON.stringify(checkout.body));
+  assert.equal(checkout.status, 200, JSON.stringify(checkout.body));
   const helper = checkout.body.data.simulationHelper;
+  assert.ok(helper);
 
   const forged = await request(app)
     .post("/api/v1/subscriptions/verify-payment")

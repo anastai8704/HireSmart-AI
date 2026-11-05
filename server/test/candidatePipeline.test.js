@@ -1,3 +1,4 @@
+const { grantTestPlan } = require("./helpers/grantTestPlan");
 // Phase 4 candidate pipeline, end to end over HTTP against MongoDB (runs in CI).
 // Applications are created directly as fixtures; the stage changes, offers, privacy and
 // authorization rules under test all go through the real routes.
@@ -65,8 +66,10 @@ const registerAndLogin = async ({ email, intent, organizationName }) => {
   };
 };
 
-const verifyCompany = (orgId) =>
-  Organization.updateOne({ _id: orgId }, { $set: { verificationStatus: "verified", verifiedAt: new Date() } });
+const verifyCompany = async (orgId) => {
+  await Organization.updateOne({ _id: orgId }, { $set: { verificationStatus: "verified", verifiedAt: new Date() } });
+  await grantTestPlan(orgId);
+};
 
 const jobPayload = (title) => ({
   title,

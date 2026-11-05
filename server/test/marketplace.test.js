@@ -1,3 +1,4 @@
+const { grantTestPlan } = require("./helpers/grantTestPlan");
 process.env.NODE_ENV = "test";
 process.env.PROCESS_JOBS_INLINE = "true";
 const assert = require("node:assert/strict");
@@ -68,6 +69,7 @@ test("marketplace: org owner publishes structured jobs for the public", async ()
     { _id: organizationId },
     { $set: { verificationStatus: "verified", verifiedAt: new Date() } },
   );
+  await grantTestPlan(organizationId);
 
   jobIds.react = (
     await createPublishedJob({

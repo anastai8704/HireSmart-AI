@@ -1,3 +1,4 @@
+const { grantTestPlan } = require("./helpers/grantTestPlan");
 process.env.NODE_ENV = "test";
 process.env.PROCESS_JOBS_INLINE = "true";
 const assert = require("node:assert/strict");
@@ -88,6 +89,8 @@ test("seed admin, two orgs and a candidate", async () => {
     { _id: { $in: [orgAId, orgBId] } },
     { $set: { verificationStatus: "verified", verifiedAt: new Date() } },
   );
+  await grantTestPlan(orgAId);
+  await grantTestPlan(orgBId);
   const candidate = await registerAndLogin({
     email: "candidate@moderation.example",
     intent: "candidate",

@@ -1,3 +1,4 @@
+const { grantTestPlan } = require("./helpers/grantTestPlan");
 // Phase 3 job moderation, end to end over HTTP against MongoDB (runs in CI).
 // Companies are verified directly in the fixtures, because verification has its own tests in
 // companyVerification.test.js. Everything here exercises job moderation itself.
@@ -77,8 +78,10 @@ const registerAndLogin = async ({ email, intent, organizationName }) => {
   };
 };
 
-const verifyCompany = (orgId, status = "verified") =>
-  Organization.updateOne({ _id: orgId }, { $set: { verificationStatus: status, verifiedAt: new Date() } });
+const verifyCompany = async (orgId, status = "verified") => {
+  await Organization.updateOne({ _id: orgId }, { $set: { verificationStatus: status, verifiedAt: new Date() } });
+  await grantTestPlan(orgId);
+};
 
 const jobPayload = (title) => ({
   title,

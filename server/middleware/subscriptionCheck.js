@@ -48,10 +48,11 @@ const getEffectiveSubscription = async (subscriberType, subscriberId, now = new 
  * never a paid plan without a payment record.
  */
 const getOrCreateOrgSubscription = async (organizationId) => {
+  // One record per subscriber (unique index). Expired records are kept and read as free by
+  // getEffectiveSubscription, so a lookup must not filter by status or it would try to insert a duplicate.
   let sub = await Subscription.findOne({
     subscriberType: "organization",
     subscriberId: organizationId,
-    status: "active",
   });
 
   if (!sub) {
@@ -80,7 +81,6 @@ const getOrCreateCandidateSubscription = async (candidateId) => {
   let sub = await Subscription.findOne({
     subscriberType: "candidate",
     subscriberId: candidateId,
-    status: "active",
   });
   if (!sub) {
     const freePlan = CANDIDATE_PLANS.candidate_free;
