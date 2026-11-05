@@ -164,11 +164,12 @@ test("requirePlatformAdmin rejects anonymous requests with 401", async () => {
   assert.equal(error.statusCode, 401);
 });
 
-test("requirePlatformAdmin rejects non-admin users with 403", async () => {
+test("requirePlatformAdmin hides the admin surface from non-admin users (404)", async () => {
   for (const platformRole of [undefined, "user", "recruiter", "candidate"]) {
     const error = await runGuard({ user: { _id: USER_ID }, auth: { platformRole } });
     assert.ok(error instanceof AppError, String(platformRole));
-    assert.equal(error.statusCode, 403, String(platformRole));
+    assert.equal(error.statusCode, 404, String(platformRole));
+    assert.equal(error.code, "RESOURCE_NOT_FOUND", String(platformRole));
   }
 });
 

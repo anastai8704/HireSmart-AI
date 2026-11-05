@@ -58,11 +58,12 @@ test("admin endpoints reject anonymous, candidate, and recruiter callers", async
   const anonymous = await request(app).get(`${API}/admin/users`);
   assert.equal(anonymous.status, 401);
 
+  // Non-admins get 404 so the admin surface is not revealed (same convention as the admin controllers).
   const asCandidate = await request(app).get(`${API}/admin/users`).set(auth(candidate.token));
-  assert.equal(asCandidate.status, 403);
+  assert.equal(asCandidate.status, 404);
 
   const asRecruiter = await request(app).get(`${API}/admin/users`).set(auth(recruiterX.token));
-  assert.equal(asRecruiter.status, 403);
+  assert.equal(asRecruiter.status, 404);
 });
 
 test("organisation data is not readable across tenants", async () => {

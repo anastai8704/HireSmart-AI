@@ -109,12 +109,13 @@ const requireAccountRole =
   };
 /**
  * Platform administrators only. Applied to the whole /admin prefix in routes/v1Routes.js, so a new admin route
- * cannot be added without the check. Controllers keep their own checks as defence in depth.
+ * cannot be added without the check. Non-admins get 404, matching the controllers, so the admin surface is not
+ * revealed to ordinary users. Anonymous callers are already stopped by `authenticate` with 401.
  */
 const requirePlatformAdmin = (req, res, next) => {
   if (!req.user) return next(new AppError("Authentication required", 401, "AUTH_REQUIRED"));
   if (req.auth?.platformRole !== "platform_admin")
-    return next(new AppError("You are not permitted to perform this action", 403, "FORBIDDEN"));
+    return next(new AppError("Resource not found", 404, "RESOURCE_NOT_FOUND"));
   return next();
 };
 

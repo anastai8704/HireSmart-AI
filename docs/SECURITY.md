@@ -39,7 +39,7 @@ Automated coverage added in this phase is in section 6.
 
 ### Authorisation
 - Every endpoint in the route table requires `authenticate` or `optionalAuthenticate`, except the reviewed public list in section 6.
-- Platform administration: `requirePlatformAdmin` is mounted with `router.use("/admin", ...)` before the admin routes. A new admin endpoint is protected by default. Controllers keep their own checks as a second layer.
+- Platform administration: non-admins receive 404 (the admin surface is hidden), and `requirePlatformAdmin` is mounted with `router.use("/admin", ...)` before the admin routes. A new admin endpoint is protected by default. Controllers keep their own checks as a second layer.
 - Organisation scope: `requireOrganization(permission)` checks membership and the permission for the requested organisation. Queries also filter by `organization`, so a record from another tenant returns 404.
 - Recruiter access to a candidate's submitted resume (`GET /organizations/:id/applications/:applicationId/resume`) requires the `application.review` permission, a same-organisation application, and the per-application assignment check.
 - Candidate resume downloads are scoped to the owning candidate.
@@ -117,9 +117,9 @@ CI runs `npm audit --omit=dev --audit-level=high` in the backend job. A high or 
 
 | File | Runs | Covers |
 |------|------|--------|
-| `server/test/securityControls.unit.test.js` | Locally and in CI | JWT pinning (alg none, HS512, issuer, audience, secret, expiry), recursive redaction, image magic numbers, `saveImage` rejecting non-images before any write, `httpUrl` schemes, `requirePlatformAdmin` (401, 403, allowed). |
+| `server/test/securityControls.unit.test.js` | Locally and in CI | JWT pinning (alg none, HS512, issuer, audience, secret, expiry), recursive redaction, image magic numbers, `saveImage` rejecting non-images before any write, `httpUrl` schemes, `requirePlatformAdmin` (401 anonymous, 404 for non-admins, allowed for admins). |
 | `server/test/securityRoutes.unit.test.js` | Locally and in CI | Every route except a reviewed public allowlist requires authentication. The allowlist names only real routes. `/admin` is guarded at the prefix, before any admin route. |
-| `server/test/authorizationBoundaries.test.js` | CI only (database) | Admin access for anonymous, candidate and recruiter callers; cross-tenant organisation reads; 401 on protected endpoints; forged and wrong-audience tokens; refresh without cookie; mass-assignment refusal; unsafe website URLs; non-image avatar upload (415); PNG avatar upload; identical login errors for unknown email and wrong password. |
+| `server/test/authorizationBoundaries.test.js` | CI only (database) | Admin access for anonymous (401), candidate and recruiter callers (404); cross-tenant organisation reads; 401 on protected endpoints; forged and wrong-audience tokens; refresh without cookie; mass-assignment refusal; unsafe website URLs; non-image avatar upload (415); PNG avatar upload; identical login errors for unknown email and wrong password. |
 
 The public route allowlist (`securityRoutes.unit.test.js`) is: health checks, auth entry points (register, verify, login, token refresh, forgot and reset password, confirm email change), invitation view and accept, the avatar capability URL, public job and company pages, plans, and the Razorpay webhook (authenticated by HMAC over the raw body). Adding an endpoint to this list requires a review.
 
