@@ -155,7 +155,9 @@ test("the client cannot choose the price at checkout", async () => {
     .post(`${API}/subscriptions/checkout`)
     .set(auth(ctx.candidate.token))
     .send({ planTier: "candidate_plus", amount: 1 });
-  assert.equal(res.status, 400, JSON.stringify(res.body));
+  // The schema is strict: an unknown "amount" field is a validation error (422), never a price.
+  assert.equal(res.status, 422, JSON.stringify(res.body));
+  assert.equal(res.body.code, "VALIDATION_ERROR");
 });
 
 test("a Checkout signature that does not match fails the order and grants nothing", async () => {
