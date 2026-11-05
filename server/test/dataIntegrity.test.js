@@ -45,6 +45,8 @@ const register = async (email, intent, organizationName) => {
 // A ready resume owned by the candidate, inserted directly. The apply endpoint only checks status and ownership.
 const readyResume = async (candidateId, processingStatus = "ready") => {
   const doc = await ResumeVersion.collection.insertOne({
+    // Each version belongs to its own resume document (unique index on resume + version).
+    resume: new ObjectId(),
     candidate: new ObjectId(candidateId),
     version: 1,
     processingStatus,
