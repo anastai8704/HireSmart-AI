@@ -93,8 +93,8 @@ test("seed: an admin, a candidate, recruiter X (owns company X), and recruiter Y
   const login = await request(app).post(`${API}/auth/login`).send({ email: "admin@reports.example", password: PASSWORD });
   ctx.admin = { token: login.body.data.accessToken };
   ctx.candidate = await register("secret-candidate@reports.example", "candidate");
-  ctx.recruiterX = await register("x@reports.example", "recruiter", "Reports X");
-  ctx.recruiterY = await register("y@reports.example", "recruiter", "Reports Y");
+  ctx.recruiterX = await register("owner-x@reports.example", "recruiter", "Reports X");
+  ctx.recruiterY = await register("owner-y@reports.example", "recruiter", "Reports Y");
   ctx.orgX = ctx.recruiterX.orgId;
   ctx.orgY = ctx.recruiterY.orgId;
   assert.ok(ctx.orgX && ctx.orgY);
@@ -226,7 +226,7 @@ test("company scope: recruiter X sees only company X's applications and cannot s
 });
 
 test("formula injection: a company name starting with '=' is neutralised in the company export", async () => {
-  await register("evil@reports.example", "recruiter", "=HYPERLINK(\"http://evil.example\")");
+  await register("evil-company@reports.example", "recruiter", "=HYPERLINK(\"http://evil.example\")");
   const res = await request(app).get(`${API}/admin/reports/company_verification?range=30d&format=csv`).set(auth(ctx.admin.token));
   assert.equal(res.status, 200);
   for (const line of res.text.split("\r\n")) {
