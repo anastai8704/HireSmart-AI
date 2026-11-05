@@ -1,6 +1,6 @@
 // Recipients and delivery for billing and workforce notifications.
 // Recipients come from real records only: the subscriber user, or the active owners of the subscribing company.
-const Membership = require("../models/Membership");
+const { Membership } = require("../models/Membership");
 const User = require("../models/User");
 const Notification = require("../models/Notification");
 const { notify } = require("./notificationService");
