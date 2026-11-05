@@ -1,6 +1,7 @@
 // Phase 10 report and export tests over HTTP against MongoDB (runs in CI).
 // Each expectation is derivable from the fixtures below. No e-mail is sent and no external service is called.
 process.env.NODE_ENV = "test";
+process.env.PROCESS_JOBS_INLINE = "true";
 const assert = require("node:assert/strict");
 const nodeTest = require("node:test");
 const mongoose = require("mongoose");
@@ -24,26 +25,39 @@ const ctx = {};
 const DAY_MS = 24 * 60 * 60 * 1000;
 const { ObjectId } = mongoose.Types;
 
-const test = (name, fn) => nodeTest(name, fn);
+// Each test has a bounded time so a stalled request fails with a message instead of hanging the file.
+const test = (name, fn) => nodeTest(name, { timeout: 120000 }, fn);
 
 const register = async (email, intent, organizationName) => {
-  const reg = await request(app).post(`${API}/auth/register`).send({
-    email,
-    password: PASSWORD,
-    displayName: email.split("@")[0],
-    accountIntent: intent,
-    organizationName,
-    termsConsent: true,
-  });
-  assert.equal(reg.status, 201, JSON.stringify(reg.body));
+  const reg = await withStep(`register ${email}`, () =>
+    request(app).post(`${API}/auth/register`).send({
+      email,
+      password: PASSWORD,
+      displayName: email.split("@")[0],
+      accountIntent: intent,
+      organizationName,
+      termsConsent: true,
+    }),
+  );
+  assert.equal(reg.status, 201, `register ${email}: ${JSON.stringify(reg.body)}`);
   await User.updateOne({ _id: reg.body.data.user.id }, { $set: { emailVerified: true } });
-  const login = await request(app).post(`${API}/auth/login`).send({ email, password: PASSWORD });
-  assert.equal(login.status, 200, JSON.stringify(login.body));
+  const login = await withStep(`login ${email}`, () => request(app).post(`${API}/auth/login`).send({ email, password: PASSWORD }));
+  assert.equal(login.status, 200, `login ${email}: ${JSON.stringify(login.body)}`);
   return {
     token: login.body.data.accessToken,
     userId: reg.body.data.user.id,
     orgId: reg.body.data.organization ? String(reg.body.data.organization.id) : null,
   };
+};
+
+// Logs each step to stderr so a CI failure shows where the seed stopped.
+const withStep = async (label, fn) => {
+  process.stderr.write(`[reports-test] ${label}\n`);
+  try {
+    return await fn();
+  } catch (error) {
+    throw new Error(`${label} failed: ${error && error.message}`);
+  }
 };
 
 let txSeq = 0;
