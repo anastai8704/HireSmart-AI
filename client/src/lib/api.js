@@ -75,6 +75,8 @@ export const candidateApi = {
   application: (applicationId) => api.get(`/candidates/me/applications/${applicationId}`),
   withdraw: (applicationId, reason) =>
     api.post(`/candidates/me/applications/${applicationId}/withdraw`, { reason }),
+  respondOffer: (applicationId, body) =>
+    api.post(`/candidates/me/applications/${applicationId}/offer-response`, body),
   interviews: () => api.get("/candidates/me/interviews"),
 };
 export const resumeApi = {
@@ -141,6 +143,7 @@ export const recruitmentApi = {
   detail: (orgId, appId) => api.get(`/organizations/${orgId}/applications/${appId}`),
   transition: (orgId, appId, body) =>
     api.post(`/organizations/${orgId}/applications/${appId}/transitions`, body),
+  issueOffer: (orgId, appId, body) => api.post(`/organizations/${orgId}/applications/${appId}/offer`, body),
   shortlist: (orgId, appId, note) =>
     api.post(`/organizations/${orgId}/applications/${appId}/shortlist`, { note }),
   match: (orgId, appId) => api.get(`/organizations/${orgId}/applications/${appId}/match`),

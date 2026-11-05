@@ -96,13 +96,6 @@ const runFile = (file) =>
     };
     // The database helper starts mongod as a child that inherits these pipes, so 'close' may
     // never fire after a kill. On timeout we therefore report the file immediately.
-    const tailOf = () =>
-      out
-        .split("\n")
-        .map((line) => line.slice(0, 300))
-        .filter((line) => line.trim().length > 0)
-        .slice(-60)
-        .join("\n");
     const timer = setTimeout(() => {
       timedOut = true;
       child.kill("SIGKILL");

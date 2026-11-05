@@ -639,14 +639,28 @@ exports.withdraw = asyncHandler(async (req, res) => {
       "INVALID_TRANSITION",
     );
   const from = app.status;
-  app.status = "withdrawn";
-  app.withdrawnAt = new Date();
-  app.statusHistory.push({
-    status: "withdrawn",
-    changedBy: req.user._id,
-    note: req.body.reason || "Candidate withdrew",
-  });
-  await app.save();
+  const updated = await Application.findOneAndUpdate(
+    { _id: app._id, candidate: req.user._id, status: from },
+    {
+      $set: { status: "withdrawn", withdrawnAt: new Date() },
+      $push: {
+        statusHistory: {
+          status: "withdrawn",
+          fromStatus: from,
+          changedAt: new Date(),
+          changedBy: req.user._id,
+          note: req.body.reason || "Candidate withdrew",
+        },
+      },
+    },
+    { returnDocument: "after" },
+  );
+  if (!updated) {
+    throw new AppError("The application changed while it was being withdrawn. Reload and try again.", 409, "STATUS_CHANGED");
+  }
+  app.status = updated.status;
+  app.statusHistory = updated.statusHistory;
+  app.withdrawnAt = updated.withdrawnAt;
   await audit({
     req,
     organization: app.organization,
@@ -692,6 +706,33 @@ exports.applications = asyncHandler(async (req, res) => {
 // Application stage rules live in domain/stateMachines.js (identical to the previous local map).
 const { applicationStageTransitions: transitions } = require("../domain/stateMachines");
 const { JobModerationEvent } = require("../models/JobModerationEvent");
+const CandidateProfile = require("../models/CandidateProfile");
+const { Placement } = require("../models/Placement");
+const pipeline = require("../domain/candidatePipeline");
+
+/** Writes one stage change only if the application is still in the stage it was read in. */
+const moveApplication = async ({ app, toStatus, fromStatus, actorId, note, extraSet = {} }) => {
+  const filter = { _id: app._id, organization: app.organization, status: fromStatus };
+  const updated = await Application.findOneAndUpdate(
+    filter,
+    {
+      $set: { status: toStatus, ...extraSet },
+      $push: {
+        statusHistory: { status: toStatus, fromStatus, changedAt: new Date(), changedBy: actorId, note: note || "" },
+      },
+    },
+    { returnDocument: "after" },
+  );
+  if (!updated) {
+    throw new AppError(
+      "The application changed while it was being updated. Reload and try again.",
+      409,
+      "STATUS_CHANGED",
+    );
+  }
+  return updated;
+};
+
 exports.transition = asyncHandler(async (req, res) => {
   const app = await Application.findOne({
     _id: req.params.applicationId,
@@ -701,40 +742,54 @@ exports.transition = asyncHandler(async (req, res) => {
     .populate("job", "title company hiringTeam");
   if (!app) throw new AppError("Application not found", 404, "RESOURCE_NOT_FOUND");
   await assertApplicationAssignment(req, app);
-  if (!(transitions[app.status] || []).includes(req.body.toStatus))
-    throw new AppError(
-      `Cannot transition from ${app.status} to ${req.body.toStatus}`,
-      409,
-      "INVALID_TRANSITION",
-    );
+  const toStatus = req.body.toStatus;
   const from = app.status;
-  app.status = req.body.toStatus;
-  app.statusHistory.push({
-    status: req.body.toStatus,
-    changedBy: req.user._id,
+  if (toStatus === "offer")
+    throw new AppError(
+      "An offer is issued with its details, not by a stage change",
+      409,
+      "OFFER_USE_OFFER_ENDPOINT",
+    );
+  if (!(transitions[from] || []).includes(toStatus))
+    throw new AppError(`Cannot transition from ${from} to ${toStatus}`, 409, "INVALID_TRANSITION");
+  if (toStatus === "hired") {
+    const gate = pipeline.canHire(app);
+    if (!gate.ok) throw new AppError(gate.message, 409, gate.code);
+  }
+  const updated = await moveApplication({
+    app,
+    toStatus,
+    fromStatus: from,
+    actorId: req.user._id,
     note: req.body.note || req.body.reasonCode || "",
   });
-  await app.save();
+  app.status = updated.status;
+  app.statusHistory = updated.statusHistory;
 
-  if (req.body.toStatus === "hired") {
+  if (toStatus === "hired") {
     try {
-      const { Placement } = require("../models/Placement");
-      await Placement.findOneAndUpdate(
+      // Created from the recorded offer only. Re-hiring never resets an existing placement's progress.
+      const offer = updated.offer || {};
+      await Placement.updateOne(
         { application: app._id },
         {
-          application: app._id,
-          organization: app.organization,
-          candidate: app.candidate._id,
-          job: app.job._id,
-          status: "hired",
-          offerDetails: {
-            designation: app.job?.title || "Software Engineer",
-            ctc: app.job?.salary || (app.job?.compensation?.max || 0),
-            currency: "INR",
-            offerDate: new Date(),
+          $setOnInsert: {
+            application: app._id,
+            organization: app.organization,
+            candidate: app.candidate._id,
+            job: app.job._id,
+            status: "hired",
+            offerDetails: {
+              designation: offer.designation || app.job?.title || "",
+              ctc: offer.ctc ?? null,
+              currency: offer.currency || "INR",
+              offerDate: offer.issuedAt || null,
+              offeredJoiningDate: offer.joiningDate || null,
+              acceptedAt: offer.respondedAt || null,
+            },
           },
         },
-        { upsert: true, returnDocument: "after" },
+        { upsert: true },
       );
     } catch (err) {
       logger.error(`Placement creation on hire failed: ${err.message}`);
@@ -804,6 +859,147 @@ exports.transition = asyncHandler(async (req, res) => {
   });
   res.json({ data: safeApplication(app, { includeInternal: true }) });
 });
+/** Recruiter: issue an offer for an application in the interview or offer stage. */
+exports.issueOffer = asyncHandler(async (req, res) => {
+  const app = await Application.findOne({
+    _id: req.params.applicationId,
+    organization: req.auth.organizationId,
+  })
+    .populate("candidate", "email name")
+    .populate("job", "title company hiringTeam");
+  if (!app) throw new AppError("Application not found", 404, "RESOURCE_NOT_FOUND");
+  await assertApplicationAssignment(req, app);
+  const gate = pipeline.canIssueOffer(app);
+  if (!gate.ok) throw new AppError(gate.message, 409, gate.code);
+
+  const from = app.status;
+  const now = new Date();
+  const offer = {
+    status: "issued",
+    designation: req.body.designation || app.job?.title || "",
+    ctc: req.body.ctc ?? null,
+    currency: req.body.currency || "INR",
+    joiningDate: req.body.joiningDate ? new Date(req.body.joiningDate) : null,
+    issuedAt: now,
+    issuedBy: req.user._id,
+    respondedAt: null,
+    responseNote: "",
+  };
+  // Re-check the stage and the open offer in the write itself, so two recruiters cannot both issue.
+  const filter = {
+    _id: app._id,
+    organization: app.organization,
+    status: from,
+    $or: [{ "offer.status": { $in: ["none", "declined"] } }, { "offer.status": { $exists: false } }],
+  };
+  const set = { offer };
+  const push = {};
+  if (from !== "offer") {
+    set.status = "offer";
+    push.statusHistory = {
+      status: "offer",
+      fromStatus: from,
+      changedAt: now,
+      changedBy: req.user._id,
+      note: req.body.note || "Offer issued",
+    };
+  }
+  const updated = await Application.findOneAndUpdate(
+    filter,
+    { $set: set, ...(Object.keys(push).length ? { $push: push } : {}) },
+    { returnDocument: "after" },
+  );
+  if (!updated) {
+    throw new AppError(
+      "The application changed while the offer was being issued. Reload and try again.",
+      409,
+      "STATUS_CHANGED",
+    );
+  }
+  try {
+    await notify({
+      user: app.candidate._id,
+      organization: app.organization,
+      type: "application_status_changed",
+      category: "applications",
+      title: "You have an offer",
+      message: `${app.job?.company || "The company"} has issued an offer for ${app.job?.title || "a role"}. Review it in your applications.`,
+      resourceType: "application",
+      resourceId: app._id,
+      email: app.candidate.email,
+      recipientName: app.candidate.name,
+      idempotencyKey: `application:${app._id}:offer-issued:${offer.issuedAt.getTime()}`,
+    });
+  } catch (error) {
+    logger.error(`Offer notification enqueue failed: ${error.code || error.name}`);
+  }
+  await audit({
+    req,
+    organization: app.organization,
+    action: "application.offer_issued",
+    resourceType: "application",
+    resourceId: app._id,
+    metadata: { from, designation: offer.designation, hasCtc: offer.ctc !== null },
+  });
+  res.json({ data: safeApplication(updated, { includeInternal: true }) });
+});
+
+/** Candidate: accept or decline an issued offer. Only the candidate's response records acceptance. */
+exports.respondToOffer = asyncHandler(async (req, res) => {
+  const app = await Application.findOne({ _id: req.params.applicationId, candidate: req.user._id });
+  if (!app) throw new AppError("Application not found", 404, "RESOURCE_NOT_FOUND");
+  const gate = pipeline.canRespondToOffer(app);
+  if (!gate.ok) throw new AppError(gate.message, 409, gate.code);
+
+  const response = req.body.response;
+  const now = new Date();
+  const nextStatus = response === "accept" ? "accepted" : "declined";
+  const updated = await Application.findOneAndUpdate(
+    { _id: app._id, candidate: req.user._id, status: "offer", "offer.status": "issued" },
+    {
+      $set: {
+        "offer.status": nextStatus,
+        "offer.respondedAt": now,
+        "offer.responseNote": String(req.body.note || "").slice(0, 2000),
+      },
+    },
+    { returnDocument: "after" },
+  );
+  if (!updated) {
+    throw new AppError("The offer changed while it was being answered. Reload and try again.", 409, "OFFER_NOT_PENDING");
+  }
+  try {
+    const owner = await OrganizationOwner(app.organization);
+    if (owner) {
+      const jobTitle = (await Job.findById(app.job).select("title").lean())?.title || "a role";
+      await notify({
+        user: owner.id,
+        organization: app.organization,
+        type: "application_status_changed",
+        category: "candidates",
+        title: `Offer ${nextStatus}: ${jobTitle}`,
+        message: `${req.user.name} ${nextStatus === "accepted" ? "accepted" : "declined"} the offer for ${jobTitle}.`,
+        resourceType: "application",
+        resourceId: app._id,
+        idempotencyKey: `application:${app._id}:offer-${nextStatus}:${now.getTime()}`,
+      });
+    }
+  } catch (error) {
+    logger.error(`Offer response notification failed: ${error.message}`);
+  }
+  await audit({
+    req,
+    organization: app.organization,
+    action: nextStatus === "accepted" ? "application.offer_accepted" : "application.offer_declined",
+    resourceType: "application",
+    resourceId: app._id,
+    metadata: { by: "candidate" },
+  });
+  const safe = updated.toObject();
+  safe.resumeSnapshot = undefined;
+  res.json({ data: safe });
+});
+
 exports.shortlist = asyncHandler(async (req, res) => {
   req.body.toStatus = "shortlisted";
   return exports.transition(req, res, (e) => {
@@ -880,6 +1076,8 @@ exports.notes = asyncHandler(async (req, res) => {
         targetType: "application",
         targetId: req.params.applicationId,
         archivedAt: null,
+        // Private notes are seen only by their author; hiring-team notes by the whole team.
+        $or: [{ visibility: "hiring_team" }, { visibility: "private", author: req.user._id }],
       },
       page.after,
     ),
@@ -912,7 +1110,13 @@ exports.applicationDetail = asyncHandler(async (req, res) => {
   if (!item) throw new AppError("Application not found", 404, "RESOURCE_NOT_FOUND");
   await assertApplicationAssignment(req, item);
   const match = await CandidateMatch.findOne({ application: item._id, status: "completed" });
-  res.json({ data: { application: safeApplication(item, { includeInternal: true }), match } });
+  const profile = await CandidateProfile.findOne({ user: item.candidate._id })
+    .select("privacy currentEmployment")
+    .lean();
+  const application = safeApplication(item, { includeInternal: true });
+  // Recruiters see the candidate as the candidate allowed: no phone or employment unless shared.
+  application.candidate = pipeline.recruiterCandidateView(item.candidate, profile);
+  res.json({ data: { application, match } });
 });
 exports.updateTags = asyncHandler(async (req, res) => {
   await ensureApplicationAccess(req, req.params.applicationId);

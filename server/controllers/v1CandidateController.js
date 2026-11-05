@@ -8,6 +8,7 @@ const RecommendationSnapshot = require("../models/RecommendationSnapshot");
 const { Application } = require("../models/Application");
 const { buildRecommendations } = require("../services/recommendationSnapshotService");
 const { calculateHybridMatch } = require("../services/hybridMatchingService");
+const { audit } = require("../services/auditService");
 const asyncHandler = require("../middleware/asyncHandler");
 const AppError = require("../utils/AppError");
 const hasAIConsent = (userId) =>
@@ -58,6 +59,16 @@ exports.update = asyncHandler(async (req, res) => {
   const profileUpdate = {};
   for (const key of profileFields)
     if (req.body[key] !== undefined) profileUpdate[key] = req.body[key];
+  // Nested objects are written key by key, so a partial update never resets a sibling setting.
+  for (const key of ["currentEmployment", "jobPreferences", "privacy"]) {
+    if (req.body[key] === undefined) continue;
+    delete profileUpdate[key];
+    for (const [inner, value] of Object.entries(req.body[key])) {
+      if (value !== undefined) profileUpdate[`${key}.${inner}`] = value;
+    }
+  }
+  if (req.body.employmentStatus !== undefined) profileUpdate.employmentStatus = req.body.employmentStatus;
+  const privacyChanged = req.body.privacy !== undefined;
   const profile = Object.keys(profileUpdate).length
     ? await CandidateProfile.findOneAndUpdate(
         { user: req.user._id },
@@ -65,6 +76,16 @@ exports.update = asyncHandler(async (req, res) => {
         { upsert: true, returnDocument: "after", runValidators: true },
       )
     : await CandidateProfile.findOne({ user: req.user._id });
+  if (privacyChanged) {
+    await audit({
+      req,
+      organization: null,
+      action: "candidate.privacy_updated",
+      resourceType: "candidate_profile",
+      resourceId: profile?._id || req.user._id,
+      metadata: { fields: Object.keys(req.body.privacy) },
+    });
+  }
   res.json({
     data: {
       user: {

@@ -30,6 +30,7 @@ import {
   WandSparkles,
 } from "lucide-react";
 import Button from "../../components/ui/Button";
+import { CandidateOfferPanel } from "../../components/hiring/OfferPanels";
 import Input, { Textarea } from "../../components/ui/Input";
 import Badge from "../../components/ui/Badge";
 import Modal from "../../components/ui/Modal";
@@ -2042,6 +2043,15 @@ export const ApplicationDetail = () => {
       queryKey: ["candidate-interviews"],
       queryFn: candidateApi.interviews,
     }),
+    respondOffer = useMutation({
+      mutationFn: (body) => candidateApi.respondOffer(applicationId, body),
+      onSuccess: (_res, body) => {
+        toast.success(body.response === "accept" ? "Offer accepted" : "Offer declined");
+        qc.invalidateQueries({ queryKey: ["application", "candidate", applicationId] });
+        qc.invalidateQueries({ queryKey: ["applications-candidate"] });
+      },
+      onError: (error) => toast.error(error.message),
+    }),
     withdraw = useMutation({
       mutationFn: () => candidateApi.withdraw(applicationId, reason),
       onSuccess: () => {
@@ -2230,6 +2240,12 @@ export const ApplicationDetail = () => {
           ))}
         </ol>
       </section>
+
+      <CandidateOfferPanel
+        application={a}
+        pending={respondOffer.isPending}
+        onRespond={(body) => respondOffer.mutate(body)}
+      />
 
       {/* Withdraw Action */}
       {!["hired", "rejected", "withdrawn", "closed"].includes(normalizeAppStatus(a.status)) && (

@@ -7,6 +7,8 @@ const { notify } = require("../services/notificationService");
 const { audit } = require("../services/auditService");
 const asyncHandler = require("../middleware/asyncHandler");
 const AppError = require("../utils/AppError");
+const CandidateProfile = require("../models/CandidateProfile");
+const pipeline = require("../domain/candidatePipeline");
 const { parse, applyCursor, meta } = require("../utils/pagination");
 
 /**
@@ -23,7 +25,7 @@ exports.listCandidatePlacements = asyncHandler(async (req, res) => {
     .limit(page.limit);
 
   res.json({
-    data: items,
+    data: items.map((p) => ({ ...p.toObject(), evidence: pipeline.employmentEvidence(p) })),
     meta: meta(items, page.limit, await Placement.countDocuments({ candidate: req.user._id })),
   });
 });
@@ -42,9 +44,23 @@ exports.listOrganizationPlacements = asyncHandler(async (req, res) => {
     .populate("job", "title location compensation")
     .sort({ _id: -1 })
     .limit(page.limit);
+  const profiles = await CandidateProfile.find({
+    user: { $in: items.map((p) => p.candidate?._id).filter(Boolean) },
+  })
+    .select("user privacy")
+    .lean();
+  const byUser = new Map(profiles.map((p) => [String(p.user), p]));
 
   res.json({
-    data: items,
+    data: items.map((p) => {
+      const value = p.toObject();
+      // The phone number is shared only when the candidate allowed it.
+      const shared = pipeline.recruiterCandidateView(p.candidate, byUser.get(String(p.candidate?._id)));
+      value.candidate = { id: shared.id, name: shared.name, email: shared.email, profileImage: p.candidate?.profileImage };
+      if (shared.phone) value.candidate.phone = shared.phone;
+      value.evidence = pipeline.employmentEvidence(p);
+      return value;
+    }),
     meta: meta(items, page.limit, await Placement.countDocuments({ organization: orgId })),
   });
 });

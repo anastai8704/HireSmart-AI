@@ -18,12 +18,39 @@ const statusHistorySchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+    // The stage before this change (empty for the first entry). Lets the history show each move.
+    fromStatus: {
+      type: String,
+      enum: [...applicationStatuses, ""],
+      default: "",
+    },
     note: {
       type: String,
       trim: true,
       maxlength: 2000,
       default: "",
     },
+  },
+  { _id: false },
+);
+
+// A pre-hire offer is part of the application. "Issued" means the company sent it; only the
+// candidate's response records acceptance. Hiring requires "accepted".
+const offerSchema = new mongoose.Schema(
+  {
+    status: {
+      type: String,
+      enum: ["none", "issued", "accepted", "declined"],
+      default: "none",
+    },
+    designation: { type: String, trim: true, maxlength: 200, default: "" },
+    ctc: { type: Number, min: 0, default: null },
+    currency: { type: String, trim: true, maxlength: 10, default: "INR" },
+    joiningDate: { type: Date, default: null },
+    issuedAt: { type: Date, default: null },
+    issuedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    respondedAt: { type: Date, default: null },
+    responseNote: { type: String, trim: true, maxlength: 2000, default: "" },
   },
   { _id: false },
 );
@@ -119,6 +146,7 @@ const applicationSchema = new mongoose.Schema(
       type: [statusHistorySchema],
       default: [],
     },
+    offer: { type: offerSchema, default: () => ({}) },
   },
   {
     timestamps: true,

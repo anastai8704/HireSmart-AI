@@ -21,6 +21,7 @@ import { useAuth } from "../context/useAuth";
 import { useToast } from "../components/ui/useToast";
 
 import { ROLE_PROFILES, profileRoleFor } from "../lib/profileConfig";
+import { CandidatePrivacyPanel } from "../components/hiring/CandidatePrivacyPanel";
 
 const formFrom = (u) =>
   u
@@ -476,6 +477,7 @@ const CandidateDetailsPanel = ({ auth }) => {
   if (q.error) return null;
   const setItems = (key) => (value) => setDraft((d) => ({ ...(d || items), [key]: value }));
   return (
+    <>
     <section className="mt-8">
       <PageHeader
         eyebrow="Professional details"
@@ -532,6 +534,12 @@ const CandidateDetailsPanel = ({ auth }) => {
         ))}
       </div>
     </section>
+    {q.data && (
+      <div className="mt-8">
+        <CandidatePrivacyPanel profile={profile} />
+      </div>
+    )}
+    </>
   );
 };
 

@@ -34,6 +34,7 @@ import Kpi from "../../components/ui/Kpi";
 import SectionCard from "../../components/ui/SectionCard";
 import PipelineFunnel from "../../components/ui/PipelineFunnel";
 import ConfirmModal from "../../components/ui/ConfirmModal";
+import { RecruiterOfferPanel } from "../../components/hiring/OfferPanels";
 import { EmptyState, ErrorState, LoadingState, SkeletonList } from "../../components/ui/States";
 import {
   AIProvenance,
@@ -72,12 +73,14 @@ const STAGES = ["submitted", "under_review", "shortlisted", "interview", "offer"
 /* Presentation mirror of the server's transition rules (see
  * v1RecruitmentController) used only to show which moves are valid —
  * the API remains the source of truth and still rejects bad moves. */
+// An offer is issued with its details (RecruiterOfferPanel), and hiring needs the candidate's
+// acceptance, so neither "offer" nor "hired" is a plain move from these stages.
 const STAGE_MOVES = {
   submitted: ["under_review", "shortlisted"],
   under_review: ["shortlisted", "interview"],
   shortlisted: ["interview"],
-  interview: ["offer"],
-  offer: ["hired"],
+  interview: [],
+  offer: [],
 };
 const STAGE_LABELS = {
   submitted: "Submitted",
@@ -1412,6 +1415,7 @@ export const CandidateDetail = () => {
         }),
       "Moved to shortlist",
     ),
+    issueOffer = useAction((body) => recruitmentApi.issueOffer(orgId, applicationId, body), "Offer issued to the candidate"),
     addNote = useAction(
       () =>
         recruitmentApi.addNote(orgId, applicationId, {
@@ -1612,6 +1616,16 @@ export const CandidateDetail = () => {
               <span className="text-ink-500">Current stage</span>
               <StatusPill status={a.status} />
             </div>
+            {!isTerminal(a.status) && (
+              <div className="mt-4">
+                <RecruiterOfferPanel
+                  application={a}
+                  pending={issueOffer.isPending}
+                  onIssue={(body) => issueOffer.mutate(body)}
+                  onHire={() => setMoveTarget("hired")}
+                />
+              </div>
+            )}
             {isTerminal(a.status) ? (
               <p className="mt-4 text-sm leading-6 text-ink-500">
                 This application has ended — no further stage changes are available. You can still

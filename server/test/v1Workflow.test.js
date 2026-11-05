@@ -340,17 +340,41 @@ test("hiring chain shortlisted -> interview -> offer -> hired persists (invalid 
     .send({ toStatus: "hired" });
   assert.equal(skipOffer.status, 409);
 
-  const toOffer = await request(app)
+  // An offer is issued with its details; a bare stage change to "offer" is refused.
+  const bareOffer = await request(app)
     .post(`${base}/transitions`)
     .set(auth(recruiterToken))
     .send({ toStatus: "offer", note: "Offer extended" });
-  assert.equal(toOffer.status, 200, JSON.stringify(toOffer.body));
-  assert.equal(toOffer.body.data.status, "offer");
+  assert.equal(bareOffer.status, 409);
+  assert.equal(bareOffer.body.code, "OFFER_USE_OFFER_ENDPOINT");
+
+  const issued = await request(app)
+    .post(`${base}/offer`)
+    .set(auth(recruiterToken))
+    .send({ designation: "Backend Engineer", ctc: 1200000, note: "Offer extended" });
+  assert.equal(issued.status, 200, JSON.stringify(issued.body));
+  assert.equal(issued.body.data.status, "offer");
+  assert.equal(issued.body.data.offer.status, "issued");
+
+  // Hiring needs the candidate's recorded acceptance, not just an issued offer.
+  const hiredTooSoon = await request(app)
+    .post(`${base}/transitions`)
+    .set(auth(recruiterToken))
+    .send({ toStatus: "hired", note: "Hiring decision" });
+  assert.equal(hiredTooSoon.status, 409);
+  assert.equal(hiredTooSoon.body.code, "OFFER_NOT_ACCEPTED");
+
+  const accepted = await request(app)
+    .post(`/api/v1/candidates/me/applications/${applicationId}/offer-response`)
+    .set(auth(candidateToken))
+    .send({ response: "accept" });
+  assert.equal(accepted.status, 200, JSON.stringify(accepted.body));
+  assert.equal(accepted.body.data.offer.status, "accepted");
 
   const toHired = await request(app)
     .post(`${base}/transitions`)
     .set(auth(recruiterToken))
-    .send({ toStatus: "hired", note: "Offer accepted" });
+    .send({ toStatus: "hired", note: "Hiring decision" });
   assert.equal(toHired.status, 200, JSON.stringify(toHired.body));
   assert.equal(toHired.body.data.status, "hired");
 

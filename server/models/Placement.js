@@ -49,6 +49,8 @@ const placementSchema = new mongoose.Schema(
       currency: { type: String, default: "INR" },
       offerDate: { type: Date, default: Date.now },
       offeredJoiningDate: { type: Date, default: null },
+      // When the candidate accepted the offer (recorded by the candidate, see Application.offer).
+      acceptedAt: { type: Date, default: null },
     },
     joiningConfirmation: {
       confirmedByCandidate: { type: Boolean, default: false },

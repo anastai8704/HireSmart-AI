@@ -390,6 +390,25 @@ router.patch(
         experience: z.array(experienceItem).max(50).optional(),
         projects: z.array(projectItem).max(50).optional(),
         certifications: z.array(certificationItem).max(50).optional(),
+        employmentStatus: z
+          .enum(["unspecified", "employed", "unemployed", "student", "freelancer", "other"])
+          .optional(),
+        currentEmployment: strict({
+          disclosed: z.boolean(),
+          employer: z.string().max(200).optional(),
+          designation: z.string().max(200).optional(),
+          startDate: z.string().max(40).optional(),
+        }).optional(),
+        jobPreferences: strict({
+          desiredRoles: z.array(z.string().min(1).max(100)).max(20).optional(),
+          preferredLocations: z.array(z.string().min(1).max(100)).max(20).optional(),
+          workplaceModes: z.array(z.enum(["onsite", "hybrid", "remote"])).max(3).optional(),
+          employmentTypes: z.array(z.string().min(1).max(50)).max(10).optional(),
+        }).optional(),
+        privacy: strict({
+          sharePhoneWithRecruiters: z.boolean().optional(),
+          shareCurrentEmployment: z.boolean().optional(),
+        }).optional(),
       })
       .strict(),
   ),
@@ -653,6 +672,27 @@ router.get(
   authenticate,
   requireOrganization("application.review"),
   recruitment.applicationDetail,
+);
+const offerSchema = strict({
+  designation: z.string().max(200).optional(),
+  ctc: z.number().min(0).max(1_000_000_000).optional(),
+  currency: z.string().trim().min(3).max(10).optional(),
+  joiningDate: z.string().max(40).optional(),
+  note: z.string().max(2000).optional(),
+});
+router.post(
+  "/organizations/:organizationId/applications/:applicationId/offer",
+  authenticate,
+  requireOrganization("application.manage"),
+  validate(offerSchema),
+  recruitment.issueOffer,
+);
+router.post(
+  "/candidates/me/applications/:applicationId/offer-response",
+  authenticate,
+  candidateOnly,
+  validate(strict({ response: z.enum(["accept", "decline"]), note: z.string().max(2000).optional() })),
+  recruitment.respondToOffer,
 );
 router.get(
   "/organizations/:organizationId/applications/:applicationId/resume",

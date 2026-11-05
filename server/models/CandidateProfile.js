@@ -121,6 +121,18 @@ const certificateSchema = new mongoose.Schema(
   { _id: true },
 );
 
+// Candidate-reported employment details. Shown to recruiters only when the candidate has disclosed
+// them AND allowed sharing (privacy.shareCurrentEmployment). The platform never infers these.
+const currentEmploymentSchema = new mongoose.Schema(
+  {
+    disclosed: { type: Boolean, default: false },
+    employer: { type: String, trim: true, maxlength: 200, default: "" },
+    designation: { type: String, trim: true, maxlength: 200, default: "" },
+    startDate: { type: Date, default: null },
+  },
+  { _id: false },
+);
+
 const candidateProfileSchema = new mongoose.Schema(
   {
     user: {
@@ -129,6 +141,29 @@ const candidateProfileSchema = new mongoose.Schema(
       required: true,
       unique: true,
       index: true,
+    },
+    employmentStatus: {
+      type: String,
+      enum: ["unspecified", "employed", "unemployed", "student", "freelancer", "other"],
+      default: "unspecified",
+    },
+    currentEmployment: { type: currentEmploymentSchema, default: () => ({}) },
+    jobPreferences: {
+      desiredRoles: { type: [String], default: [] },
+      preferredLocations: { type: [String], default: [] },
+      workplaceModes: {
+        type: [String],
+        enum: ["onsite", "hybrid", "remote"],
+        default: [],
+      },
+      employmentTypes: { type: [String], default: [] },
+    },
+    // Privacy is closed by default: contact details and employment are not shared with recruiters
+    // unless the candidate turns them on. Resumes are only available to recruiters who received
+    // the candidate's application for their company.
+    privacy: {
+      sharePhoneWithRecruiters: { type: Boolean, default: false },
+      shareCurrentEmployment: { type: Boolean, default: false },
     },
 
     dateOfBirth: Date,
