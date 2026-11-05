@@ -5,9 +5,9 @@ const Organization = require("../models/Organization");
 const Job = require("../models/Job");
 const { Application } = require("../models/Application");
 const Interview = require("../models/Interview");
-const Placement = require("../models/Placement");
-const Subscription = require("../models/Subscription");
-const PaymentTransaction = require("../models/PaymentTransaction");
+const { Placement } = require("../models/Placement");
+const { Subscription } = require("../models/Subscription");
+const { PaymentTransaction } = require("../models/PaymentTransaction");
 const {
   ANALYTICS_TIMEZONE,
   ratePercent,
