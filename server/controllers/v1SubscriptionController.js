@@ -1,3 +1,4 @@
+const { summarizeRevenue } = require("../domain/analyticsDefinitions");
 const { Subscription } = require("../models/Subscription");
 const { PaymentTransaction } = require("../models/PaymentTransaction");
 const { ALL_PLANS, CANDIDATE_PLANS, RECRUITER_PLANS } = require("../config/subscriptionPlans");
@@ -406,6 +407,7 @@ exports.adminRevenueAnalytics = asyncHandler(async (req, res) => {
     capturedTxns,
     activePaidSubs,
     failedTxnsCount,
+    refundedTxns,
     monthlyRevenueAgg,
     planDistAgg,
     recentTransactions,
@@ -416,6 +418,10 @@ exports.adminRevenueAnalytics = asyncHandler(async (req, res) => {
     ]),
     Subscription.find({ status: "active", priceInr: { $gt: 0 } }),
     PaymentTransaction.countDocuments({ status: "failed" }),
+    PaymentTransaction.aggregate([
+      { $match: { status: "refunded" } },
+      { $group: { _id: null, totalGross: { $sum: "$amount" }, count: { $sum: 1 } } },
+    ]),
     PaymentTransaction.aggregate([
       { $match: { status: "captured" } },
       {
@@ -438,10 +444,17 @@ exports.adminRevenueAnalytics = asyncHandler(async (req, res) => {
       .lean(),
   ]);
 
-  const totalGross = capturedTxns[0]?.totalGross || 0;
+  // Cash-basis revenue from captured/refunded records. Refunds reduce revenue. No fee or hosting
+  // estimates are included; those are not stored facts (see docs/ANALYTICS.md).
+  const totalGross = (capturedTxns[0]?.totalGross || 0) + (refundedTxns[0]?.totalGross || 0);
   const totalCapturedCount = capturedTxns[0]?.count || 0;
+  const revenueSummary = summarizeRevenue({
+    grossCapturedAmount: totalGross,
+    refundsAmount: refundedTxns[0]?.totalGross || 0,
+    successfulCount: totalCapturedCount + (refundedTxns[0]?.count || 0),
+    failedCount: failedTxnsCount,
+  });
 
-  // Monthly Recurring Revenue (sum of active monthly fees)
   const mrr = activePaidSubs.reduce((acc, sub) => acc + (sub.priceInr || 0), 0);
 
   // Active Paid Candidate vs Recruiter breakdown
@@ -449,22 +462,18 @@ exports.adminRevenueAnalytics = asyncHandler(async (req, res) => {
   const activePaidRecruiters = activePaidSubs.filter((s) => s.subscriberType === "organization").length;
 
   // Estimated Net Profit (Gross - 2% Payment Gateway Fee - ₹1500 Hosting estimation)
-  const gatewayFees = totalGross * 0.02;
-  const hostingEstimate = Math.min(totalGross * 0.05, 3000);
-  const estimatedNetProfit = Math.max(0, totalGross - gatewayFees - hostingEstimate);
-
   res.json({
     data: {
       metrics: {
         totalGrossRevenue: totalGross,
         monthlyRecurringRevenue: mrr,
-        estimatedNetProfit: Math.round(estimatedNetProfit),
+        totalRefunds: revenueSummary.refunds,
+        netRevenue: revenueSummary.netRevenue,
         totalCapturedTransactions: totalCapturedCount,
         failedPaymentsCount: failedTxnsCount,
         activePaidSubscribers: activePaidSubs.length,
         activePaidCandidates,
         activePaidRecruiters,
-        gatewayFeeRate: "2.0%",
       },
       monthlyTrends: monthlyRevenueAgg.map((m) => ({
         yearMonth: m._id,

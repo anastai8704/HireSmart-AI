@@ -11,6 +11,8 @@ const asyncHandler = require("../middleware/asyncHandler");
 const AppError = require("../utils/AppError");
 const { audit } = require("../services/auditService");
 const { parse, applyCursor, meta } = require("../utils/pagination");
+const { resolveRange, AnalyticsRangeError } = require("../domain/analyticsDefinitions");
+const { computeAnalytics } = require("../services/adminAnalyticsService");
 
 const requireAdmin = (req) => {
   if (req.auth.platformRole !== "platform_admin")
@@ -25,6 +27,16 @@ exports.overviewAnalytics = asyncHandler(async (req, res) => {
   requireAdmin(req);
 
   const targetOrgId = req.query.organizationId ? String(req.query.organizationId) : null;
+
+  // Range-aware KPIs and series (Phase 5). Dates are IST days; see domain/analyticsDefinitions.js.
+  let range;
+  try {
+    range = resolveRange({ range: req.query.range, from: req.query.from, to: req.query.to });
+  } catch (error) {
+    if (error instanceof AnalyticsRangeError) throw new AppError(error.message, 400, error.code);
+    throw error;
+  }
+  const analytics = await computeAnalytics(range);
 
   // 1. Users Counts
   const [totalUsers, totalCandidates, totalRecruiters, totalAdmins, suspendedUsers] = await Promise.all([
@@ -241,6 +253,8 @@ exports.overviewAnalytics = asyncHandler(async (req, res) => {
 
   res.json({
     data: {
+      range: { preset: range.preset, timezone: range.timezone, from: range.fromDay, to: range.toDay, days: range.days },
+      ...analytics,
       users: {
         total: totalUsers,
         candidates: totalCandidates,

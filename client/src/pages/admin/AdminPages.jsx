@@ -28,6 +28,8 @@ import {
 import Button from "../../components/ui/Button";
 import Input, { Select, Textarea } from "../../components/ui/Input";
 import Badge from "../../components/ui/Badge";
+import { AdminAnalyticsPanel } from "./AdminAnalyticsPanel";
+import { istToday, validateCustomRange } from "../../lib/analyticsRange";
 import Modal from "../../components/ui/Modal";
 import ConfirmModal from "../../components/ui/ConfirmModal";
 import Kpi from "../../components/ui/Kpi";
@@ -114,6 +116,12 @@ const HEALTH_SERVICES = [
    ========================================================================= */
 export const AdminHome = () => {
   const [selectedOrgId, setSelectedOrgId] = useState("");
+  const [range, setRange] = useState({ preset: "30d", from: "", to: "" });
+  // Today's IST calendar day, captured once per mount (the reporting timezone is Asia/Kolkata).
+  const [todayIst] = useState(() => istToday());
+  const customError = range.preset === "custom" ? validateCustomRange(range.from, range.to, todayIst) : null;
+  const rangeParams =
+    range.preset === "custom" ? { range: "custom", from: range.from, to: range.to } : { range: range.preset };
 
   const usersQuery = useQuery({
     queryKey: ["admin-users", {}],
@@ -137,10 +145,14 @@ export const AdminHome = () => {
   });
 
   const overviewQuery = useQuery({
-    queryKey: ["admin-overview-analytics", selectedOrgId],
+    queryKey: ["admin-overview-analytics", selectedOrgId, rangeParams],
+    enabled: !customError,
     queryFn: () =>
       adminApi.overviewAnalytics
-        ? adminApi.overviewAnalytics(selectedOrgId ? { organizationId: selectedOrgId } : {})
+        ? adminApi.overviewAnalytics({
+            ...rangeParams,
+            ...(selectedOrgId ? { organizationId: selectedOrgId } : {}),
+          })
         : Promise.resolve({ data: null }),
   });
 
@@ -247,6 +259,15 @@ export const AdminHome = () => {
           icon={FileCheck2}
         />
       </div>
+
+      {overviewQuery.isError && (
+        <ErrorState
+          title="Analytics could not be loaded"
+          error={overviewQuery.error}
+          onRetry={() => overviewQuery.refetch()}
+        />
+      )}
+      <AdminAnalyticsPanel analytics={stats} range={range} onRangeChange={setRange} customError={customError} />
 
       {/* Deep Dive Banner if Company Selected */}
       {deepDive && (
