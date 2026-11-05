@@ -143,7 +143,7 @@ test("checkout creates a Razorpay order for the server-side price and returns on
   assert.equal(res.status, 200, JSON.stringify(res.body));
   assert.equal(res.body.data.order.mode, "razorpay_test");
   assert.equal(res.body.data.order.keyId, KEY_ID);
-  assert.equal(res.body.data.simulationHelper, undefined, "no sandbox proof in razorpay mode");
+  assert.ok(!res.body.data.simulationHelper, "no sandbox proof in razorpay mode");
   assert.deepEqual(fake.created.at(-1).amount, 14900);
   const txn = await PaymentTransaction.findOne({ gatewayOrderId: res.body.data.order.orderId }).lean();
   assert.equal(txn.gateway, "razorpay");
@@ -153,7 +153,7 @@ test("checkout creates a Razorpay order for the server-side price and returns on
 test("the client cannot choose the price at checkout", async () => {
   const res = await request(app)
     .post(`${API}/subscriptions/checkout`)
-    .set(auth(ctx.candidate))
+    .set(auth(ctx.candidate.token))
     .send({ planTier: "candidate_plus", amount: 1 });
   assert.equal(res.status, 400, JSON.stringify(res.body));
 });
@@ -290,7 +290,7 @@ test("cancelling Checkout marks the order cancelled and it can no longer be veri
   const order = (await checkout(ctx.candidate)).body.data.order;
   const cancelled = await request(app)
     .post(`${API}/subscriptions/checkout/cancel`)
-    .set(auth(ctx.candidate))
+    .set(auth(ctx.candidate.token))
     .send({ orderId: order.orderId });
   assert.equal(cancelled.status, 200, JSON.stringify(cancelled.body));
   assert.equal(cancelled.body.data.transaction.status, "cancelled");
