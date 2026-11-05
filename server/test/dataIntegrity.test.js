@@ -125,8 +125,13 @@ test("duplicates under concurrency: two simultaneous applications yield one reco
     applyWith(ctx.racer, ctx.jobId, ctx.racer.resumeId, "race-a"),
     applyWith(ctx.racer, ctx.jobId, ctx.racer.resumeId, "race-b"),
   ]);
+  const summary = (r) => `${r.status} ${r.body?.error?.code || r.body?.code || ""}`.trim();
   const statuses = [a.status, b.status].sort();
-  assert.deepEqual(statuses, [201, 409], `expected one success and one refusal, got ${statuses}`);
+  assert.deepEqual(
+    statuses,
+    [201, 409],
+    `expected one success and one refusal, got [${summary(a)}] and [${summary(b)}]`,
+  );
   assert.equal(await countApplications(ctx.jobId, ctx.racer.userId), 1);
 });
 
