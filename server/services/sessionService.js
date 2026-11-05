@@ -4,15 +4,11 @@ const AuthSession = require("../models/AuthSession");
 const { config } = require("../config/env");
 const AppError = require("../utils/AppError");
 const { hashIp, security } = require("./auditService");
+const { signOptions } = require("../utils/accessToken");
 
 const hash = (value) => crypto.createHash("sha256").update(value).digest("hex");
 const accessToken = (user, session) =>
-  jwt.sign({ role: user.role, sid: String(session._id) }, config.jwtSecret, {
-    subject: String(user._id),
-    issuer: "hiresmart-api",
-    audience: "hiresmart-web",
-    expiresIn: config.accessTokenExpiresIn,
-  });
+  jwt.sign({ role: user.role, sid: String(session._id) }, config.jwtSecret, signOptions(String(user._id)));
 const createSession = async (user, req) => {
   const token = crypto.randomBytes(48).toString("base64url");
   const csrfToken = crypto.randomBytes(24).toString("base64url");

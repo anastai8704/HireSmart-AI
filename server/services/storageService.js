@@ -9,6 +9,8 @@ const {
 } = require("@aws-sdk/client-s3");
 
 const { config } = require("../config/env");
+const { detectImage } = require("../domain/imageSignature");
+const AppError = require("../utils/AppError");
 const {
   ensureResumeDirectory,
   ensureAvatarDirectory,
@@ -32,23 +34,16 @@ const getLocalAvatarPath = (storageKey) => {
   return path.join(avatarDirectory, path.basename(storageKey));
 };
 
-const IMAGE_CONTENT_TYPES = {
-  ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".png": "image/png",
-  ".webp": "image/webp",
-};
 
-const saveImage = async ({ buffer, originalName }) => {
+const saveImage = async ({ buffer }) => {
   const provider = getCurrentProvider();
-  const extension = path.extname(originalName).toLowerCase();
-  const contentType = IMAGE_CONTENT_TYPES[extension];
-  if (!contentType) {
-    const err = new Error("Unsupported image type");
-    err.code = "UNSUPPORTED_IMAGE";
-    throw err;
+  // The type comes from the bytes, never from the client filename or MIME header.
+  const detected = detectImage(buffer);
+  if (!detected) {
+    throw new AppError("Profile photos must be JPG, PNG or WebP", 415, "UNSUPPORTED_FILE_TYPE");
   }
-  const storageKey = `avatar-${Date.now()}-${crypto.randomUUID()}${extension}`;
+  const { extension, contentType } = detected;
+const storageKey = `avatar-${Date.now()}-${crypto.randomUUID()}${extension}`;
 
   if (provider === "s3") {
     const client = s3Client();

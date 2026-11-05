@@ -1,18 +1,14 @@
-const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const { Membership } = require("../models/Membership");
 const AppError = require("../utils/AppError");
-const { config } = require("../config/env");
+const { verifyAccessToken } = require("../utils/accessToken");
 
 const authenticate = async (req, res, next) => {
   try {
     const header = req.get("authorization") || "";
     if (!header.startsWith("Bearer "))
       throw new AppError("Authentication required", 401, "AUTH_REQUIRED");
-    const decoded = jwt.verify(header.slice(7), config.jwtSecret, {
-      issuer: "hiresmart-api",
-      audience: "hiresmart-web",
-    });
+    const decoded = verifyAccessToken(header.slice(7));
     const user = await User.findById(decoded.sub);
     if (!user || !user.isActive || ["suspended", "deleted"].includes(user.accountStatus))
       throw new AppError("Session is no longer valid", 401, "SESSION_INVALID");
@@ -36,10 +32,7 @@ const optionalAuthenticate = async (req, res, next) => {
   try {
     const header = req.get("authorization") || "";
     if (header.startsWith("Bearer ")) {
-      const decoded = jwt.verify(header.slice(7), config.jwtSecret, {
-        issuer: "hiresmart-api",
-        audience: "hiresmart-web",
-      });
+      const decoded = verifyAccessToken(header.slice(7));
       const user = await User.findById(decoded.sub);
       if (
         user &&
@@ -114,8 +107,20 @@ const requireAccountRole =
       return next(new AppError("You are not permitted to perform this action", 403, "FORBIDDEN"));
     next();
   };
+/**
+ * Platform administrators only. Applied to the whole /admin prefix in routes/v1Routes.js, so a new admin route
+ * cannot be added without the check. Controllers keep their own checks as defence in depth.
+ */
+const requirePlatformAdmin = (req, res, next) => {
+  if (!req.user) return next(new AppError("Authentication required", 401, "AUTH_REQUIRED"));
+  if (req.auth?.platformRole !== "platform_admin")
+    return next(new AppError("You are not permitted to perform this action", 403, "FORBIDDEN"));
+  return next();
+};
+
 module.exports = {
   authenticate,
+  requirePlatformAdmin,
   optionalAuthenticate,
   requireOrganization,
   requireOrganizationForNonCandidate,

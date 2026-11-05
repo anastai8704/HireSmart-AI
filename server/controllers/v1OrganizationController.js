@@ -18,6 +18,7 @@ const { parse, applyCursor, meta } = require("../utils/pagination");
 const verificationService = require("../services/companyVerificationService");
 const { assertCanInviteMember, getOrCreateOrgSubscription } = require("../middleware/subscriptionCheck");
 const { needsReviewQuery } = require("../domain/jobModerationPolicy");
+const pickDefined = require("../utils/pickDefined");
 
 const slugify = (v) =>
   String(v)
@@ -35,6 +36,17 @@ const ROLE_RANK = Object.freeze({
   viewer: 30,
 });
 
+// Fields a user may set when creating an organisation. Verification, risk and billing state are server-owned.
+const ORGANIZATION_WRITABLE_FIELDS = [
+  "name",
+  "industry",
+  "size",
+  "website",
+  "logo",
+  "about",
+  "timezone",
+];
+
 exports.create = asyncHandler(async (req, res) => {
   let slug = slugify(req.body.slug || req.body.name);
   const base = slug;
@@ -42,7 +54,7 @@ exports.create = asyncHandler(async (req, res) => {
 
   // Risk indicators are computed when verification details are submitted, never here.
   const organization = await Organization.create({
-    ...req.body,
+    ...pickDefined(req.body, ORGANIZATION_WRITABLE_FIELDS),
     slug,
     verificationStatus: "pending",
     riskScore: 0,

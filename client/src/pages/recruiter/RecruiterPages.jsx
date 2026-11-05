@@ -65,6 +65,7 @@ import {
 } from "../../lib/utils";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { CompanyVerificationCard } from "./CompanyVerificationCard";
+import { safeHttpUrl } from "../../lib/safeUrl";
 const greeting = () => {
   const hour = new Date().getHours();
   return hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
@@ -2429,7 +2430,7 @@ export const InterviewsPage = () => {
                           <Button
                             size="sm"
                             as="a"
-                            href={i.meetingUrl}
+                            href={safeHttpUrl(i.meetingUrl)}
                             target="_blank"
                             rel="noopener noreferrer"
                             leftIcon={<Video className="h-3.5 w-3.5" />}
@@ -2752,7 +2753,7 @@ export const InterviewDetail = () => {
               <Button
                 size="sm"
                 as="a"
-                href={interview.meetingUrl}
+                href={safeHttpUrl(interview.meetingUrl)}
                 target="_blank"
                 rel="noopener noreferrer"
                 leftIcon={<Video className="h-4 w-4" />}

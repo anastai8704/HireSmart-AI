@@ -6,15 +6,21 @@ const jwt = require("jsonwebtoken");
 const mongoose = require("mongoose");
 const { connectDB } = require("../config/db");
 const { config, validateEnvironment } = require("../config/env");
+const { signOptions } = require("../utils/accessToken");
 
 const User = require("../models/User");
 const Job = require("../models/Job");
 const CandidateProfile = require("../models/CandidateProfile");
 const { Application } = require("../models/Application");
 
-const genToken = (id, role) => jwt.sign({ id, role }, config.jwtSecret, { expiresIn: "30d" });
+// Development fixtures only. Tokens use the same pinned claims as real access tokens (15 minute lifetime).
+const genToken = (id, role) => jwt.sign({ role }, config.jwtSecret, signOptions(id));
 
 const seedFreshData = async () => {
+  // This script deletes every collection. It must never run against a production database.
+  if (config.nodeEnv === "production") {
+    throw new Error("seed-data refuses to run when NODE_ENV=production");
+  }
   validateEnvironment();
   await connectDB();
 

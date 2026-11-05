@@ -9,6 +9,7 @@ const AppError = require("../utils/AppError");
 const storageService = require("../services/storageService");
 const logger = require("../utils/logger");
 const { audit } = require("../services/auditService");
+const { detectImage } = require("../domain/imageSignature");
 const publicUserDto = (user) => ({
   id: user._id,
   displayName: user.name,
@@ -113,6 +114,10 @@ exports.updateNotificationPrefs = asyncHandler(async (req, res) => {
 
 exports.uploadAvatar = asyncHandler(async (req, res) => {
   if (!req.file) throw new AppError("A profile photo is required", 422, "FILE_REQUIRED");
+  // Validate the bytes before touching the existing photo, so a rejected upload never deletes the current one.
+  if (!detectImage(req.file.buffer)) {
+    throw new AppError("Profile photos must be JPG, PNG or WebP", 415, "UNSUPPORTED_FILE_TYPE");
+  }
   const user = await User.findById(req.user._id);
   if (user.profileImage) {
     try {
@@ -121,10 +126,7 @@ exports.uploadAvatar = asyncHandler(async (req, res) => {
       logger.error(`Old avatar cleanup failed: ${error.message}`);
     }
   }
-  const saved = await storageService.saveImage({
-    buffer: req.file.buffer,
-    originalName: req.file.originalname || "avatar.jpg",
-  });
+  const saved = await storageService.saveImage({ buffer: req.file.buffer });
   user.profileImage = saved.storageKey;
   user.profileImageProvider = saved.provider;
   await user.save();

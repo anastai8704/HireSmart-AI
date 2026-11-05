@@ -42,23 +42,5 @@ const parseResumeContent = async (buffer, originalName) => {
     return { text: "", summary: "" };
   }
 };
-const uploadResume = async (file) => {
-  if (!file?.buffer || !file.originalname) throw new Error("Invalid resume file");
-  const stored = await storageService.saveFile({
-    buffer: file.buffer,
-    originalName: file.originalname,
-  });
-  const parsed = await parseResumeContent(file.buffer, file.originalname);
-  return {
-    storageKey: stored.storageKey,
-    provider: stored.provider,
-    originalName: file.originalname,
-    mimeType: file.mimetype,
-    size: file.size,
-    uploadedAt: new Date(),
-    text: parsed.text,
-    summary: parsed.summary,
-  };
-};
 const deleteFile = (storageKey, provider) => storageService.deleteFile(storageKey, provider);
-module.exports = { uploadResume, deleteFile, parseResumeContent, normalizeText };
+module.exports = { deleteFile, parseResumeContent, normalizeText };

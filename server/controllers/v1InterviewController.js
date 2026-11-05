@@ -11,6 +11,7 @@ const asyncHandler = require("../middleware/asyncHandler");
 const AppError = require("../utils/AppError");
 const idempotency = require("../services/idempotencyService");
 const logger = require("../utils/logger");
+const pickDefined = require("../utils/pickDefined");
 
 const orgOwner = async (organizationId) =>
   (await Membership.findOne({
@@ -69,6 +70,17 @@ const resolveParticipants = async (organizationId, participantIds) => {
   return [...new Set(memberships.map((m) => String(m.user)))];
 };
 
+// Fields a recruiter may set when scheduling. Ownership and workflow fields are set by the server only.
+const INTERVIEW_WRITABLE_FIELDS = [
+  "title",
+  "type",
+  "scheduledStart",
+  "scheduledEnd",
+  "timezone",
+  "location",
+  "meetingUrl",
+];
+
 exports.create = asyncHandler(async (req, res) => {
   const idem = await idempotency.begin({
     req,
@@ -101,7 +113,7 @@ exports.create = asyncHandler(async (req, res) => {
     organization: req.auth.organizationId,
     application: application._id,
     createdBy: req.user._id,
-    ...req.body,
+    ...pickDefined(req.body, INTERVIEW_WRITABLE_FIELDS),
     participants: participants.length > 0 ? participants : (req.body.participants || []),
     status: req.body.scheduledStart ? "invited" : "draft",
   });

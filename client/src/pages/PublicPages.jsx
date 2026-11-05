@@ -22,6 +22,7 @@ import { useAuth } from "../context/useAuth";
 import { usePageMeta } from "../lib/usePageMeta";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { useToast } from "../components/ui/useToast";
+import { safeHttpUrl } from "../lib/safeUrl";
 
 /* ----------------------------- shared bits ----------------------------- */
 
@@ -994,7 +995,7 @@ export const CompanyPage = () => {
                   </span>
                   {c.website && (
                     <a
-                      href={c.website}
+                      href={safeHttpUrl(c.website)}
                       target="_blank"
                       rel="noreferrer"
                       className="font-medium text-brand-600 hover:text-brand-700"

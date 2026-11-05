@@ -1,4 +1,5 @@
 const express = require("express");
+const crypto = require("node:crypto");
 const rateLimit = require("express-rate-limit");
 const { ipKeyGenerator } = require("express-rate-limit");
 const { z } = require("zod");
@@ -9,8 +10,10 @@ const {
   requireOrganization,
   requireOrganizationForNonCandidate,
   requireAccountRole,
+  requirePlatformAdmin,
 } = require("../middleware/v1Auth");
 const { ALL_PLANS } = require("../config/subscriptionPlans");
+const { httpUrl } = require("../domain/safeUrl");
 const candidateOnly = requireAccountRole("candidate");
 const upload = require("../middleware/uploadResumeV1");
 const uploadAvatar = require("../middleware/uploadAvatarV1");
@@ -37,7 +40,6 @@ const invites = require("../controllers/v1InviteController");
 const placement = require("../controllers/v1PlacementController");
 const subscription = require("../controllers/v1SubscriptionController");
 const { checkAiPlanLimit } = require("../middleware/subscriptionCheck");
-const { config } = require("../config/env");
 
 const router = express.Router();
 const strict = (shape) => z.object(shape).strict();
@@ -61,25 +63,19 @@ const limited = (options) =>
 // Credential endpoints (register/login/...) stay on a tight shared per-IP
 // budget — that is where brute force happens.
 const authLimit = limited({ windowMs: 15 * 60 * 1000, limit: 20 });
-// Token refresh is a routine, background call the client makes on every app
-// mount. It must NOT share the credential budget: per-IP it was exhausted by
-// ordinary multi-user networks (offices behind one NAT) and returned 429s on
-// unrelated pages. Key by the session id carried in the refresh JWT so each
-// user has their own generous budget instead.
-const refreshLimit = limited({
-  windowMs: 15 * 60 * 1000,
-  limit: 60,
-  keyGenerator: (req) => {
-    try {
-      const raw = req.cookies?.[config.refreshCookieName] || "";
-      const payload = JSON.parse(Buffer.from(raw.split(".")[1], "base64").toString("utf8"));
-      if (payload?.sid) return `refresh:${payload.sid}`;
-    } catch {
-      /* unreadable/absent cookie — fall back to IP */
-    }
-    return `refresh-ip:${ipKeyGenerator(req)}`;
-  },
-});
+// Token refresh is a routine, background call the client makes on every app mount, so it has its own budget
+// (not the credential budget). It is keyed by IP only: the refresh cookie is not trusted for rate-limit keys,
+// because a client could mint a new key for each request. The per-IP budget is generous for shared networks.
+const refreshLimit = limited({ windowMs: 15 * 60 * 1000, limit: 300 });
+// Per-account login throttle. Keyed by the normalised email, never by client-supplied headers, so it cannot be
+// bypassed by changing IP. Trade-off: an attacker can make one account temporarily unavailable; this is accepted
+// for the lockout window and documented in docs/SECURITY.md.
+const accountKey = (req) => {
+  const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+  return email ? `account:${crypto.createHash("sha256").update(email).digest("hex")}` : `ip:${ipKeyGenerator(req.ip)}`;
+};
+const loginLimit = limited({ windowMs: 15 * 60 * 1000, limit: 10, keyGenerator: accountKey });
+const forgotPasswordLimit = limited({ windowMs: 60 * 60 * 1000, limit: 5, keyGenerator: accountKey });
 // Invitation links are long random tokens (192-bit) — brute force is not the
 // threat; repeated legitimate opens are. They get their own budget so an
 // invitation link can never 429 because somebody else's logins used the
@@ -123,11 +119,12 @@ router.post(
   validate(strict({ email: z.string().email() })),
   auth.resendVerification,
 );
-router.post("/auth/login", authLimit, validate(loginSchema), auth.login);
+router.post("/auth/login", authLimit, loginLimit, validate(loginSchema), auth.login);
 router.post("/auth/token", refreshLimit, auth.refresh);
 router.post(
   "/auth/password/forgot",
   authLimit,
+  forgotPasswordLimit,
   validate(strict({ email: z.string().email() })),
   auth.forgotPassword,
 );
@@ -169,7 +166,7 @@ router.post(
   invites.accept,
 );
 router.post("/invitations/:token/accept-existing", inviteLimit, authenticate, invites.acceptExisting);
-const urlField = z.string().url().max(2048).or(z.literal(""));
+const urlField = httpUrl.or(z.literal(""));
 const userProfileSchema = strict({
   name: z.string().trim().min(2).max(100).optional(),
   phone: z.string().max(30).optional(),
@@ -178,7 +175,7 @@ const userProfileSchema = strict({
   bio: z.string().max(2000).optional(),
   skills: z.array(z.string().trim().min(1).max(100)).max(50).optional(),
   companyName: z.string().max(150).optional(),
-  companyWebsite: z.string().url().max(2048).or(z.literal("")).optional(),
+  companyWebsite: httpUrl.or(z.literal("")).optional(),
   department: z.string().trim().max(100).optional(),
   hiringSpecializations: z.array(z.string().trim().min(1).max(100)).max(10).optional(),
   socialLinks: strict({
@@ -243,8 +240,8 @@ const orgSchema = strict({
     .optional(),
   industry: z.string().max(100).optional(),
   size: z.enum(["1-10", "11-50", "51-200", "201-500", "501-1000", "1000+", "unknown"]).optional(),
-  website: z.string().url().max(2048).optional(),
-  logo: z.string().max(2048).optional(),
+  website: httpUrl.optional(),
+  logo: httpUrl.or(z.literal("")).optional(),
   about: z.string().max(2000).optional(),
   timezone: z.string().max(100).optional(),
 });
@@ -351,14 +348,14 @@ const projectItem = strict({
   title: z.string().trim().min(1).max(150),
   description: z.string().trim().max(2000).optional(),
   technologies: z.array(z.string().trim().min(1).max(100)).max(50).optional(),
-  githubUrl: z.string().url().max(2048).optional(),
-  liveUrl: z.string().url().max(2048).optional(),
+  githubUrl: httpUrl.optional(),
+  liveUrl: httpUrl.optional(),
 });
 const certificationItem = strict({
   name: z.string().trim().min(1).max(200),
   issuer: z.string().trim().max(200).optional(),
   issueDate: z.coerce.date().optional(),
-  certificateUrl: z.string().url().max(2048).optional(),
+  certificateUrl: httpUrl.optional(),
 });
 router.get("/candidates/me/profile", authenticate, candidateOnly, candidate.me);
 router.patch(
@@ -382,10 +379,10 @@ router.patch(
         country: z.string().max(100).optional(),
         languages: z.array(z.string().max(100)).max(20).optional(),
         socialLinks: strict({
-          github: z.string().url().max(2048).optional(),
-          linkedin: z.string().url().max(2048).optional(),
-          portfolio: z.string().url().max(2048).optional(),
-          website: z.string().url().max(2048).optional(),
+          github: httpUrl.optional(),
+          linkedin: httpUrl.optional(),
+          portfolio: httpUrl.optional(),
+          website: httpUrl.optional(),
         }).optional(),
         education: z.array(educationItem).max(30).optional(),
         experience: z.array(experienceItem).max(50).optional(),
@@ -769,7 +766,7 @@ const interviewSchema = strict({
   scheduledEnd: z.coerce.date().nullable().optional(),
   timezone: z.string().max(100).optional(),
   location: z.string().max(500).optional().or(z.literal("")),
-  meetingUrl: z.string().url().max(2048).optional().or(z.literal("")),
+  meetingUrl: httpUrl.optional().or(z.literal("")),
   participants: z.array(z.string().length(24)).max(20).optional(),
 });
 router.get(
@@ -901,6 +898,9 @@ router.get(
   requireOrganization("audit.read"),
   admin.organizationSecurity,
 );
+// Every /admin route requires a platform administrator. Enforced here for the whole prefix (tested in
+// test/securityRoutes.unit.test.js), so no admin endpoint depends on remembering a per-route check.
+router.use("/admin", authenticate, requirePlatformAdmin);
 router.get("/admin/users", authenticate, admin.users);
 router.get("/admin/organizations", authenticate, admin.organizations);
 router.get("/admin/analytics/overview", authenticate, admin.overviewAnalytics);
@@ -975,7 +975,7 @@ const verificationAddress = strict({
 });
 const verificationSubmitSchema = strict({
   businessEmail: z.string().trim().email().max(254),
-  website: z.string().trim().max(2048).optional(),
+  website: httpUrl.or(z.literal("")).optional(),
   phone: z.string().trim().max(30).optional(),
   businessType: z
     .enum(BUSINESS_TYPES)

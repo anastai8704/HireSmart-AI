@@ -106,10 +106,11 @@ app.get("/", (req, res) => {
 });
 
 app.get("/health", (req, res) => {
+  // The environment name is only shown outside production, so it is not disclosed to the public.
   res.status(200).json({
     success: true,
     status: "ok",
-    environment: config.nodeEnv,
+    ...(config.nodeEnv === "production" ? {} : { environment: config.nodeEnv }),
   });
 });
 

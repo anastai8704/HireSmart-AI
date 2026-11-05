@@ -1,22 +1,25 @@
 const winston = require("winston");
 const path = require("node:path");
+const { redact } = require("./redact");
 const logDir = path.join(__dirname, "../logs");
 const isTest = process.env.NODE_ENV === "test";
 const isProduction = process.env.NODE_ENV === "production";
-const redact = winston.format((info) => {
-  for (const key of ["password", "token", "authorization", "resumeText", "apiKey"])
-    if (key in info) info[key] = "[REDACTED]";
+// Every key of the log entry is checked at any depth (see utils/redact.js).
+const redactFormat = winston.format((info) => {
+  const cleaned = redact(info);
+  for (const key of Object.keys(info)) delete info[key];
+  Object.assign(info, cleaned);
   return info;
 });
 const format = isProduction
   ? winston.format.combine(
-      redact(),
+      redactFormat(),
       winston.format.timestamp(),
       winston.format.errors({ stack: true }),
       winston.format.json(),
     )
   : winston.format.combine(
-      redact(),
+      redactFormat(),
       winston.format.timestamp({ format: "YYYY-MM-DD HH:mm:ss" }),
       winston.format.errors({ stack: true }),
       winston.format.printf(

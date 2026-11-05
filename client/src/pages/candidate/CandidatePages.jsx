@@ -71,6 +71,7 @@ import {
   downloadInterviewIcs,
 } from "../../lib/utils";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
+import { safeHttpUrl } from "../../lib/safeUrl";
 
 const getVersions = (response) => response?.meta?.versions || [];
 const useResumes = () => useQuery({ queryKey: ["resumes"], queryFn: resumeApi.list });
@@ -2176,7 +2177,7 @@ export const ApplicationDetail = () => {
                     <Button
                       size="sm"
                       as="a"
-                      href={interview.meetingUrl}
+                      href={safeHttpUrl(interview.meetingUrl)}
                       target="_blank"
                       rel="noopener noreferrer"
                       leftIcon={<Video className="h-4 w-4" />}
@@ -2536,7 +2537,7 @@ export const CandidateInterviews = () => {
                     <Button
                       size="sm"
                       as="a"
-                      href={i.meetingUrl}
+                      href={safeHttpUrl(i.meetingUrl)}
                       target="_blank"
                       rel="noopener noreferrer"
                       leftIcon={<Video className="h-4 w-4" />}
@@ -2697,7 +2698,7 @@ export const InterviewPrep = () => {
                 <Button
                   size="sm"
                   as="a"
-                  href={interview.meetingUrl}
+                  href={safeHttpUrl(interview.meetingUrl)}
                   target="_blank"
                   rel="noopener noreferrer"
                   leftIcon={<Video className="h-4 w-4" />}

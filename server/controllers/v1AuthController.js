@@ -1,4 +1,5 @@
 const bcrypt = require("bcryptjs");
+const crypto = require("node:crypto");
 const User = require("../models/User");
 const AuthSession = require("../models/AuthSession");
 const Organization = require("../models/Organization");
@@ -190,9 +191,12 @@ exports.resendVerification = asyncHandler(async (req, res) => {
   }
   res.status(202).json({ data: { accepted: true } });
 });
+// Unknown emails are compared against a dummy hash so response time does not reveal which accounts exist.
+const DUMMY_PASSWORD_HASH = bcrypt.hashSync(crypto.randomBytes(24).toString("hex"), 12);
 exports.login = asyncHandler(async (req, res) => {
   const user = await User.findOne({ email: req.body.email.toLowerCase() }).select("+password");
-  if (!user || !(await bcrypt.compare(req.body.password, user.password))) {
+  const passwordMatches = await bcrypt.compare(req.body.password, user?.password || DUMMY_PASSWORD_HASH);
+  if (!user || !passwordMatches) {
     await security({ req, user: user?._id, type: "login.failed", severity: "medium" });
     throw new AppError("Invalid email or password", 401, "INVALID_CREDENTIALS");
   }
