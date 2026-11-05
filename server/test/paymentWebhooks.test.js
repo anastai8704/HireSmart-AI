@@ -215,7 +215,7 @@ test("checkout creates a Razorpay subscription with the server-side price and re
   assert.equal(plan.interval, 1);
   assert.equal(plan.item.amount, ALL_PLANS.candidate_plus.priceInr * 100, "amount in paise from config");
   assert.equal(created.plan_id, plan.id);
-  const txn = await PaymentTransaction.findById(res.body.data.transaction.id).lean();
+  const txn = await PaymentTransaction.findById(res.body.data.transaction._id).lean();
   assert.equal(txn.gateway, "razorpay");
   assert.equal(txn.status, "initiated");
   assert.equal(txn.providerSubscriptionId, s.subscriptionId);
@@ -252,7 +252,7 @@ test("a fresh checkout for a new subscription is needed after a failed signature
   const res = await checkout(ctx.asha);
   assert.equal(res.status, 200, JSON.stringify(res.body));
   ctx.subId = res.body.data.subscription.subscriptionId;
-  ctx.initiatedTxnId = res.body.data.transaction.id;
+  ctx.initiatedTxnId = res.body.data.transaction._id;
 });
 
 test("a subscription the provider has not authorised yet is pending: nothing activates", async () => {
@@ -359,12 +359,13 @@ test("webhook: a charge with the wrong amount changes no state and is audited", 
 });
 
 test("webhook: a failed renewal marks the subscription past_due and records the failed attempt", async () => {
+  const failuresBefore = (await subRecord(ctx.subId)).renewalFailures;
   setSub(ctx.subId, { status: "pending" });
   const res = await sendWebhook(subEvent("subscription.pending", ctx.subId));
   assert.equal(res.status, 200);
   const sub = await subRecord(ctx.subId);
   assert.equal(sub.status, "past_due");
-  assert.equal(sub.renewalFailures, 1);
+  assert.equal(sub.renewalFailures, failuresBefore + 1, "each failed attempt is counted once");
   assert.ok(sub.pastDueSince);
   const failedPay = { id: "pay_failed_renewal", subscription_id: ctx.subId, amount: 14900, currency: "INR", status: "failed", error_description: "card declined" };
   const failed = await sendWebhook({ event: "payment.failed", payload: { payment: { entity: failedPay } } });
@@ -387,9 +388,11 @@ test("webhook: halted after retries are exhausted keeps the plan in past_due", a
 test("webhook: a charge after a halt recovers the subscription to active", async () => {
   const payId = "pay_recover";
   addPayment(payId, ctx.subId);
-  activateSub(ctx.subId, 30);
+  // A recovery charge starts a new period after the one already recorded (the out-of-order guard refuses earlier ones).
+  activateSub(ctx.subId, 90);
   const res = await sendWebhook(subEvent("subscription.charged", ctx.subId, fake.payments[payId]));
   assert.equal(res.status, 200);
+  assert.equal(res.body.data.outcome, "renewed");
   const sub = await subRecord(ctx.subId);
   assert.equal(sub.status, "active");
   assert.equal(sub.renewalFailures, 0);
