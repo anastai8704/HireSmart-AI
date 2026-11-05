@@ -92,6 +92,8 @@ nodeTest.before(async () => {
   await startDatabase();
 });
 nodeTest.after(async () => {
+  // Reported at the end of the run so a CI failure shows the concurrent outcome, not just a boolean.
+  process.stdout.write(`# concurrency outcome: ${JSON.stringify(ctx.raceOutcome || null)}\n`);
   await stopDatabase();
 });
 
@@ -126,6 +128,7 @@ test("duplicates under concurrency: two simultaneous applications yield one reco
     applyWith(ctx.racer, ctx.jobId, ctx.racer.resumeId, "race-b"),
   ]);
   const summary = (r) => `${r.status} ${r.body?.error?.code || r.body?.code || ""}`.trim();
+  ctx.raceOutcome = [summary(a), summary(b)];
   const statuses = [a.status, b.status].sort();
   assert.deepEqual(
     statuses,
