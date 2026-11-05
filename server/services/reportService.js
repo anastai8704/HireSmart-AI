@@ -8,7 +8,15 @@
 // Personal data is excluded from every report: no names, e-mail addresses, phone numbers, resume text or
 // gateway secrets. Candidate-level detail is represented by record ids only.
 
-const { resolveRange, ANALYTICS_TIMEZONE, summarizeRevenue, canonicalStage, istDayOf } = require("../domain/analyticsDefinitions");
+const mongoose = require("mongoose");
+const {
+  resolveRange,
+  ANALYTICS_TIMEZONE,
+  AnalyticsRangeError,
+  summarizeRevenue,
+  canonicalStage,
+  istDayOf,
+} = require("../domain/analyticsDefinitions");
 const { inRange, dayOf } = require("./reportHelpers");
 const User = require("../models/User");
 const Organization = require("../models/Organization");
@@ -178,7 +186,11 @@ const REPORTS = {
       { key: "applications", label: "Applications" },
     ],
     async build({ range, organizationId }) {
-      const match = { ...inRange("appliedAt", range), ...(organizationId ? { organization: organizationId } : {}) };
+      // Aggregation stages do not cast ids, so the organisation is converted explicitly.
+      const match = {
+        ...inRange("appliedAt", range),
+        ...(organizationId ? { organization: new mongoose.Types.ObjectId(organizationId) } : {}),
+      };
       const groups = await Application.aggregate([{ $match: match }, { $group: { _id: "$status", applications: { $sum: 1 } } }]);
       // Legacy stage names are folded into the lifecycle names so counts match the dashboard.
       const totals = new Map();
@@ -385,7 +397,14 @@ const reportFor = (type, audience) => {
 const runReport = async ({ type, scope, query = {} }) => {
   const report = reportFor(type, scope.audience);
   if (!report) throw new AppError("Resource not found", 404, "RESOURCE_NOT_FOUND");
-  const range = resolveRange({ range: query.range || "30d", from: query.from, to: query.to });
+  let range;
+  try {
+    range = resolveRange({ range: query.range || "30d", from: query.from, to: query.to });
+  } catch (error) {
+    // Same mapping as the admin dashboard: a 400 with a stable code, never a 500.
+    if (error instanceof AnalyticsRangeError) throw new AppError(error.message, 400, error.code);
+    throw error;
+  }
   const rows = limitRows(
     await report.build({
       range,
