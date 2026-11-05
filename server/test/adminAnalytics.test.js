@@ -159,9 +159,11 @@ test("legacy fields remain, and the revenue endpoint no longer returns an invent
   const revenue = await request(app).get("/api/v1/admin/analytics/revenue").set(auth(ctx.admin.token));
   assert.equal(revenue.status, 200, JSON.stringify(revenue.body));
   assert.equal(revenue.body.data.metrics.estimatedNetProfit, undefined);
-  assert.equal(revenue.body.data.metrics.totalGrossRevenue, 1200);
+  // The revenue endpoint is all-time (no date filter), so the 120-day-old capture is included here:
+  // gross 1000 + 9999 + refunded 200 = 11199; refunds 200; net 10999.
+  assert.equal(revenue.body.data.metrics.totalGrossRevenue, 11199);
   assert.equal(revenue.body.data.metrics.totalRefunds, 200);
-  assert.equal(revenue.body.data.metrics.netRevenue, 1000);
+  assert.equal(revenue.body.data.metrics.netRevenue, 10999);
 });
 
 test("definitions: every KPI ships with a definition and period", async () => {
