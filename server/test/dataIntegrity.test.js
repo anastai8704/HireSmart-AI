@@ -92,8 +92,6 @@ nodeTest.before(async () => {
   await startDatabase();
 });
 nodeTest.after(async () => {
-  // Reported at the end of the run so a CI failure shows the concurrent outcome, not just a boolean.
-  process.stdout.write(`# concurrency outcome: ${JSON.stringify(ctx.raceOutcome || null)}\n`);
   await stopDatabase();
 });
 
@@ -124,17 +122,11 @@ test("duplicates: a second application to the same job is refused and exactly on
 
 test("duplicates under concurrency: two simultaneous applications yield one record, never two", async () => {
   const [a, b] = await Promise.all([
-    applyWith(ctx.racer, ctx.jobId, ctx.racer.resumeId, "race-a"),
-    applyWith(ctx.racer, ctx.jobId, ctx.racer.resumeId, "race-b"),
+    applyWith(ctx.racer, ctx.jobId, ctx.racer.resumeId, "race-key-a"),
+    applyWith(ctx.racer, ctx.jobId, ctx.racer.resumeId, "race-key-b"),
   ]);
-  const summary = (r) => `${r.status} ${r.body?.error?.code || r.body?.code || ""}`.trim();
-  ctx.raceOutcome = [summary(a), summary(b)];
   const statuses = [a.status, b.status].sort();
-  assert.deepEqual(
-    statuses,
-    [201, 409],
-    `expected one success and one refusal, got [${summary(a)}] and [${summary(b)}]`,
-  );
+  assert.deepEqual(statuses, [201, 409], `expected one success and one refusal, got ${statuses}`);
   assert.equal(await countApplications(ctx.jobId, ctx.racer.userId), 1);
 });
 
