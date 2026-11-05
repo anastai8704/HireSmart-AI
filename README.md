@@ -128,7 +128,7 @@ npm run bootstrap:admin  # needs ADMIN_NAME, ADMIN_EMAIL, ADMIN_PASSWORD in the 
 ```
 
 For demo data in a **local or test** database only: `npm run seed`. It deletes every collection first and refuses to
-run when `NODE_ENV=production`. `npm run seed:demo` loads the presentation dataset.
+run when `NODE_ENV=production`. `npm run seed:demo` (`scripts/seed-presentation-demo.js`) loads a presentation dataset whose accounts share one known demo password; it also refuses to run when `NODE_ENV=production`.
 
 Migrations (`npm run migrate:v1`, `npm run migrate:applications`) are not run automatically. Read the script first and
 run it against a restored copy before any real data is changed.

@@ -1,9 +1,9 @@
 const { Placement } = require("../models/Placement");
-const { Application } = require("../models/Application");
-const Organization = require("../models/Organization");
-const Job = require("../models/Job");
-const User = require("../models/User");
-const { notify } = require("../services/notificationService");
+// Model modules below are required for their side effect only (registering the Mongoose models).
+require("../models/Application");
+require("../models/Organization");
+require("../models/Job");
+require("../models/User");
 const { notifyCompanyLeads } = require("../services/billingNotifications");
 const { audit } = require("../services/auditService");
 const asyncHandler = require("../middleware/asyncHandler");

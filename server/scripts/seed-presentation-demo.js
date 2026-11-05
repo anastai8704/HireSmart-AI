@@ -28,6 +28,11 @@ process.env.NODE_ENV = process.env.NODE_ENV || "development";
 const path = require("node:path");
 require("dotenv").config({ path: path.join(__dirname, "..", ".env"), quiet: true });
 
+// This script creates accounts that share one known demo password. It must never run against production.
+if (String(process.env.NODE_ENV).trim().toLowerCase() === "production") {
+  throw new Error("seed-presentation-demo refuses to run when NODE_ENV=production");
+}
+
 const bcrypt = require("bcryptjs");
 const { connectDB, disconnectDB } = require("../config/db");
 const { validateEnvironment } = require("../config/env");
@@ -37,16 +42,11 @@ const Organization = require("../models/Organization");
 const { Membership } = require("../models/Membership");
 const Job = require("../models/Job");
 const CandidateProfile = require("../models/CandidateProfile");
-const { Resume, ResumeVersion, ParsedResume } = require("../models/Resume");
+const { ResumeVersion } = require("../models/Resume");
 const { Application } = require("../models/Application");
 const Interview = require("../models/Interview");
-const { CandidateMatch, Note } = require("../models/Recruitment");
-const AIAnalysis = require("../models/AIAnalysis");
-const AuditLog = require("../models/AuditLog");
-const SecurityEvent = require("../models/SecurityEvent");
+const { CandidateMatch } = require("../models/Recruitment");
 const Consent = require("../models/Consent");
-const JobAlert = require("../models/JobAlert");
-const Notification = require("../models/Notification");
 const Placement = require("../models/Placement");
 const Subscription = require("../models/Subscription");
 const PaymentTransaction = require("../models/PaymentTransaction");

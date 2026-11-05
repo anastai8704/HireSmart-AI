@@ -119,4 +119,4 @@ When `NODE_ENV=production`, the server refuses to start unless:
 - If a non-deterministic AI provider is configured, `AI_API_KEY` is set.
 - Payment settings are valid. Live keys are refused.
 
-`npm run seed` (`scripts/seed-data.js`) deletes every collection and refuses to run when `NODE_ENV=production`. Run it only against a local or test database.
+`npm run seed` (`scripts/seed-data.js`) deletes every collection and refuses to run when `NODE_ENV=production`. Run it only against a local or test database. `npm run seed:demo` (`scripts/seed-presentation-demo.js`) also refuses `NODE_ENV=production`.
