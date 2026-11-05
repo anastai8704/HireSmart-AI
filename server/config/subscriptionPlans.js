@@ -51,6 +51,24 @@ const CANDIDATE_PLANS = Object.freeze({
 });
 
 const RECRUITER_PLANS = Object.freeze({
+  // Free recruiter plan: the default for every organization. Limits are configuration, not a promise:
+  // change them here and the enforcement in domain/subscriptionRules.js follows.
+  recruiter_free: {
+    id: "recruiter_free",
+    name: "Free",
+    tier: "recruiter_free",
+    role: "recruiter",
+    priceInr: 0,
+    billingCycle: "monthly",
+    description: "Verify your company and publish a limited number of job postings at no cost.",
+    limits: {
+      activeJobs: 1,
+      teamMembers: 1,
+      aiAnalysesPerMonth: 10,
+    },
+    features: ["One active job posting", "Single recruiter seat", "Core applicant management"],
+    highlight: false,
+  },
   recruiter_starter: {
     id: "recruiter_starter",
     name: "Starter",

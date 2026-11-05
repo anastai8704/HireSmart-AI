@@ -1,4 +1,5 @@
 const Job = require("../models/Job");
+const { assertCanPublishJob } = require("../middleware/subscriptionCheck");
 const Organization = require("../models/Organization");
 const SearchHistory = require("../models/SearchHistory");
 const { buildPublicJobFilter } = require("../utils/jobFilters");
@@ -392,6 +393,9 @@ exports.publish = asyncHandler(async (req, res) => {
     );
   }
   const previousModeration = job.moderation?.status || "none";
+  // Plan limit (Phase 6): publishing needs a free slot in the organization's plan.
+  await assertCanPublishJob(job.organization, job._id);
+  const priorState = { status: job.status, publishedAt: job.publishedAt, moderation: job.toObject().moderation };
   job.status = "published";
   job.publishedAt = job.publishedAt || new Date();
   // Publishing always submits the job for platform review. The job only
@@ -401,6 +405,17 @@ exports.publish = asyncHandler(async (req, res) => {
   job.moderation.reviewedAt = null;
   job.moderation.reason = "";
   await job.save();
+  // Re-check after saving: two publishes racing for the last slot both see the other and both revert,
+  // so the plan limit is never exceeded.
+  try {
+    await assertCanPublishJob(job.organization, job._id);
+  } catch (error) {
+    await Job.updateOne(
+      { _id: job._id },
+      { $set: { status: priorState.status, publishedAt: priorState.publishedAt, moderation: priorState.moderation } },
+    );
+    throw error;
+  }
   if (previousModeration !== "pending") {
     await JobModerationEvent.create({
       job: job._id,

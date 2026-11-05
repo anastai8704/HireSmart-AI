@@ -79,7 +79,10 @@ export const RecruiterBilling = () => {
 
   const sub = subQuery.data?.data?.subscription || {};
   const currentPlan = subQuery.data?.data?.plan || {};
-  const plans = plansQuery.data?.data?.recruiter || [];
+  // Free plans are not sold: they appear only as the current plan.
+  const plans = (plansQuery.data?.data?.recruiter || []).filter(
+    (p) => p.priceInr > 0 || p.tier === sub.planTier,
+  );
   const invoices = invoicesQuery.data?.data || [];
 
   const handleOpenUpgrade = (plan) => {

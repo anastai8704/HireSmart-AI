@@ -3,6 +3,7 @@ const { protectRecords } = require("./plugins/protectRecords");
 
 const planTiers = Object.freeze([
   "candidate_free",
+  "recruiter_free",
   "candidate_plus",
   "recruiter_starter",
   "recruiter_growth",

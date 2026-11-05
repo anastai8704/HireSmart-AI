@@ -36,6 +36,7 @@ const users = require("../controllers/v1UserController");
 const invites = require("../controllers/v1InviteController");
 const placement = require("../controllers/v1PlacementController");
 const subscription = require("../controllers/v1SubscriptionController");
+const { checkAiPlanLimit } = require("../middleware/subscriptionCheck");
 const { config } = require("../config/env");
 
 const router = express.Router();
@@ -866,12 +867,13 @@ const aiSchema = strict({
   subjectType: z.string().max(100).optional(),
   subjectId: z.string().max(100).optional(),
 });
-router.post("/ai/:feature", authenticate, aiLimit, validate(aiSchema), ai.execute);
+router.post("/ai/:feature", authenticate, aiLimit, checkAiPlanLimit, validate(aiSchema), ai.execute);
 router.post(
   "/organizations/:organizationId/ai/:feature",
   authenticate,
   requireOrganization("job.manage"),
   aiLimit,
+  checkAiPlanLimit,
   validate(aiSchema),
   ai.execute,
 );

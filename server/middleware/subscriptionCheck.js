@@ -1,13 +1,51 @@
+// Server-side subscription enforcement (Phase 6).
+// Entitlement rules are pure functions in domain/subscriptionRules.js. This module loads the stored
+// records and applies those rules. Limits are never taken from the request.
 const { Subscription } = require("../models/Subscription");
 const Job = require("../models/Job");
+const AIAnalysis = require("../models/AIAnalysis");
 const { Membership } = require("../models/Membership");
-const { ALL_PLANS, RECRUITER_PLANS, CANDIDATE_PLANS } = require("../config/subscriptionPlans");
+const { ALL_PLANS, CANDIDATE_PLANS } = require("../config/subscriptionPlans");
+const { effectiveState, decideJobPublish, decideTeamInvite, decideAiUse, FREE_TIER } = require("../domain/subscriptionRules");
+const { audit } = require("../services/auditService");
 const AppError = require("../utils/AppError");
 const asyncHandler = require("./asyncHandler");
 
+const planNameOf = (tier) => (ALL_PLANS[tier] || ALL_PLANS[FREE_TIER.organization]).name;
+
 /**
- * Ensures an organization has an active subscription record.
- * If none exists, creates the default Starter subscription.
+ * Returns the entitlement for a subscriber right now. A paid period that has ended is marked expired
+ * once, with an audit entry. Nothing else about the subscriber's records is changed.
+ */
+const getEffectiveSubscription = async (subscriberType, subscriberId, now = new Date()) => {
+  const sub = await Subscription.findOne({
+    subscriberType,
+    subscriberId,
+    status: { $in: ["active", "past_due"] },
+  }).sort({ createdAt: -1 });
+
+  if (sub && sub.status === "active" && sub.currentPeriodEnd && new Date(sub.currentPeriodEnd) <= now) {
+    const result = await Subscription.updateOne(
+      { _id: sub._id, status: "active", currentPeriodEnd: { $lte: now } },
+      { $set: { status: "expired" } },
+    );
+    if (result.modifiedCount === 1) {
+      await audit({
+        organization: subscriberType === "organization" ? subscriberId : null,
+        action: "subscription.expired",
+        resourceType: "subscription",
+        resourceId: sub._id,
+        metadata: { planTier: sub.planTier, periodEnd: sub.currentPeriodEnd },
+      });
+    }
+    return effectiveState({ ...sub.toObject(), status: "expired" }, subscriberType, now);
+  }
+  return effectiveState(sub ? sub.toObject() : null, subscriberType, now);
+};
+
+/**
+ * Ensures an organization has a subscription record. A new organization gets the FREE recruiter plan,
+ * never a paid plan without a payment record.
  */
 const getOrCreateOrgSubscription = async (organizationId) => {
   let sub = await Subscription.findOne({
@@ -17,14 +55,14 @@ const getOrCreateOrgSubscription = async (organizationId) => {
   });
 
   if (!sub) {
-    const starterPlan = RECRUITER_PLANS.recruiter_starter;
+    const freePlan = ALL_PLANS[FREE_TIER.organization];
     sub = await Subscription.create({
       subscriberType: "organization",
       subscriberId: organizationId,
-      planTier: starterPlan.tier,
+      planTier: freePlan.tier,
       status: "active",
-      priceInr: starterPlan.priceInr,
-      limits: starterPlan.limits,
+      priceInr: 0,
+      limits: freePlan.limits,
       usage: {
         activeJobsCount: 0,
         teamMembersCount: 1,
@@ -32,13 +70,11 @@ const getOrCreateOrgSubscription = async (organizationId) => {
       },
     });
   }
-
   return sub;
 };
 
 /**
- * Ensures a candidate has an active subscription record.
- * If none exists, creates the default Free subscription.
+ * Ensures a candidate has a subscription record. New candidates get the free plan.
  */
 const getOrCreateCandidateSubscription = async (candidateId) => {
   let sub = await Subscription.findOne({
@@ -46,7 +82,6 @@ const getOrCreateCandidateSubscription = async (candidateId) => {
     subscriberId: candidateId,
     status: "active",
   });
-
   if (!sub) {
     const freePlan = CANDIDATE_PLANS.candidate_free;
     sub = await Subscription.create({
@@ -63,99 +98,101 @@ const getOrCreateCandidateSubscription = async (candidateId) => {
       },
     });
   }
-
   return sub;
 };
 
-/**
- * Middleware: Enforces active job posting limits based on organization plan.
- */
+// ---- Guards used by controllers (throw on refusal) ----
+
+/** Throws UPGRADE_REQUIRED when the organization already has as many published jobs as its plan allows. */
+const assertCanPublishJob = async (organizationId, jobIdToExclude = null, now = new Date()) => {
+  const state = await getEffectiveSubscription("organization", organizationId, now);
+  const query = { organization: organizationId, status: "published" };
+  if (jobIdToExclude) query._id = { $ne: jobIdToExclude };
+  const publishedCount = await Job.countDocuments(query);
+  const decision = decideJobPublish({ state, publishedCount });
+  if (!decision.allowed) {
+    throw new AppError(
+      `Your ${planNameOf(state.tier)} plan allows ${decision.limit} active job posting${decision.limit === 1 ? "" : "s"}. Close a posting or upgrade your plan to publish another.`,
+      403,
+      "UPGRADE_REQUIRED",
+    );
+  }
+  return { state, decision };
+};
+
+/** Throws UPGRADE_REQUIRED when the organization already has as many active members as its plan allows. */
+const assertCanInviteMember = async (organizationId, now = new Date()) => {
+  const state = await getEffectiveSubscription("organization", organizationId, now);
+  const activeMembers = await Membership.countDocuments({ organization: organizationId, status: "active" });
+  const decision = decideTeamInvite({ state, activeMembers });
+  if (!decision.allowed) {
+    throw new AppError(
+      `Your ${planNameOf(state.tier)} plan allows up to ${decision.limit} team member${decision.limit === 1 ? "" : "s"}. Upgrade your plan to invite more teammates.`,
+      403,
+      "UPGRADE_REQUIRED",
+    );
+  }
+  return { state, decision };
+};
+
+/** Start of the usage window: the paid period start, or the IST calendar month on free plans. */
+const aiUsageWindow = (state) => state.periodStart;
+
+// ---- Route middleware ----
+
+/** Job publishing limit for the organization in the request (kept for route-level use). */
 const checkRecruiterJobLimit = asyncHandler(async (req, _res, next) => {
   const orgId = req.auth?.organizationId;
   if (!orgId) return next();
-
-  const sub = await getOrCreateOrgSubscription(orgId);
-  const activeJobs = await Job.countDocuments({
-    organization: orgId,
-    status: "published",
-  });
-
-  // Update real usage count
-  sub.usage.activeJobsCount = activeJobs;
-  await sub.save();
-
-  if (activeJobs >= (sub.limits?.activeJobs ?? 3)) {
-    const plan = ALL_PLANS[sub.planTier] || RECRUITER_PLANS.recruiter_starter;
-    throw new AppError(
-      `Your current ${plan.name} plan has reached the maximum of ${sub.limits.activeJobs} active job postings. Upgrade your plan to Growth or Enterprise to publish additional positions.`,
-      403,
-      "UPGRADE_REQUIRED",
-    );
-  }
-
-  req.subscription = sub;
+  await assertCanPublishJob(orgId);
   next();
 });
 
-/**
- * Middleware: Enforces team member seats limits based on organization plan.
- */
+/** Team seat limit for the organization in the request (kept for route-level use). */
 const checkRecruiterTeamLimit = asyncHandler(async (req, _res, next) => {
   const orgId = req.auth?.organizationId;
   if (!orgId) return next();
-
-  const sub = await getOrCreateOrgSubscription(orgId);
-  const activeMembers = await Membership.countDocuments({
-    organization: orgId,
-    status: "active",
-  });
-
-  // Update real usage count
-  sub.usage.teamMembersCount = activeMembers;
-  await sub.save();
-
-  if (activeMembers >= (sub.limits?.teamMembers ?? 2)) {
-    const plan = ALL_PLANS[sub.planTier] || RECRUITER_PLANS.recruiter_starter;
-    throw new AppError(
-      `Your current ${plan.name} plan allows up to ${sub.limits.teamMembers} team members. Upgrade your plan to invite more teammates.`,
-      403,
-      "UPGRADE_REQUIRED",
-    );
-  }
-
-  req.subscription = sub;
+  await assertCanInviteMember(orgId);
   next();
 });
 
 /**
- * Middleware: Checks candidate AI features quota.
+ * AI analysis quota. Counts stored AIAnalysis rows in the current usage window, so the quota cannot
+ * drift from what actually ran. Organization routes count the organization; personal routes count the user.
  */
-const checkCandidateAILimit = asyncHandler(async (req, _res, next) => {
-  const candidateId = req.user?._id;
-  if (!candidateId) return next();
+const checkAiPlanLimit = asyncHandler(async (req, _res, next) => {
+  const isOrgRoute = Boolean(req.params?.organizationId && req.auth?.organizationId);
+  const subscriberType = isOrgRoute ? "organization" : "candidate";
+  const subscriberId = isOrgRoute ? req.auth.organizationId : req.user?._id || req.auth?.userId;
+  if (!subscriberId) return next();
 
-  const sub = await getOrCreateCandidateSubscription(candidateId);
-  if (sub.planTier === "candidate_plus") {
-    req.subscription = sub;
-    return next();
-  }
-
-  if ((sub.usage?.aiAnalysesUsedThisMonth || 0) >= (sub.limits?.aiAnalysesPerMonth || 5)) {
+  const state = await getEffectiveSubscription(subscriberType, subscriberId);
+  const since = aiUsageWindow(state);
+  const scope = isOrgRoute ? { organization: subscriberId } : { user: subscriberId };
+  const used = await AIAnalysis.countDocuments({ ...scope, createdAt: { $gte: since } });
+  const decision = decideAiUse({ state, usedThisPeriod: used });
+  if (!decision.allowed) {
     throw new AppError(
-      "You have reached your free monthly AI usage limit. Upgrade to Career Plus for unlimited AI resume enhancements and interview preparation.",
+      `You have used the ${decision.limit} AI analyses included in your ${planNameOf(state.tier)} plan for this period. Upgrade your plan or try again next period.`,
       403,
       "UPGRADE_REQUIRED",
     );
   }
-
-  req.subscription = sub;
+  req.subscription = state;
   next();
 });
+
+/** Candidate AI quota (kept for compatibility; delegates to the shared AI limit). */
+const checkCandidateAILimit = checkAiPlanLimit;
 
 module.exports = {
   getOrCreateOrgSubscription,
   getOrCreateCandidateSubscription,
+  getEffectiveSubscription,
+  assertCanPublishJob,
+  assertCanInviteMember,
   checkRecruiterJobLimit,
   checkRecruiterTeamLimit,
   checkCandidateAILimit,
+  checkAiPlanLimit,
 };

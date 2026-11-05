@@ -12,6 +12,7 @@ const {
 const {
   getOrCreateCandidateSubscription,
   getOrCreateOrgSubscription,
+  getEffectiveSubscription,
 } = require("../middleware/subscriptionCheck");
 const { findActiveMembership } = require("../middleware/v1Auth");
 const Job = require("../models/Job");
@@ -122,10 +123,13 @@ exports.getCurrentSubscription = asyncHandler(async (req, res) => {
   }
 
   const planDetails = ALL_PLANS[sub.planTier] || ALL_PLANS.candidate_free;
+  // What is in force right now (expired or unpaid plans fall back to the free limits).
+  const entitlement = await getEffectiveSubscription(subscriber.subscriberType, subscriber.subscriberId);
   res.json({
     data: {
       subscription: sub,
       plan: planDetails,
+      entitlement,
     },
   });
 });
@@ -228,6 +232,15 @@ const activatePlan = async (txn, plan) => {
       },
     });
   } else {
+    if (sub.planTier !== txn.planTier || sub.status !== "active") {
+      await audit({
+        organization: txn.subscriberType === "organization" ? txn.subscriberId : null,
+        action: "subscription.plan_changed",
+        resourceType: "subscription",
+        resourceId: sub._id,
+        metadata: { from: sub.planTier, fromStatus: sub.status, to: txn.planTier, transaction: txn._id },
+      });
+    }
     sub.planTier = txn.planTier;
     sub.status = "active";
     sub.priceInr = plan.priceInr;

@@ -16,8 +16,7 @@ const organizationOwner = require("../utils/organizationOwner");
 const logger = require("../utils/logger");
 const { parse, applyCursor, meta } = require("../utils/pagination");
 const verificationService = require("../services/companyVerificationService");
-const { getOrCreateOrgSubscription } = require("../middleware/subscriptionCheck");
-const { ALL_PLANS, RECRUITER_PLANS } = require("../config/subscriptionPlans");
+const { assertCanInviteMember, getOrCreateOrgSubscription } = require("../middleware/subscriptionCheck");
 const { needsReviewQuery } = require("../domain/jobModerationPolicy");
 
 const slugify = (v) =>
@@ -321,19 +320,8 @@ exports.addMember = asyncHandler(async (req, res) => {
     throw new AppError("This person is already a member of the company", 409, "ALREADY_MEMBER");
 
   // Check Subscription Team Limit
-  const sub = await getOrCreateOrgSubscription(req.auth.organizationId);
-  const activeMembersCount = await Membership.countDocuments({
-    organization: req.auth.organizationId,
-    status: "active",
-  });
-  if (activeMembersCount >= (sub.limits?.teamMembers || 2)) {
-    const plan = ALL_PLANS[sub.planTier] || RECRUITER_PLANS.recruiter_starter;
-    throw new AppError(
-      `Your current ${plan.name} plan allows up to ${sub.limits.teamMembers} team members. Upgrade your plan to invite more teammates.`,
-      403,
-      "UPGRADE_REQUIRED",
-    );
-  }
+  // Plan seat limit (Phase 6), enforced on the server from the effective subscription.
+  await assertCanInviteMember(req.auth.organizationId);
 
   const actorIsOwner =
     req.auth.platformRole === "platform_admin" || req.membership?.role === "owner";
@@ -351,9 +339,6 @@ exports.addMember = asyncHandler(async (req, res) => {
     { role: req.body.role, status: "active", permissions: [], invitedBy: req.user._id, joinedAt: new Date() },
     { upsert: true, returnDocument: "after", runValidators: true },
   );
-
-  sub.usage.teamMembersCount = activeMembersCount + 1;
-  await sub.save();
 
   await audit({
     req,
@@ -500,19 +485,8 @@ exports.createInvitation = asyncHandler(async (req, res) => {
   const org = await Organization.findById(req.auth.organizationId);
 
   // Check Subscription Team Limit
-  const sub = await getOrCreateOrgSubscription(req.auth.organizationId);
-  const activeMembersCount = await Membership.countDocuments({
-    organization: req.auth.organizationId,
-    status: "active",
-  });
-  if (activeMembersCount >= (sub.limits?.teamMembers || 2)) {
-    const plan = ALL_PLANS[sub.planTier] || RECRUITER_PLANS.recruiter_starter;
-    throw new AppError(
-      `Your current ${plan.name} plan allows up to ${sub.limits.teamMembers} team members. Upgrade your plan to invite more teammates.`,
-      403,
-      "UPGRADE_REQUIRED",
-    );
-  }
+  // Plan seat limit (Phase 6), enforced on the server from the effective subscription.
+  await assertCanInviteMember(req.auth.organizationId);
 
   const actorIsOwner =
     req.auth.platformRole === "platform_admin" || req.membership?.role === "owner";
