@@ -153,7 +153,7 @@ test("an expired paid period reverts to the free limits, without deleting or unp
   assert.ok(expired);
   const res = await currentFor(ctx.owner, ctx.owner.orgId);
   assert.equal(res.body.data.entitlement.tier, "recruiter_free");
-  assert.equal(res.body.data.entitlement.status, "free");
+  assert.equal(res.body.data.entitlement.status, "expired", "the paid period is reported as expired, with free limits");
 
   const stored = await Subscription.findById(expired._id).lean();
   assert.equal(stored.status, "expired", "the expired record is kept with its status");
