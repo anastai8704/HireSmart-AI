@@ -1,7 +1,8 @@
 const mongoose = require("mongoose");
 const { protectRecords } = require("./plugins/protectRecords");
 
-const transactionStatuses = Object.freeze(["initiated", "captured", "failed", "refunded"]);
+// initiated -> captured | failed | cancelled ; captured -> refunded (full refund only).
+const transactionStatuses = Object.freeze(["initiated", "captured", "failed", "cancelled", "refunded"]);
 const paymentGateways = Object.freeze(["razorpay", "simulation"]);
 
 const paymentTransactionSchema = new mongoose.Schema(

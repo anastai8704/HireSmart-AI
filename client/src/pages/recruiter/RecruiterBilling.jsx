@@ -17,6 +17,7 @@ import { PageHeader } from "../../components/Product";
 import { subscriptionApi } from "../../lib/api";
 import { useAuth } from "../../context/useAuth";
 import { useToast } from "../../components/ui/useToast";
+import { openRazorpayCheckout } from "../../lib/razorpayCheckout";
 import { formatDate } from "../../lib/utils";
 
 export const RecruiterBilling = () => {
@@ -53,9 +54,19 @@ export const RecruiterBilling = () => {
     },
   });
 
+  const cancelCheckoutMutation = useMutation({
+    mutationFn: (body) => subscriptionApi.cancelCheckout(body, organizationId),
+  });
+
   const verifyMutation = useMutation({
     mutationFn: (payload) => subscriptionApi.verifyPayment(payload, organizationId),
     onSuccess: (res) => {
+      if (res.data?.status === "pending") {
+        // Delayed confirmation: the plan activates when the provider confirms the payment.
+        toast.info(res.data.message);
+        setProcessing(false);
+        return;
+      }
       toast.success(res.data?.message || "Plan upgraded successfully!");
       qc.invalidateQueries({ queryKey: ["recruiter-subscription"] });
       qc.invalidateQueries({ queryKey: ["recruiter-invoices"] });
@@ -93,6 +104,29 @@ export const RecruiterBilling = () => {
   const handleConfirmPayment = () => {
     if (!checkoutData) return;
     setProcessing(true);
+
+    // Razorpay test mode: the provider's Checkout collects the payment. The server then verifies it.
+    if (checkoutData.order?.mode === "razorpay_test") {
+      openRazorpayCheckout({
+        order: checkoutData.order,
+        plan: selectedPlan,
+        handlers: {
+          onSuccess: (payment) => verifyMutation.mutate({ ...payment, planTier: selectedPlan.tier }),
+          onDismiss: () => {
+            setProcessing(false);
+            cancelCheckoutMutation.mutate({ orderId: checkoutData.order.orderId });
+          },
+          onFailed: (message) => {
+            setProcessing(false);
+            toast.error(message || "The payment was not successful. You can try again.");
+          },
+        },
+      }).catch((error) => {
+        setProcessing(false);
+        toast.error(error.message || "Could not open the payment window");
+      });
+      return;
+    }
 
     const helper = checkoutData.simulationHelper;
     if (!helper) {

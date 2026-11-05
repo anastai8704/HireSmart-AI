@@ -11,6 +11,7 @@ const MANAGED_VARS = [
   "PAYMENT_SIMULATION_SECRET",
   "RAZORPAY_KEY_ID",
   "RAZORPAY_KEY_SECRET",
+  "RAZORPAY_WEBHOOK_SECRET",
 ];
 
 const withEnv = (overrides, fn) => {
@@ -51,10 +52,18 @@ test("validatePaymentConfig rejects live or unknown payment modes", () => {
   }
 });
 
-test("validatePaymentConfig rejects live provider credentials even when payments are disabled", () =>
-  withEnv({ NODE_ENV: "development", RAZORPAY_KEY_ID: "placeholder-id" }, () => {
-    assert.throws(() => ps.validatePaymentConfig(), /Live payment provider credentials must not be configured/);
+test("validatePaymentConfig refuses Razorpay variables unless the mode is razorpay_test", () =>
+  withEnv({ NODE_ENV: "development", RAZORPAY_KEY_ID: "rzp_test_placeholder" }, () => {
+    assert.throws(() => ps.validatePaymentConfig(), /RAZORPAY_\* variables are set/);
   }));
+
+test("validatePaymentConfig rejects live provider credentials in every mode", () => {
+  for (const mode of ["disabled", "razorpay_test"]) {
+    withEnv({ NODE_ENV: "development", PAYMENT_MODE: mode, RAZORPAY_KEY_ID: "rzp_live_abc", RAZORPAY_KEY_SECRET: "s" }, () => {
+      assert.throws(() => ps.validatePaymentConfig(), /Live payment provider credentials must not be configured/);
+    });
+  }
+});
 
 test("validatePaymentConfig refuses simulation mode in production", () =>
   withEnv({ NODE_ENV: "production", PAYMENT_MODE: "simulation", PAYMENT_SIMULATION_SECRET: SECRET }, () => {

@@ -5,10 +5,14 @@ const { ALL_PLANS, CANDIDATE_PLANS, RECRUITER_PLANS } = require("../config/subsc
 const {
   createOrder,
   verifyPaymentSignature,
+  verifyRazorpayCheckoutSignature,
+  fetchProviderPayment,
   generateInvoiceNumber,
   generateSimulationPaymentId,
   generateSimulationSignature,
+  PAYMENT_MODE_RAZORPAY_TEST,
 } = require("../services/paymentService");
+const { amountMatches, failTransaction, captureTransaction } = require("../services/paymentProcessingService");
 const {
   getOrCreateCandidateSubscription,
   getOrCreateOrgSubscription,
@@ -169,7 +173,7 @@ exports.checkout = asyncHandler(async (req, res) => {
     amount,
     currency: "INR",
     status: "initiated",
-    gateway: "simulation",
+    gateway: order.mode === PAYMENT_MODE_RAZORPAY_TEST ? "razorpay" : "simulation",
     gatewayOrderId: order.orderId,
     invoiceNumber: generateInvoiceNumber(),
     metadata: {
@@ -205,56 +209,13 @@ exports.checkout = asyncHandler(async (req, res) => {
   });
 });
 
-/**
- * Activates a plan from a verified payment. Only called after the transaction was claimed.
- */
-const activatePlan = async (txn, plan) => {
-  const periodStart = new Date();
-  const periodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-  let sub = await Subscription.findOne({
-    subscriberType: txn.subscriberType,
-    subscriberId: txn.subscriberId,
-  });
-  if (!sub) {
-    sub = await Subscription.create({
-      subscriberType: txn.subscriberType,
-      subscriberId: txn.subscriberId,
-      planTier: txn.planTier,
-      status: "active",
-      priceInr: plan.priceInr,
-      currentPeriodStart: periodStart,
-      currentPeriodEnd: periodEnd,
-      limits: plan.limits,
-      usage: {
-        activeJobsCount: 0,
-        teamMembersCount: 1,
-        aiAnalysesUsedThisMonth: 0,
-      },
-    });
-  } else {
-    if (sub.planTier !== txn.planTier || sub.status !== "active") {
-      await audit({
-        organization: txn.subscriberType === "organization" ? txn.subscriberId : null,
-        action: "subscription.plan_changed",
-        resourceType: "subscription",
-        resourceId: sub._id,
-        metadata: { from: sub.planTier, fromStatus: sub.status, to: txn.planTier, transaction: txn._id },
-      });
-    }
-    sub.planTier = txn.planTier;
-    sub.status = "active";
-    sub.priceInr = plan.priceInr;
-    sub.currentPeriodStart = periodStart;
-    sub.currentPeriodEnd = periodEnd;
-    sub.limits = plan.limits;
-    sub.cancelAtPeriodEnd = false;
-    await sub.save();
-  }
-  return sub;
-};
 
 /**
- * Verify Payment & Activate Plan
+ * Verify Payment & Activate Plan.
+ * - simulation: the server-issued sandbox signature is checked (sandbox only).
+ * - razorpay: the Checkout signature is checked, then the payment is fetched from Razorpay and its order,
+ *   amount, currency and status are compared with the stored order. Only a captured payment activates.
+ *   A payment that is still authorized returns 202 "pending" and is completed by the webhook.
  */
 exports.verifyPayment = asyncHandler(async (req, res) => {
   const { orderId, paymentId, signature, planTier } = req.body;
@@ -269,7 +230,7 @@ exports.verifyPayment = asyncHandler(async (req, res) => {
     throw new AppError("Plan does not match the payment order", 400, "PLAN_MISMATCH");
   }
   if (txn.status !== "initiated") {
-    // Replays of a captured order, or orders already failed/refunded, never change state.
+    // Replays of a captured order, or orders already failed, cancelled or refunded, never change state.
     throw new AppError("Payment has already been processed", 409, "PAYMENT_ALREADY_PROCESSED");
   }
 
@@ -278,83 +239,92 @@ exports.verifyPayment = asyncHandler(async (req, res) => {
     throw new AppError("Invalid subscription plan tier", 400, "INVALID_PLAN");
   }
 
-  const expectedPaymentId = txn.metadata?.expectedPaymentId;
-  const isValid =
-    txn.gateway === "simulation" &&
-    Boolean(expectedPaymentId) &&
-    String(paymentId) === expectedPaymentId &&
-    verifyPaymentSignature({ orderId, paymentId, signature });
+  const invalidSignature = () =>
+    new AppError("Payment verification failed. Invalid transaction signature.", 400, "PAYMENT_VERIFICATION_FAILED");
 
-  if (!isValid) {
-    await PaymentTransaction.updateOne(
-      { _id: txn._id, status: "initiated" },
-      { $set: { status: "failed" } },
-    );
-    await audit({
-      req,
-      organization: txn.subscriberType === "organization" ? txn.subscriberId : null,
-      action: "subscription.payment_verification_failed",
-      resourceType: "payment_transaction",
-      resourceId: txn._id,
-      metadata: { planTier: txn.planTier },
-    });
-    throw new AppError(
-      "Payment verification failed. Invalid transaction signature.",
-      400,
-      "PAYMENT_VERIFICATION_FAILED",
-    );
-  }
-
-  // Atomically claim the order. Only one concurrent request can move initiated -> captured.
-  let claimed;
-  try {
-    claimed = await PaymentTransaction.findOneAndUpdate(
-      { _id: txn._id, status: "initiated" },
-      { $set: { status: "captured", gatewayPaymentId: String(paymentId), gatewaySignature: String(signature) } },
-      { returnDocument: "after" },
-    );
-  } catch (error) {
-    if (error?.code === 11000) {
-      throw new AppError("Payment has already been processed", 409, "PAYMENT_ALREADY_PROCESSED");
+  let outcome;
+  if (txn.gateway === "razorpay") {
+    if (!verifyRazorpayCheckoutSignature({ orderId, paymentId, signature })) {
+      await failTransaction(req, txn, "invalid_signature");
+      throw invalidSignature();
     }
-    throw error;
+    // Ask the provider for the payment itself. The client's word is not enough.
+    const payment = await fetchProviderPayment(paymentId);
+    if (String(payment.order_id) !== String(orderId)) {
+      await failTransaction(req, txn, "order_mismatch");
+      throw invalidSignature();
+    }
+    if (!amountMatches(payment, txn)) {
+      await failTransaction(req, txn, "amount_mismatch");
+      throw invalidSignature();
+    }
+    if (payment.status === "failed") {
+      await failTransaction(req, txn, "provider_failed");
+      throw new AppError("The payment was not successful. You can try again.", 400, "PAYMENT_FAILED");
+    }
+    if (payment.status !== "captured") {
+      // Delayed confirmation: keep the order initiated; the payment webhook will complete it.
+      res.status(202).json({
+        data: {
+          status: "pending",
+          message: "Your payment is awaiting confirmation. Your plan will activate once it is confirmed.",
+        },
+      });
+      return;
+    }
+    outcome = await captureTransaction({ txn, paymentId, signature, plan, req, source: "verify" });
+  } else {
+    const expectedPaymentId = txn.metadata?.expectedPaymentId;
+    const isValid =
+      txn.gateway === "simulation" &&
+      Boolean(expectedPaymentId) &&
+      String(paymentId) === expectedPaymentId &&
+      verifyPaymentSignature({ orderId, paymentId, signature });
+    if (!isValid) {
+      await failTransaction(req, txn, "invalid_signature");
+      throw invalidSignature();
+    }
+    outcome = await captureTransaction({ txn, paymentId, signature, plan, req, source: "verify" });
   }
-  if (!claimed) {
+
+  if (!outcome) {
     throw new AppError("Payment has already been processed", 409, "PAYMENT_ALREADY_PROCESSED");
   }
 
-  let sub;
-  try {
-    sub = await activatePlan(claimed, plan);
-  } catch (error) {
-    // Roll the claim back so the order is not left captured without an active plan.
-    await PaymentTransaction.updateOne(
-      { _id: claimed._id, status: "captured" },
-      { $set: { status: "initiated", gatewayPaymentId: "", gatewaySignature: "" } },
-    );
-    throw error;
-  }
-
-  await PaymentTransaction.updateOne({ _id: claimed._id }, { $set: { subscription: sub._id } });
-  const finalTxn = await PaymentTransaction.findById(claimed._id);
-
-  await audit({
-    req,
-    organization: txn.subscriberType === "organization" ? txn.subscriberId : null,
-    action: "subscription.upgrade",
-    resourceType: "subscription",
-    resourceId: sub._id,
-    metadata: { planTier: txn.planTier, amount: txn.amount, invoiceNumber: txn.invoiceNumber },
-  });
-
   res.json({
     data: {
-      subscription: sub,
-      transaction: publicTransaction(finalTxn),
+      subscription: outcome.sub,
+      transaction: publicTransaction(outcome.txn),
       plan,
       message: `Successfully upgraded to ${plan.name} plan!`,
     },
   });
+});
+
+/**
+ * The payer closed or abandoned Checkout. Only an initiated order can be cancelled; nothing is charged.
+ */
+exports.cancelCheckout = asyncHandler(async (req, res) => {
+  const { orderId } = req.body;
+  const txn = await PaymentTransaction.findOne({ gatewayOrderId: orderId });
+  if (!txn) {
+    throw new AppError("Payment order not found", 404, "PAYMENT_ORDER_NOT_FOUND");
+  }
+  await assertTransactionAccess(req, txn);
+
+  const result = await PaymentTransaction.updateOne({ _id: txn._id, status: "initiated" }, { $set: { status: "cancelled" } });
+  if (result.modifiedCount === 1) {
+    await audit({
+      req,
+      organization: txn.subscriberType === "organization" ? txn.subscriberId : null,
+      action: "subscription.checkout_cancelled",
+      resourceType: "payment_transaction",
+      resourceId: txn._id,
+      metadata: { planTier: txn.planTier },
+    });
+  }
+  const fresh = await PaymentTransaction.findById(txn._id);
+  res.json({ data: { transaction: publicTransaction(fresh) } });
 });
 
 /**

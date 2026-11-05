@@ -1104,6 +1104,18 @@ router.post(
   validate(verifyPaymentSchema),
   subscription.verifyPayment,
 );
+const cancelCheckoutSchema = strict({
+  orderId: z.string().min(1).max(100),
+});
+router.post(
+  "/subscriptions/checkout/cancel",
+  authenticate,
+  validate(cancelCheckoutSchema),
+  subscription.cancelCheckout,
+);
+// Provider webhook. Public by design: authenticated by the HMAC signature over the raw body, not by a session.
+const paymentWebhook = require("../controllers/v1PaymentWebhookController");
+router.post("/payments/webhooks/razorpay", paymentWebhook.razorpayWebhook);
 router.post("/subscriptions/cancel", authenticate, subscription.cancelSubscription);
 router.get("/subscriptions/invoices", authenticate, subscription.getInvoices);
 

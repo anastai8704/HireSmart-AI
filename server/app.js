@@ -83,7 +83,15 @@ app.use(helmet({ crossOriginResourcePolicy: { policy: "same-site" } }));
 app.use(cors(corsOptions));
 app.use(compression());
 app.use(cookieParser());
-app.use(express.json({ limit: "1mb" }));
+// The raw bytes are kept for webhook signature checks (the signature covers the exact body).
+app.use(
+  express.json({
+    limit: "1mb",
+    verify: (req, _res, buf) => {
+      req.rawBody = buf;
+    },
+  }),
+);
 app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 app.use(sanitizeRequest);
 app.use(hpp());
