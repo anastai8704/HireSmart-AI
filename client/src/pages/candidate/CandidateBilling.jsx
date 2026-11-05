@@ -14,6 +14,7 @@ import { PageHeader } from "../../components/Product";
 import { subscriptionApi } from "../../lib/api";
 import { useToast } from "../../components/ui/useToast";
 import { openRazorpayCheckout } from "../../lib/razorpayCheckout";
+import { hasYearlyPrice, cycleAvailable, displayPrice, cycleSuffix } from "../../lib/billingCycle";
 import { formatDate } from "../../lib/utils";
 
 export const CandidateBilling = () => {
@@ -23,6 +24,7 @@ export const CandidateBilling = () => {
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [checkoutData, setCheckoutData] = useState(null);
   const [processing, setProcessing] = useState(false);
+  const [billingCycle, setBillingCycle] = useState("monthly");
 
   const subQuery = useQuery({
     queryKey: ["candidate-subscription"],
@@ -40,7 +42,7 @@ export const CandidateBilling = () => {
   });
 
   const checkoutMutation = useMutation({
-    mutationFn: (planTier) => subscriptionApi.checkout({ planTier }),
+    mutationFn: ({ planTier, billingCycle }) => subscriptionApi.checkout({ planTier, billingCycle }),
     onSuccess: (res) => {
       setCheckoutData(res.data);
     },
@@ -49,12 +51,26 @@ export const CandidateBilling = () => {
     },
   });
 
+  const cancelMutation = useMutation({
+    mutationFn: () => subscriptionApi.cancel(),
+    onSuccess: (res) => {
+      toast.success(res.message || "Your subscription will not renew.");
+      qc.invalidateQueries({ queryKey: ["candidate-subscription"] });
+    },
+    onError: (err) => {
+      toast.error(err.message || "Could not cancel the subscription. Please try again.");
+    },
+  });
+
   const cancelCheckoutMutation = useMutation({
     mutationFn: (body) => subscriptionApi.cancelCheckout(body),
   });
 
   const verifyMutation = useMutation({
-    mutationFn: (payload) => subscriptionApi.verifyPayment(payload),
+    mutationFn: ({ kind, ...payload }) =>
+      kind === "subscription"
+        ? subscriptionApi.verifySubscription(payload)
+        : subscriptionApi.verifyPayment(payload),
     onSuccess: (res) => {
       if (res.data?.status === "pending") {
         // Delayed confirmation: the plan activates when the provider confirms the payment.
@@ -92,23 +108,31 @@ export const CandidateBilling = () => {
 
   const handleOpenUpgrade = (plan) => {
     setSelectedPlan(plan);
-    checkoutMutation.mutate(plan.tier);
+    checkoutMutation.mutate({ planTier: plan.tier, billingCycle });
   };
 
   const handleConfirmPayment = () => {
     if (!checkoutData) return;
     setProcessing(true);
 
-    // Razorpay test mode: the provider's Checkout collects the payment. The server then verifies it.
-    if (checkoutData.order?.mode === "razorpay_test") {
+    // Razorpay test mode: a recurring subscription. Checkout authorises it; the server verifies the charge.
+    if (checkoutData.subscription?.mode === "razorpay_subscription") {
+      const subscription = checkoutData.subscription;
       openRazorpayCheckout({
-        order: checkoutData.order,
+        order: subscription,
         plan: selectedPlan,
         handlers: {
-          onSuccess: (payment) => verifyMutation.mutate({ ...payment, planTier: selectedPlan.tier }),
+          onSuccess: (payment) =>
+            verifyMutation.mutate({
+              kind: "subscription",
+              subscriptionId: payment.subscriptionId,
+              paymentId: payment.paymentId,
+              signature: payment.signature,
+              planTier: selectedPlan.tier,
+            }),
           onDismiss: () => {
             setProcessing(false);
-            cancelCheckoutMutation.mutate({ orderId: checkoutData.order.orderId });
+            cancelCheckoutMutation.mutate({ subscriptionId: subscription.subscriptionId });
           },
           onFailed: (message) => {
             setProcessing(false);
@@ -176,11 +200,45 @@ export const CandidateBilling = () => {
               leftIcon={<Zap className="h-4 w-4" />}
               onClick={() => handleOpenUpgrade(candidatePlans.find((p) => p.tier === "candidate_plus") || candidatePlans[1])}
             >
-              Upgrade to Career Plus (₹149/mo)
+              Upgrade to Career Plus
             </Button>
           )}
         </div>
       </div>
+
+      {hasYearlyPrice(candidatePlans) && (
+        <div role="group" aria-label="Billing cycle" className="inline-flex rounded-lg border border-ink-200 p-1 text-xs font-semibold">
+          {["monthly", "yearly"].map((c) => (
+            <button
+              key={c}
+              type="button"
+              aria-pressed={billingCycle === c}
+              onClick={() => setBillingCycle(c)}
+              className={`rounded-md px-3 py-1.5 ${billingCycle === c ? "bg-brand-600 text-white" : "text-ink-600 hover:bg-ink-50"}`}
+            >
+              {c === "monthly" ? "Monthly" : "Yearly"}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {sub.status === "past_due" && (
+        <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          Your last renewal payment did not go through. Please check your payment method. Your plan stays active for a short grace period.
+        </div>
+      )}
+      {sub.cancelAtPeriodEnd && ["active", "past_due"].includes(sub.status) && (
+        <div className="rounded-xl border border-ink-200 bg-ink-50 p-4 text-sm text-ink-700">
+          Your plan will not renew. It stays active until {formatDate(sub.currentPeriodEnd)}.
+        </div>
+      )}
+      {sub.providerSubscriptionId && ["active", "past_due"].includes(sub.status) && !sub.cancelAtPeriodEnd && (
+        <div className="flex justify-end">
+          <Button variant="outline" loading={cancelMutation.isPending} onClick={() => cancelMutation.mutate()}>
+            Cancel renewal
+          </Button>
+        </div>
+      )}
 
       {/* Comparison Grid */}
       <div className="grid gap-6 md:grid-cols-2">
@@ -206,9 +264,9 @@ export const CandidateBilling = () => {
                 <p className="mt-1 text-xs text-ink-500">{p.description}</p>
                 <div className="mt-4 flex items-baseline gap-1">
                   <span className="text-3xl font-extrabold text-ink-950">
-                    ₹{p.priceInr.toLocaleString("en-IN")}
+                    {displayPrice(p, billingCycle)}
                   </span>
-                  <span className="text-xs text-ink-500">/ month</span>
+                  <span className="text-xs text-ink-500">/ {cycleSuffix(billingCycle)}</span>
                 </div>
 
                 <hr className="my-5 border-ink-100" />
@@ -233,8 +291,9 @@ export const CandidateBilling = () => {
                     variant="primary"
                     className="w-full"
                     onClick={() => handleOpenUpgrade(p)}
+                    disabled={!cycleAvailable(p, billingCycle)}
                   >
-                    Unlock Career Plus (₹149/mo)
+                    Unlock Career Plus
                   </Button>
                 )}
               </div>
@@ -295,10 +354,10 @@ export const CandidateBilling = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <h4 className="font-bold text-ink-950">{selectedPlan.name} Membership</h4>
-                  <p className="text-xs text-ink-500">Instant AI unlock · 30-day billing</p>
+                  <p className="text-xs text-ink-500">Instant AI unlock · {billingCycle === "yearly" ? "Yearly" : "Monthly"} billing</p>
                 </div>
                 <span className="text-2xl font-extrabold text-brand-700">
-                  ₹{selectedPlan.priceInr.toLocaleString("en-IN")}
+                  {displayPrice(selectedPlan, billingCycle)}
                 </span>
               </div>
             </div>
@@ -337,7 +396,7 @@ export const CandidateBilling = () => {
                 onClick={handleConfirmPayment}
                 loading={processing || checkoutMutation.isPending}
               >
-                Confirm & Pay ₹{selectedPlan.priceInr.toLocaleString("en-IN")}
+                Confirm & Pay {displayPrice(selectedPlan, billingCycle)}
               </Button>
             </div>
           </div>

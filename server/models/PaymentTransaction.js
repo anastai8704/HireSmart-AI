@@ -73,6 +73,11 @@ const paymentTransactionSchema = new mongoose.Schema(
       default: "",
       index: true,
     },
+    // Razorpay recurring billing: the provider subscription this charge belongs to.
+    providerSubscriptionId: {
+      type: String,
+      default: "",
+    },
     metadata: {
       type: mongoose.Schema.Types.Mixed,
       default: {},
@@ -94,6 +99,12 @@ paymentTransactionSchema.index(
 paymentTransactionSchema.index(
   { gatewayPaymentId: 1 },
   { unique: true, partialFilterExpression: { gatewayPaymentId: { $gt: "" } } },
+);
+
+// A provider subscription can have many charges, but each initial authorisation maps to one transaction.
+paymentTransactionSchema.index(
+  { providerSubscriptionId: 1, status: 1 },
+  { partialFilterExpression: { providerSubscriptionId: { $gt: "" } } },
 );
 
 paymentTransactionSchema.plugin(protectRecords);

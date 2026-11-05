@@ -291,6 +291,8 @@ export const subscriptionApi = {
     api.post("/subscriptions/checkout", body, orgConfig(organizationId)),
   verifyPayment: (body, organizationId) =>
     api.post("/subscriptions/verify-payment", body, orgConfig(organizationId)),
+  verifySubscription: (body, organizationId) =>
+    api.post("/subscriptions/verify-subscription", body, orgConfig(organizationId)),
   cancelCheckout: (body, organizationId) =>
     api.post("/subscriptions/checkout/cancel", body, orgConfig(organizationId)),
   cancel: (organizationId) => api.post("/subscriptions/cancel", undefined, orgConfig(organizationId)),

@@ -163,41 +163,22 @@ const providerError = () => {
 };
 
 /**
- * Creates a payment order. The amount is in rupees here and converted to paise for Razorpay.
- * The caller must pass the server-side plan price.
+ * Creates a one-time sandbox order. Simulation only. Razorpay test mode sells recurring subscriptions
+ * (createProviderSubscription), so it never creates one-time orders. The amount is in rupees and comes from
+ * the server-side plan.
  */
 const createOrder = async ({ amount, currency = "INR", receipt = "" }) => {
-  const cfg = requireEnabled();
-  const cleanCurrency = String(currency).toUpperCase();
-  if (cfg.mode === PAYMENT_MODE_SIMULATION) {
-    return {
-      orderId: `order_sim_${crypto.randomBytes(12).toString("hex")}`,
-      amount,
-      currency: cleanCurrency,
-      receipt: receipt || `rcpt_sim_${Date.now()}`,
-      status: "created",
-      mode: PAYMENT_MODE_SIMULATION,
-    };
-  }
-  const shortReceipt = String(receipt || `rcpt_${Date.now()}`).slice(0, 40);
-  let order;
-  try {
-    order = await getProviderClient(cfg).orders.create({
-      amount: Math.round(Number(amount) * 100),
-      currency: cleanCurrency,
-      receipt: shortReceipt,
-    });
-  } catch {
-    throw providerError();
+  requireEnabled();
+  if (getPaymentMode() !== PAYMENT_MODE_SIMULATION) {
+    throw new AppError("One-time payments are not offered. Choose a recurring plan.", 409, "ONE_TIME_NOT_AVAILABLE");
   }
   return {
-    orderId: order.id,
-    amount: Number(amount),
-    currency: cleanCurrency,
-    receipt: order.receipt || shortReceipt,
-    status: order.status || "created",
-    mode: PAYMENT_MODE_RAZORPAY_TEST,
-    keyId: cfg.razorpayKeyId,
+    orderId: `order_sim_${crypto.randomBytes(12).toString("hex")}`,
+    amount,
+    currency: String(currency).toUpperCase(),
+    receipt: receipt || `rcpt_sim_${Date.now()}`,
+    status: "created",
+    mode: PAYMENT_MODE_SIMULATION,
   };
 };
 
@@ -234,6 +215,81 @@ const verifyRazorpayCheckoutSignature = ({ orderId, paymentId, signature }) => {
   if (!isRazorpayEnabled(cfg)) return false;
   const expected = crypto.createHmac("sha256", cfg.razorpayKeySecret).update(`${orderId}|${paymentId}`).digest("hex");
   return safeEqualHex(signature, expected);
+};
+
+/**
+ * Verifies the Checkout signature for a recurring subscription: HMAC-SHA256 of "payment_id|subscription_id"
+ * with the key secret. Returns false for bad input or when razorpay_test is not configured.
+ */
+const verifyRazorpaySubscriptionSignature = ({ subscriptionId, paymentId, signature }) => {
+  if (!subscriptionId || !paymentId || !signature) return false;
+  const cfg = readPaymentConfig();
+  if (!isRazorpayEnabled(cfg)) return false;
+  const expected = crypto.createHmac("sha256", cfg.razorpayKeySecret).update(`${paymentId}|${subscriptionId}`).digest("hex");
+  return safeEqualHex(signature, expected);
+};
+
+/** Creates a Razorpay plan (period monthly|yearly, interval 1). The amount is in paise. */
+const createProviderPlan = async ({ period, interval = 1, name, amountPaise, currency = "INR", notes = {} }) => {
+  const cfg = requireEnabled();
+  if (cfg.mode !== PAYMENT_MODE_RAZORPAY_TEST) {
+    throw new AppError("Recurring billing is not configured on this server", 503, "PAYMENT_NOT_CONFIGURED");
+  }
+  try {
+    return await getProviderClient(cfg).plans.create({
+      period,
+      interval,
+      item: { name, amount: amountPaise, currency, description: name },
+      notes,
+    });
+  } catch {
+    throw providerError();
+  }
+};
+
+/** Creates a Razorpay subscription in state "created". The browser authorises it with Checkout. */
+const createProviderSubscription = async ({ planId, totalCount, notes = {} }) => {
+  const cfg = requireEnabled();
+  if (cfg.mode !== PAYMENT_MODE_RAZORPAY_TEST) {
+    throw new AppError("Recurring billing is not configured on this server", 503, "PAYMENT_NOT_CONFIGURED");
+  }
+  try {
+    return await getProviderClient(cfg).subscriptions.create({
+      plan_id: planId,
+      total_count: totalCount,
+      quantity: 1,
+      customer_notify: 1,
+      notes,
+    });
+  } catch {
+    throw providerError();
+  }
+};
+
+/** Reads a subscription from the provider. Used to confirm state before the server changes anything. */
+const fetchProviderSubscription = async (subscriptionId) => {
+  const cfg = requireEnabled();
+  if (cfg.mode !== PAYMENT_MODE_RAZORPAY_TEST) {
+    throw new AppError("Recurring billing is not configured on this server", 503, "PAYMENT_NOT_CONFIGURED");
+  }
+  try {
+    return await getProviderClient(cfg).subscriptions.fetch(String(subscriptionId));
+  } catch {
+    throw providerError();
+  }
+};
+
+/** Cancels at the end of the current billing cycle, so the paid period is not cut short. */
+const cancelProviderSubscription = async (subscriptionId) => {
+  const cfg = requireEnabled();
+  if (cfg.mode !== PAYMENT_MODE_RAZORPAY_TEST) {
+    throw new AppError("Recurring billing is not configured on this server", 503, "PAYMENT_NOT_CONFIGURED");
+  }
+  try {
+    return await getProviderClient(cfg).subscriptions.cancel(String(subscriptionId), true);
+  } catch {
+    throw providerError();
+  }
 };
 
 /**
@@ -283,7 +339,12 @@ module.exports = {
   generateSimulationSignature,
   verifyPaymentSignature,
   verifyRazorpayCheckoutSignature,
+  verifyRazorpaySubscriptionSignature,
   verifyRazorpayWebhookSignature,
+  createProviderPlan,
+  createProviderSubscription,
+  fetchProviderSubscription,
+  cancelProviderSubscription,
   fetchProviderPayment,
   setProviderClientForTests,
   generateInvoiceNumber,

@@ -20,6 +20,25 @@ describe("buildCheckoutOptions", () => {
   });
 });
 
+describe("buildCheckoutOptions for a subscription", () => {
+  const subscription = { subscriptionId: "sub_TEST1", keyId: "rzp_test_key", billingCycle: "monthly" };
+
+  it("opens Checkout with the subscription id and no amount or order id", () => {
+    const opts = buildCheckoutOptions({ order: subscription, plan: { name: "Career Plus" }, onSuccess: vi.fn() });
+    expect(opts.subscription_id).toBe("sub_TEST1");
+    expect(opts.key).toBe("rzp_test_key");
+    expect(opts.amount).toBeUndefined();
+    expect(opts.order_id).toBeUndefined();
+  });
+
+  it("maps the subscription success fields to subscriptionId, paymentId and signature", () => {
+    const onSuccess = vi.fn();
+    const opts = buildCheckoutOptions({ order: subscription, onSuccess });
+    opts.handler({ razorpay_subscription_id: "sub_TEST1", razorpay_payment_id: "pay_1", razorpay_signature: "sig" });
+    expect(onSuccess).toHaveBeenCalledWith({ subscriptionId: "sub_TEST1", paymentId: "pay_1", signature: "sig" });
+  });
+});
+
 describe("openRazorpayCheckout", () => {
   let instances;
   beforeEach(() => {

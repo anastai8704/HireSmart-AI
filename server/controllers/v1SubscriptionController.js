@@ -5,14 +5,21 @@ const { ALL_PLANS, CANDIDATE_PLANS, RECRUITER_PLANS } = require("../config/subsc
 const {
   createOrder,
   verifyPaymentSignature,
-  verifyRazorpayCheckoutSignature,
   fetchProviderPayment,
   generateInvoiceNumber,
   generateSimulationPaymentId,
   generateSimulationSignature,
+  getPaymentMode,
   PAYMENT_MODE_RAZORPAY_TEST,
 } = require("../services/paymentService");
-const { amountMatches, failTransaction, captureTransaction } = require("../services/paymentProcessingService");
+const {
+  startSubscriptionCheckout,
+  recordCharge,
+  requestCancellation,
+  fetchProviderSubscription,
+  verifyRazorpaySubscriptionSignature,
+} = require("../services/recurringBillingService");
+const { failTransaction, captureTransaction } = require("../services/paymentProcessingService");
 const {
   getOrCreateCandidateSubscription,
   getOrCreateOrgSubscription,
@@ -139,7 +146,9 @@ exports.getCurrentSubscription = asyncHandler(async (req, res) => {
 });
 
 /**
- * Initiate Checkout Order. The price always comes from the server-side plan definition.
+ * Starts a purchase. The price always comes from the server-side plan definition.
+ * - razorpay_test: a recurring Razorpay subscription. Yearly is offered only when the plan has a yearly price.
+ * - simulation: a one-time sandbox order (development and tests only, never a recurring charge).
  */
 exports.checkout = asyncHandler(async (req, res) => {
   const { planTier, billingCycle = "monthly" } = req.body;
@@ -156,13 +165,37 @@ exports.checkout = asyncHandler(async (req, res) => {
     permission: targetPlan.role === "candidate" ? null : ORGANIZATION_PERMISSION,
   });
 
+  if (getPaymentMode() === PAYMENT_MODE_RAZORPAY_TEST) {
+    await assertNoRecurringSubscription(subscriber);
+    const started = await startSubscriptionCheckout({ req, subscriber, plan: targetPlan, billingCycle });
+    res.json({
+      data: {
+        subscription: {
+          mode: "razorpay_subscription",
+          subscriptionId: started.subscriptionId,
+          keyId: started.keyId,
+          amount: started.amount,
+          currency: started.currency,
+          billingCycle: started.billingCycle,
+        },
+        transaction: publicTransaction(started.transaction),
+        plan: targetPlan,
+        simulationHelper: null,
+      },
+    });
+    return;
+  }
+
+  // Simulation: one-time sandbox order. Recurring billing needs the Razorpay test mode.
+  if (billingCycle !== "monthly") {
+    throw new AppError("Yearly billing is not available in the sandbox.", 400, "BILLING_CYCLE_NOT_AVAILABLE");
+  }
   const amount = targetPlan.priceInr;
   const order = await createOrder({
     amount,
     currency: "INR",
     receipt: `order_${subscriber.subscriberType}_${Date.now()}`,
   });
-
   const expectedPaymentId = order.mode === "simulation" ? generateSimulationPaymentId() : null;
 
   const transaction = await PaymentTransaction.create({
@@ -173,7 +206,7 @@ exports.checkout = asyncHandler(async (req, res) => {
     amount,
     currency: "INR",
     status: "initiated",
-    gateway: order.mode === PAYMENT_MODE_RAZORPAY_TEST ? "razorpay" : "simulation",
+    gateway: "simulation",
     gatewayOrderId: order.orderId,
     invoiceNumber: generateInvoiceNumber(),
     metadata: {
@@ -209,13 +242,30 @@ exports.checkout = asyncHandler(async (req, res) => {
   });
 });
 
+/** A subscriber may hold one recurring subscription at a time. Plan changes are a cancel and a new purchase. */
+const assertNoRecurringSubscription = async (subscriber) => {
+  const existing = await Subscription.findOne({
+    subscriberType: subscriber.subscriberType,
+    subscriberId: subscriber.subscriberId,
+  }).lean();
+  if (
+    existing?.providerSubscriptionId &&
+    ["active", "past_due"].includes(existing.status) &&
+    !existing.cancelAtPeriodEnd
+  ) {
+    throw new AppError(
+      "This account already has an active recurring subscription. Cancel it before choosing another plan.",
+      409,
+      "ALREADY_SUBSCRIBED",
+    );
+  }
+};
+
+const invalidVerification = () =>
+  new AppError("Payment verification failed. Invalid transaction signature.", 400, "PAYMENT_VERIFICATION_FAILED");
 
 /**
- * Verify Payment & Activate Plan.
- * - simulation: the server-issued sandbox signature is checked (sandbox only).
- * - razorpay: the Checkout signature is checked, then the payment is fetched from Razorpay and its order,
- *   amount, currency and status are compared with the stored order. Only a captured payment activates.
- *   A payment that is still authorized returns 202 "pending" and is completed by the webhook.
+ * Verify Payment & Activate Plan (sandbox only). Razorpay test mode uses verify-subscription.
  */
 exports.verifyPayment = asyncHandler(async (req, res) => {
   const { orderId, paymentId, signature, planTier } = req.body;
@@ -239,58 +289,21 @@ exports.verifyPayment = asyncHandler(async (req, res) => {
     throw new AppError("Invalid subscription plan tier", 400, "INVALID_PLAN");
   }
 
-  const invalidSignature = () =>
-    new AppError("Payment verification failed. Invalid transaction signature.", 400, "PAYMENT_VERIFICATION_FAILED");
-
-  let outcome;
-  if (txn.gateway === "razorpay") {
-    if (!verifyRazorpayCheckoutSignature({ orderId, paymentId, signature })) {
-      await failTransaction(req, txn, "invalid_signature");
-      throw invalidSignature();
-    }
-    // Ask the provider for the payment itself. The client's word is not enough.
-    const payment = await fetchProviderPayment(paymentId);
-    if (String(payment.order_id) !== String(orderId)) {
-      await failTransaction(req, txn, "order_mismatch");
-      throw invalidSignature();
-    }
-    if (!amountMatches(payment, txn)) {
-      await failTransaction(req, txn, "amount_mismatch");
-      throw invalidSignature();
-    }
-    if (payment.status === "failed") {
-      await failTransaction(req, txn, "provider_failed");
-      throw new AppError("The payment was not successful. You can try again.", 400, "PAYMENT_FAILED");
-    }
-    if (payment.status !== "captured") {
-      // Delayed confirmation: keep the order initiated; the payment webhook will complete it.
-      res.status(202).json({
-        data: {
-          status: "pending",
-          message: "Your payment is awaiting confirmation. Your plan will activate once it is confirmed.",
-        },
-      });
-      return;
-    }
-    outcome = await captureTransaction({ txn, paymentId, signature, plan, req, source: "verify" });
-  } else {
-    const expectedPaymentId = txn.metadata?.expectedPaymentId;
-    const isValid =
-      txn.gateway === "simulation" &&
-      Boolean(expectedPaymentId) &&
-      String(paymentId) === expectedPaymentId &&
-      verifyPaymentSignature({ orderId, paymentId, signature });
-    if (!isValid) {
-      await failTransaction(req, txn, "invalid_signature");
-      throw invalidSignature();
-    }
-    outcome = await captureTransaction({ txn, paymentId, signature, plan, req, source: "verify" });
+  const expectedPaymentId = txn.metadata?.expectedPaymentId;
+  const isValid =
+    txn.gateway === "simulation" &&
+    Boolean(expectedPaymentId) &&
+    String(paymentId) === expectedPaymentId &&
+    verifyPaymentSignature({ orderId, paymentId, signature });
+  if (!isValid) {
+    await failTransaction(req, txn, "invalid_signature");
+    throw invalidVerification();
   }
 
+  const outcome = await captureTransaction({ txn, paymentId, signature, plan, req, source: "verify" });
   if (!outcome) {
     throw new AppError("Payment has already been processed", 409, "PAYMENT_ALREADY_PROCESSED");
   }
-
   res.json({
     data: {
       subscription: outcome.sub,
@@ -302,11 +315,82 @@ exports.verifyPayment = asyncHandler(async (req, res) => {
 });
 
 /**
+ * Verify a recurring Razorpay subscription after Checkout (Phase 7b).
+ * 1. The Checkout signature is checked (HMAC of payment_id|subscription_id).
+ * 2. The subscription and the payment are fetched from Razorpay. Their status, plan, amount and currency are checked.
+ * 3. The charge is recorded through the same idempotent path the webhook uses.
+ * A payment or subscription that is not yet active returns 202 pending. Webhooks complete it later.
+ */
+exports.verifySubscription = asyncHandler(async (req, res) => {
+  const { subscriptionId, paymentId, signature, planTier } = req.body;
+
+  const txn = await PaymentTransaction.findOne({ providerSubscriptionId: subscriptionId }).sort({ createdAt: -1 });
+  if (!txn) {
+    throw new AppError("Payment order not found", 404, "PAYMENT_ORDER_NOT_FOUND");
+  }
+  await assertTransactionAccess(req, txn);
+  if (planTier && planTier !== txn.planTier) {
+    throw new AppError("Plan does not match the payment order", 400, "PLAN_MISMATCH");
+  }
+  if (txn.status !== "initiated") {
+    throw new AppError("Payment has already been processed", 409, "PAYMENT_ALREADY_PROCESSED");
+  }
+  if (!verifyRazorpaySubscriptionSignature({ subscriptionId, paymentId, signature })) {
+    await failTransaction(req, txn, "invalid_signature");
+    throw invalidVerification();
+  }
+
+  const providerSub = await fetchProviderSubscription(subscriptionId);
+  if (!["active", "authenticated"].includes(String(providerSub.status)) || Number(providerSub.paid_count || 0) < 1) {
+    res.status(202).json({ data: { status: "pending", message: "Your subscription is being set up. Your plan will activate once the first payment is confirmed." } });
+    return;
+  }
+
+  const payment = await fetchProviderPayment(paymentId);
+  if (String(payment.subscription_id || "") !== String(subscriptionId)) {
+    await failTransaction(req, txn, "subscription_mismatch");
+    throw invalidVerification();
+  }
+  if (payment.status === "failed") {
+    await failTransaction(req, txn, "provider_failed");
+    throw new AppError("The payment was not successful. You can try again.", 400, "PAYMENT_FAILED");
+  }
+  if (payment.status !== "captured") {
+    res.status(202).json({ data: { status: "pending", message: "Your payment is awaiting confirmation." } });
+    return;
+  }
+
+  const result = await recordCharge({ providerSub, payment, eventKey: `verify:${paymentId}`, req });
+  if (result.outcome === "already_recorded") {
+    throw new AppError("Payment has already been processed", 409, "PAYMENT_ALREADY_PROCESSED");
+  }
+  if (!["activated", "renewed"].includes(result.outcome)) {
+    await failTransaction(req, txn, result.outcome);
+    throw invalidVerification();
+  }
+
+  const sub = await Subscription.findOne({ providerSubscriptionId: subscriptionId }).lean();
+  const plan = ALL_PLANS[txn.planTier];
+  const finalTxn = await PaymentTransaction.findById(txn._id).lean();
+  res.json({
+    data: {
+      subscription: sub,
+      transaction: publicTransaction(finalTxn),
+      plan,
+      message: `Your ${plan.name} plan is active. It renews automatically each billing period.`,
+    },
+  });
+});
+
+/**
  * The payer closed or abandoned Checkout. Only an initiated order can be cancelled; nothing is charged.
+ * Accepts the order id (sandbox) or the subscription id (Razorpay).
  */
 exports.cancelCheckout = asyncHandler(async (req, res) => {
-  const { orderId } = req.body;
-  const txn = await PaymentTransaction.findOne({ gatewayOrderId: orderId });
+  const { orderId, subscriptionId } = req.body;
+  const txn = orderId
+    ? await PaymentTransaction.findOne({ gatewayOrderId: orderId })
+    : await PaymentTransaction.findOne({ providerSubscriptionId: subscriptionId }).sort({ createdAt: -1 });
   if (!txn) {
     throw new AppError("Payment order not found", 404, "PAYMENT_ORDER_NOT_FOUND");
   }
@@ -328,7 +412,8 @@ exports.cancelCheckout = asyncHandler(async (req, res) => {
 });
 
 /**
- * Cancel subscription renewal
+ * Cancel renewal. For a Razorpay subscription the provider cancels at the end of the billing period first;
+ * if the provider refuses, nothing changes locally.
  */
 exports.cancelSubscription = asyncHandler(async (req, res) => {
   const subscriber = await resolveBillingSubscriber(req, { permission: ORGANIZATION_PERMISSION });
@@ -342,6 +427,10 @@ exports.cancelSubscription = asyncHandler(async (req, res) => {
     throw new AppError("No active subscription found", 404, "RESOURCE_NOT_FOUND");
   }
 
+  const managed = Boolean(sub.providerSubscriptionId) && ["active", "past_due"].includes(sub.status);
+  if (managed) {
+    await requestCancellation(sub);
+  }
   sub.cancelAtPeriodEnd = true;
   await sub.save();
 
@@ -351,9 +440,15 @@ exports.cancelSubscription = asyncHandler(async (req, res) => {
     action: "subscription.cancel",
     resourceType: "subscription",
     resourceId: sub._id,
+    metadata: { providerCancelled: managed },
   });
 
-  res.json({ data: sub, message: "Subscription will not renew after current billing period." });
+  res.json({
+    data: sub,
+    message: managed
+      ? "Your subscription is cancelled. It will not renew after the current billing period."
+      : "Subscription will not renew after current billing period.",
+  });
 });
 
 /**

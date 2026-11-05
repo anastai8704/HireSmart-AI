@@ -60,6 +60,27 @@ const subscriptionSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    // Razorpay recurring billing (Phase 7b). Empty until a recurring subscription is authorised.
+    providerSubscriptionId: {
+      type: String,
+      default: "",
+    },
+    // Last status reported by the provider (created, authenticated, active, pending, halted, cancelled, ...).
+    providerStatus: {
+      type: String,
+      default: "",
+    },
+    // Consecutive failed renewal attempts reported by the provider. Reset to 0 on a successful charge.
+    renewalFailures: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    // When the subscription first entered past_due for the current failure run. Drives the grace window.
+    pastDueSince: {
+      type: Date,
+      default: null,
+    },
     limits: {
       activeJobs: { type: Number, default: 3 },
       teamMembers: { type: Number, default: 2 },
@@ -77,6 +98,11 @@ const subscriptionSchema = new mongoose.Schema(
 );
 
 subscriptionSchema.index({ subscriberType: 1, subscriberId: 1 }, { unique: true });
+// One provider subscription belongs to one internal record. Partial filter ignores the empty default.
+subscriptionSchema.index(
+  { providerSubscriptionId: 1 },
+  { unique: true, partialFilterExpression: { providerSubscriptionId: { $gt: "" } } },
+);
 
 subscriptionSchema.plugin(protectRecords);
 

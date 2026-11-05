@@ -35,26 +35,46 @@ export const loadRazorpayCheckout = () => {
 };
 
 /**
- * Builds the options passed to Razorpay Checkout. The amount shown is the server-created order's amount;
- * the provider charges the order, not a value the browser sends.
+ * Builds the options passed to Razorpay Checkout.
+ * - Subscription (`order.subscriptionId`): Checkout authorises the recurring subscription. No amount is sent;
+ *   the provider's subscription defines it. The success fields are returned under subscriptionId.
+ * - One-time order (`order.orderId`, sandbox only): the amount shown is the server-created order's amount.
+ * The browser never decides the price, and nothing here activates a plan.
  */
-export const buildCheckoutOptions = ({ order, plan, prefill = {}, onSuccess, onDismiss }) => ({
-  key: order.keyId,
-  amount: Math.round(Number(order.amount) * 100),
-  currency: order.currency || "INR",
-  order_id: order.orderId,
-  name: "HireSmart AI",
-  description: plan?.name ? `${plan.name} plan` : "Subscription",
-  prefill,
-  theme: { color: "#4f46e5" },
-  handler: (response) =>
-    onSuccess({
-      orderId: response.razorpay_order_id,
-      paymentId: response.razorpay_payment_id,
-      signature: response.razorpay_signature,
-    }),
-  modal: { ondismiss: () => onDismiss?.() },
-});
+export const buildCheckoutOptions = ({ order, plan, prefill = {}, onSuccess, onDismiss }) => {
+  const common = {
+    key: order.keyId,
+    name: "HireSmart AI",
+    description: plan?.name ? `${plan.name} plan` : "Subscription",
+    prefill,
+    theme: { color: "#4f46e5" },
+    modal: { ondismiss: () => onDismiss?.() },
+  };
+  if (order.subscriptionId) {
+    return {
+      ...common,
+      subscription_id: order.subscriptionId,
+      handler: (response) =>
+        onSuccess({
+          subscriptionId: response.razorpay_subscription_id,
+          paymentId: response.razorpay_payment_id,
+          signature: response.razorpay_signature,
+        }),
+    };
+  }
+  return {
+    ...common,
+    amount: Math.round(Number(order.amount) * 100),
+    currency: order.currency || "INR",
+    order_id: order.orderId,
+    handler: (response) =>
+      onSuccess({
+        orderId: response.razorpay_order_id,
+        paymentId: response.razorpay_payment_id,
+        signature: response.razorpay_signature,
+      }),
+  };
+};
 
 /**
  * Opens Checkout. `handlers.onDismiss` runs only when the payer closed the window without paying: a dismiss

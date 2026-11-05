@@ -24,6 +24,33 @@ const getEffectiveSubscription = async (subscriberType, subscriberId, now = new 
     status: { $in: ["active", "past_due"] },
   }).sort({ createdAt: -1 });
 
+  // A provider-managed subscription whose period ended is in grace, not expired: the provider's renewal
+  // charge (or its failure notice) may still be on its way. Cancelled subscriptions do not get grace.
+  if (
+    sub &&
+    sub.status === "active" &&
+    sub.providerSubscriptionId &&
+    !sub.cancelAtPeriodEnd &&
+    sub.currentPeriodEnd &&
+    new Date(sub.currentPeriodEnd) <= now
+  ) {
+    const periodEnd = new Date(sub.currentPeriodEnd);
+    const result = await Subscription.updateOne(
+      { _id: sub._id, status: "active", currentPeriodEnd: { $lte: now } },
+      { $set: { status: "past_due", pastDueSince: periodEnd } },
+    );
+    if (result.modifiedCount === 1) {
+      await audit({
+        organization: subscriberType === "organization" ? subscriberId : null,
+        action: "subscription.payment_grace_started",
+        resourceType: "subscription",
+        resourceId: sub._id,
+        metadata: { planTier: sub.planTier, periodEnd },
+      });
+    }
+    return effectiveState({ ...sub.toObject(), status: "past_due", pastDueSince: periodEnd }, subscriberType, now);
+  }
+
   if (sub && sub.status === "active" && sub.currentPeriodEnd && new Date(sub.currentPeriodEnd) <= now) {
     const result = await Subscription.updateOne(
       { _id: sub._id, status: "active", currentPeriodEnd: { $lte: now } },
@@ -40,7 +67,24 @@ const getEffectiveSubscription = async (subscriberType, subscriberId, now = new 
     }
     return effectiveState({ ...sub.toObject(), status: "expired" }, subscriberType, now);
   }
-  return effectiveState(sub ? sub.toObject() : null, subscriberType, now);
+  const effective = effectiveState(sub ? sub.toObject() : null, subscriberType, now);
+  // A past_due subscription whose grace window has ended is expired in the record too (eventual expiry).
+  if (sub && sub.status === "past_due" && effective.status === "expired") {
+    const result = await Subscription.updateOne(
+      { _id: sub._id, status: "past_due" },
+      { $set: { status: "expired" } },
+    );
+    if (result.modifiedCount === 1) {
+      await audit({
+        organization: subscriberType === "organization" ? subscriberId : null,
+        action: "subscription.expired",
+        resourceType: "subscription",
+        resourceId: sub._id,
+        metadata: { planTier: sub.planTier, reason: "payment_grace_ended", periodEnd: sub.currentPeriodEnd },
+      });
+    }
+  }
+  return effective;
 };
 
 /**

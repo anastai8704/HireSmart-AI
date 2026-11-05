@@ -10,6 +10,7 @@ const CANDIDATE_PLANS = Object.freeze({
     role: "candidate",
     priceInr: 0,
     billingCycle: "monthly",
+    yearlyPriceInr: null,
     description: "Essential career tools to discover jobs, upload resumes and apply to companies.",
     limits: {
       activeJobs: 0,
@@ -32,6 +33,7 @@ const CANDIDATE_PLANS = Object.freeze({
     role: "candidate",
     priceInr: 149,
     billingCycle: "monthly",
+    yearlyPriceInr: null,
     description: "Supercharge your job hunt with AI-powered resume enhancement, interview prep, and priority ranking.",
     limits: {
       activeJobs: 0,
@@ -60,6 +62,7 @@ const RECRUITER_PLANS = Object.freeze({
     role: "recruiter",
     priceInr: 0,
     billingCycle: "monthly",
+    yearlyPriceInr: null,
     description: "Verify your company and publish a limited number of job postings at no cost.",
     limits: {
       activeJobs: 1,
@@ -76,6 +79,7 @@ const RECRUITER_PLANS = Object.freeze({
     role: "recruiter",
     priceInr: 999,
     billingCycle: "monthly",
+    yearlyPriceInr: null,
     description: "Perfect for early-stage startups and small teams kicking off their technical hiring.",
     limits: {
       activeJobs: 3,
@@ -99,6 +103,7 @@ const RECRUITER_PLANS = Object.freeze({
     role: "recruiter",
     priceInr: 2499,
     billingCycle: "monthly",
+    yearlyPriceInr: null,
     description: "Designed for scaling businesses with active multi-role hiring pipelines.",
     limits: {
       activeJobs: 10,
@@ -123,6 +128,7 @@ const RECRUITER_PLANS = Object.freeze({
     role: "recruiter",
     priceInr: 7999,
     billingCycle: "monthly",
+    yearlyPriceInr: null,
     description: "Uncapped hiring capacity with comprehensive telemetry, custom governance, and dedicated support.",
     limits: {
       activeJobs: 100,

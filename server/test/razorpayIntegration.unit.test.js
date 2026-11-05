@@ -78,31 +78,48 @@ test("razorpay_test is refused in production and accepted with valid test config
   });
 });
 
-test("createOrder sends the server-side amount in paise and returns the public key only", async () => {
+test("one-time orders are refused in razorpay_test: recurring purchases use subscriptions", async () => {
   await withEnv(razorpayEnv, async () => {
     const fake = fakeClient();
     ps.setProviderClientForTests(fake);
-    const order = await ps.createOrder({ amount: 149, currency: "inr", receipt: "order_candidate_1" });
-    assert.deepEqual(fake.calls.create, [{ amount: 14900, currency: "INR", receipt: "order_candidate_1" }]);
-    assert.equal(order.orderId, "order_TESTabc123");
-    assert.equal(order.mode, "razorpay_test");
-    assert.equal(order.keyId, KEY_ID);
-    assert.equal(order.amount, 149);
-    assert.equal(order.keySecret, undefined, "the secret is never returned");
+    await assert.rejects(
+      () => ps.createOrder({ amount: 149, currency: "INR", receipt: "order_candidate_1" }),
+      (error) => error.code === "ONE_TIME_NOT_AVAILABLE" && error.statusCode === 409,
+    );
+    assert.equal(fake.calls.create.length, 0, "no provider order is created");
+  });
+});
+
+test("createProviderSubscription sends the plan, cycle count and notify flag; the amount is never sent here", async () => {
+  await withEnv(razorpayEnv, async () => {
+    const calls = [];
+    ps.setProviderClientForTests({
+      subscriptions: {
+        create: async (args) => {
+          calls.push(args);
+          return { id: "sub_TESTabc", status: "created" };
+        },
+      },
+    });
+    const sub = await ps.createProviderSubscription({ planId: "plan_TEST1", totalCount: 120, notes: { planTier: "candidate_plus" } });
+    assert.equal(sub.id, "sub_TESTabc");
+    assert.deepEqual(calls, [
+      { plan_id: "plan_TEST1", total_count: 120, quantity: 1, customer_notify: 1, notes: { planTier: "candidate_plus" } },
+    ]);
   });
 });
 
 test("a provider failure becomes a 502 without exposing the provider's message", async () => {
   await withEnv(razorpayEnv, async () => {
     ps.setProviderClientForTests({
-      orders: {
+      subscriptions: {
         create: async () => {
           throw new Error("Authentication failed for key rzp_test_unit_key_id");
         },
       },
     });
     await assert.rejects(
-      () => ps.createOrder({ amount: 149 }),
+      () => ps.createProviderSubscription({ planId: "plan_TEST1", totalCount: 120 }),
       (error) => {
         assert.equal(error.statusCode, 502);
         assert.equal(error.code, "PAYMENT_PROVIDER_ERROR");
@@ -152,4 +169,20 @@ test("fetchProviderPayment reads the payment from the provider", async () => {
     assert.equal(payment.status, "captured");
     assert.deepEqual(fake.calls.fetch, ["pay_TESTxyz789"]);
   });
+});
+
+test("priceFor: monthly uses the configured price; yearly is refused until a yearly price is configured", () => {
+  const { priceFor } = require("../services/recurringBillingService");
+  const { ALL_PLANS } = require("../config/subscriptionPlans");
+  const plan = ALL_PLANS.candidate_plus;
+  assert.equal(priceFor(plan, "monthly"), plan.priceInr);
+  assert.throws(() => priceFor({ ...plan, yearlyPriceInr: null }, "yearly"), (e) => e.code === "YEARLY_PRICE_NOT_CONFIGURED");
+  assert.equal(priceFor({ ...plan, yearlyPriceInr: 1490 }, "yearly"), 1490);
+  assert.throws(() => priceFor(plan, "weekly"), (e) => e.code === "INVALID_BILLING_CYCLE");
+});
+
+test("recurring cycles: monthly 120 cycles, yearly 10 cycles, interval 1", () => {
+  const { RECURRING } = require("../config/recurringBilling");
+  assert.deepEqual(RECURRING.monthly, { period: "monthly", interval: 1, totalCount: 120 });
+  assert.deepEqual(RECURRING.yearly, { period: "yearly", interval: 1, totalCount: 10 });
 });

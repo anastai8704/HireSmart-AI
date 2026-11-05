@@ -2,9 +2,12 @@ const crypto = require("node:crypto");
 const { PaymentTransaction } = require("../models/PaymentTransaction");
 const { Subscription } = require("../models/Subscription");
 const { PaymentWebhookEvent } = require("../models/PaymentWebhookEvent");
-const { ALL_PLANS } = require("../config/subscriptionPlans");
-const { isRazorpayEnabled, verifyRazorpayWebhookSignature } = require("../services/paymentService");
-const { amountMatches, failTransaction, captureTransaction } = require("../services/paymentProcessingService");
+const { isRazorpayEnabled, verifyRazorpayWebhookSignature, fetchProviderSubscription } = require("../services/paymentService");
+const {
+  recordCharge,
+  recordFailedCharge,
+  applyStatusEvent,
+} = require("../services/recurringBillingService");
 const { audit } = require("../services/auditService");
 const asyncHandler = require("../middleware/asyncHandler");
 const AppError = require("../utils/AppError");
@@ -15,53 +18,40 @@ const AppError = require("../utils/AppError");
  * - The signature is checked against the exact raw body bytes (X-Razorpay-Signature).
  * - Each delivery is recorded once by X-Razorpay-Event-Id. A redelivery of a processed event returns
  *   200 without changing state. A delivery that fails is forgotten so the provider's retry is processed.
- * - Amounts and currencies are compared with the stored order. A mismatch changes no state.
+ * - Charges are recorded through recurringBillingService, which checks the amount and currency and is idempotent per payment id.
+ *   A mismatch changes no state.
  * - Refunds: only a full refund revokes the plan it paid for. A partial refund is recorded for review.
  *   Revocation sets the subscription to expired. It never deletes jobs or other records.
  */
 
 const orgOf = (txn) => (txn.subscriberType === "organization" ? txn.subscriberId : null);
 
-const handlePaymentCaptured = async (payment) => {
-  const txn = await PaymentTransaction.findOne({ gatewayOrderId: String(payment.order_id) });
-  if (!txn || txn.gateway !== "razorpay") return { outcome: "unknown_order" };
-
-  if (!amountMatches(payment, txn)) {
-    await audit({
-      organization: orgOf(txn),
-      action: "subscription.webhook_amount_mismatch",
-      resourceType: "payment_transaction",
-      resourceId: txn._id,
-      metadata: { providerPaymentId: payment.id, planTier: txn.planTier },
-    });
-    return { outcome: "amount_mismatch" };
-  }
-  if (txn.status === "captured") {
-    return { outcome: txn.gatewayPaymentId === String(payment.id) ? "already_captured" : "needs_review" };
-  }
-  if (txn.status === "refunded") {
-    return { outcome: "needs_review" };
-  }
-
-  const plan = ALL_PLANS[txn.planTier];
-  if (!plan) return { outcome: "invalid_plan" };
-  const result = await captureTransaction({
-    txn,
-    paymentId: payment.id,
-    plan,
-    source: "webhook",
-    fromStatuses: ["initiated", "failed", "cancelled"],
-  });
-  return { outcome: result ? "activated" : "already_processed" };
+/** A subscription charge. Payments without a subscription id are not part of this product and are ignored. */
+const handlePaymentCaptured = async (payment, eventKey) => {
+  if (!payment.subscription_id) return { outcome: "ignored" };
+  const providerSub = await fetchProviderSubscription(payment.subscription_id);
+  const result = await recordCharge({ providerSub, payment, eventKey });
+  return { outcome: result.outcome };
 };
 
 const handlePaymentFailed = async (payment) => {
-  const txn = await PaymentTransaction.findOne({ gatewayOrderId: String(payment.order_id) });
-  if (!txn || txn.gateway !== "razorpay") return { outcome: "unknown_order" };
-  if (txn.status !== "initiated") return { outcome: "no_change" };
-  await failTransaction(null, txn, "provider_failed_webhook");
-  return { outcome: "failed" };
+  if (!payment.subscription_id) return { outcome: "ignored" };
+  const result = await recordFailedCharge({ providerSubscriptionId: String(payment.subscription_id), payment });
+  return { outcome: result.outcome };
 };
+
+const SUBSCRIPTION_STATUS_EVENTS = new Set([
+  "subscription.authenticated",
+  "subscription.activated",
+  "subscription.charged",
+  "subscription.pending",
+  "subscription.halted",
+  "subscription.cancelled",
+  "subscription.completed",
+  "subscription.paused",
+  "subscription.resumed",
+  "subscription.updated",
+]);
 
 const handleRefundProcessed = async (refund) => {
   const txn = await PaymentTransaction.findOne({ gatewayPaymentId: String(refund.payment_id) });
@@ -113,12 +103,25 @@ const handleRefundProcessed = async (refund) => {
   return { outcome: "refunded" };
 };
 
-const dispatch = async (event) => {
+const dispatch = async (event, eventKey) => {
   const payment = event.payload?.payment?.entity;
   const refund = event.payload?.refund?.entity;
+  const subscription = event.payload?.subscription?.entity;
+
+  if (SUBSCRIPTION_STATUS_EVENTS.has(event.event)) {
+    if (!subscription?.id) return { outcome: "invalid_payload" };
+    if (event.event === "subscription.charged") {
+      if (!payment) return { outcome: "invalid_payload" };
+      const result = await recordCharge({ providerSub: subscription, payment, eventKey });
+      return { outcome: result.outcome };
+    }
+    const result = await applyStatusEvent({ eventType: event.event, providerSub: subscription, eventKey });
+    return { outcome: result.outcome };
+  }
+
   switch (event.event) {
     case "payment.captured":
-      return payment ? handlePaymentCaptured(payment) : { outcome: "invalid_payload" };
+      return payment ? handlePaymentCaptured(payment, eventKey) : { outcome: "invalid_payload" };
     case "payment.failed":
       return payment ? handlePaymentFailed(payment) : { outcome: "invalid_payload" };
     case "refund.processed":
@@ -169,7 +172,7 @@ exports.razorpayWebhook = asyncHandler(async (req, res) => {
 
   let result;
   try {
-    result = await dispatch(event);
+    result = await dispatch(event, eventId);
   } catch (error) {
     // Forget the delivery so the provider's retry is processed. The record is a processing lock,
     // not a financial record, so it is removed explicitly.

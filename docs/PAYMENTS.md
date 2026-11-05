@@ -1,113 +1,113 @@
-# Payments (Phase 7)
+# Payments (Phase 7): Razorpay recurring subscriptions, test mode
 
-## Provider decision
+Status: implemented and covered by unit tests. The database-backed flow test (`server/test/paymentWebhooks.test.js`)
+runs in CI. **Live payments are not enabled and have not been tested against live credentials.** Everything here is
+verified only against Razorpay **Test Mode**, and the test suite uses an injected fake provider with no network calls.
 
-- **Razorpay**, test mode only in this release. Reasons: the platform sells in INR to an India-based
-  market; Razorpay offers Orders, Checkout, signed webhooks and refunds; and it has an official Node.js SDK
-  (`razorpay`, pinned to 2.9.8 in `server/package.json`).
-- There is no second gateway. The `simulation` mode remains a local sandbox for development and tests.
-- **Live payments are not enabled.** No live credentials were available, so no live payment has been tested.
-  Enabling live mode needs a separate, approved change: live keys, a live-mode review, and end-to-end testing
-  with those keys.
+## Scope
+
+- Companies (recruiters) and candidates buy a plan on a **monthly** or **yearly** cycle.
+- Razorpay Subscriptions authorise the recurring payment. Successful charges renew the paid period.
+- Failed charges move the subscription to `past_due`, notify the subscriber, and expire it after the grace window.
+- Cancellation stops renewal at the end of the paid period. Access continues until then.
+- Prices come only from `server/config/subscriptionPlans.js`. The browser never sends a price.
 
 ## Modes (`PAYMENT_MODE`)
 
-| Mode | Behaviour | Allowed when |
+| Mode | Use | Notes |
 | --- | --- | --- |
-| `disabled` (default) | Checkout returns 503. Nothing is created. | always |
-| `simulation` | Server-issued sandbox proof. Sandbox only. | `NODE_ENV` is `development` or `test` |
-| `razorpay_test` | Real Razorpay test-mode orders via the SDK. | `NODE_ENV` is not `production`; `RAZORPAY_KEY_ID` starts with `rzp_test_` |
+| `disabled` (default) | No payments | Checkout returns 503 and creates nothing. |
+| `simulation` | Local development and tests | One-time sandbox orders. Refused unless `NODE_ENV` is `development` or `test`. |
+| `razorpay_test` | Recurring subscriptions in Razorpay Test Mode | Keys must start with `rzp_test_`. Refused when `NODE_ENV=production`. |
 
-Startup validation (`validatePaymentConfig`) refuses any `rzp_live_` key, any `RAZORPAY_*` variable when the
-mode is not `razorpay_test`, and a `razorpay_test` configuration with a missing secret or a webhook secret
-shorter than 16 characters.
+Live keys (`rzp_live_`) are refused at startup. Live modes are not accepted in this release.
 
-## Environment variables (names only; never commit values)
+## Environment variables (no values in the repository)
 
-- `PAYMENT_MODE`: one of the modes above.
-- `RAZORPAY_KEY_ID`: test key id (`rzp_test_...`). Public to the browser; the server returns it with the order.
-- `RAZORPAY_KEY_SECRET`: test key secret. Server only. Never returned to clients.
-- `RAZORPAY_WEBHOOK_SECRET`: secret set on the webhook in the Razorpay test dashboard. At least 16 characters.
-- `PAYMENT_SIMULATION_SECRET`: only for `simulation`.
+Documented in `server/.env.example`:
 
-See `server/.env.example`.
+- `PAYMENT_MODE`
+- `PAYMENT_SIMULATION_SECRET`: only for `simulation`, 32+ characters.
+- `RAZORPAY_KEY_ID`: test key id (`rzp_test_…`).
+- `RAZORPAY_KEY_SECRET`: test key secret. Backend only. Never sent to the browser.
+- `RAZORPAY_WEBHOOK_SECRET`: webhook signing secret, 16+ characters. Set the same value on the Razorpay Test Mode webhook.
 
-## Workflow
+## Endpoints
 
-1. The authorised user selects a plan. `POST /api/v1/subscriptions/checkout` takes only `planTier`. The
-   server sets the price from the plan definition; a client-supplied `amount` is rejected by schema.
-2. The server creates the provider order (amount in paise) and a `PaymentTransaction` with `status=initiated`.
-   Only the order id and public key are returned.
-3. The browser opens Razorpay Checkout (`client/src/lib/razorpayCheckout.js`).
-4. On success the browser posts `orderId`, `paymentId`, `signature` to `POST /subscriptions/verify-payment`.
-   The server:
-   - verifies the Checkout signature (HMAC-SHA256 of `order_id|payment_id` with the key secret);
-   - fetches the payment from Razorpay;
-   - requires `payment.order_id` to match, and the amount and currency to match the stored order;
-   - activates the plan only when the provider reports `captured`.
-   - A payment that is still `authorized` returns **202 `pending`**. The plan is not activated.
-   - A `failed` payment marks the order failed.
-5. `POST /api/v1/payments/webhooks/razorpay` receives provider events. It is authenticated by the
-   `X-Razorpay-Signature` HMAC over the **raw** request body (captured by `express.json`'s `verify` hook).
-   The event id from `X-Razorpay-Event-Id` makes each delivery idempotent.
-6. Closing the Checkout window calls `POST /subscriptions/checkout/cancel`. Only an `initiated` order can be
-   cancelled. Nothing is charged.
+| Method and path | Purpose |
+| --- | --- |
+| `GET /api/v1/subscriptions/plans` | Plans with prices. `yearlyPriceInr` is `null` until a yearly price is configured. |
+| `POST /api/v1/subscriptions/checkout` | Body `{ planTier, billingCycle? }`. Creates the Razorpay plan (once per tier, cycle and amount) and a subscription in state `created`. Returns the subscription id and public key id. Refused with 409 `ALREADY_SUBSCRIBED` if a recurring subscription is active or in grace. Yearly without a configured price returns 400 `YEARLY_PRICE_NOT_CONFIGURED`. |
+| `POST /api/v1/subscriptions/verify-subscription` | Body `{ subscriptionId, paymentId, signature, planTier? }`. Verifies the Checkout signature, then fetches the subscription and payment from Razorpay, then records the charge. Returns 202 `pending` until the provider confirms. |
+| `POST /api/v1/subscriptions/checkout/cancel` | Body `{ subscriptionId }` (or `{ orderId }` for sandbox). Marks an abandoned checkout `cancelled`. Nothing is charged. |
+| `POST /api/v1/subscriptions/cancel` | Cancels renewal at period end at Razorpay. If the provider refuses, nothing changes locally. |
+| `GET /api/v1/subscriptions/current` | Current subscription and effective entitlement (grace and expiry applied). |
+| `GET /api/v1/subscriptions/invoices` | Transaction history with invoice numbers. |
+| `POST /api/v1/payments/webhooks/razorpay` | Razorpay webhook receiver. Public route authenticated by HMAC, see below. |
 
-The frontend's success callback is never treated as proof. A subscription changes only through
-`captureTransaction` (`server/services/paymentProcessingService.js`), which claims the order atomically.
+## Activation rules
 
-## Webhook events handled
+1. **Never from the browser.** Checkout's success callback starts `verify-subscription`. It does not activate anything.
+2. The server checks the Checkout signature: HMAC-SHA256 of `payment_id|subscription_id` with the key secret, compared in constant time.
+3. The server fetches the subscription from Razorpay. It activates only when the provider reports `active` (or `authenticated`) with at least one paid cycle.
+4. The server fetches the payment. Its subscription id must match, its amount and currency must match the server-side plan, and it must be `captured`.
+5. The charge is recorded by one shared function used by both the browser path and the webhook path (`recordCharge`).
+
+## Webhooks
+
+- The signature is HMAC-SHA256 of the **raw request body** with `RAZORPAY_WEBHOOK_SECRET`, from the `X-Razorpay-Signature` header. The raw body is captured in `server/app.js` before JSON parsing.
+- Each delivery is recorded once by `X-Razorpay-Event-Id` in `PaymentWebhookEvent` (unique `eventId`). A redelivery of a processed event returns `duplicate` and changes nothing. A failed delivery releases its lock so the provider's retry is processed.
+- Handled events:
 
 | Event | Effect |
 | --- | --- |
-| `payment.captured` | Activates the plan for an `initiated`, `failed` or `cancelled` order (the provider's capture is the source of truth). Amount or currency mismatch: no state change, audit entry. Already captured: no change. |
-| `payment.failed` | Marks an `initiated` order `failed`. |
-| `refund.processed` | Full refund: transaction becomes `refunded`; the subscription it paid for becomes `expired`. Partial refund: no state change; audit entry `subscription.partial_refund_review` for manual review. |
-| anything else | Recorded as `ignored`. |
+| `subscription.authenticated`, `subscription.updated`, `subscription.paused`, `subscription.resumed` | Provider status recorded. |
+| `subscription.activated` | Provider status recorded. Clears `past_due` only when a paid cycle exists. |
+| `subscription.charged` | `recordCharge`: first charge activates, later charges renew the period. |
+| `subscription.pending` | Failed renewal: `past_due`, `renewalFailures` incremented, subscriber notified. Repeats on each failed retry. |
+| `subscription.halted` | Retries exhausted: `past_due`, subscriber notified. Access ends after the grace window. |
+| `subscription.cancelled` | Cancel at period end is recorded. Access continues until the period ends. |
+| `subscription.completed` | Final cycle reached: cancel at period end. |
+| `payment.captured` | Only when the payment belongs to a subscription. Routed to `recordCharge`. |
+| `payment.failed` | Only when the payment belongs to a subscription. Failed attempt recorded in the history. |
+| `refund.processed` | Full refund of a charge expires the plan it paid for. Partial refund is audited for review, not modelled. |
+| Any other event | Recorded and ignored. |
 
-Redelivery: a processed event returns `200 {status:"duplicate"}` without state change. A delivery that fails is
-removed from the event log, so the provider's retry is processed. A delivery that arrives while another copy is
-processing returns `409`, so the provider retries later.
+Charges are idempotent per provider payment id (`gatewayPaymentId`). Out-of-order events do not move the period backwards. An amount or currency mismatch changes no state and writes an audit entry.
 
-## Statuses
+## Lifecycle
 
-`PaymentTransaction.status`: `initiated` → `captured` | `failed` | `cancelled`; `captured` → `refunded`
-(full refund only). Only `captured` orders count as revenue (Phase 5 analytics).
+| State | Meaning | Access |
+| --- | --- | --- |
+| `active` | Paid and in period | Full plan |
+| `past_due` (`pastDueSince` set) | Renewal failed, or the period ended without a confirmed renewal | Grace for `PAYMENT_GRACE_DAYS` (3) after the period end |
+| `expired` | Grace ended, or a full refund was processed | Free plan limits |
+| `canceled` | Provider ended the subscription | Free plan limits after the period |
 
-## Refund and expiry policy
+Grace is applied to provider-managed subscriptions only: when the period ends and Razorpay has not yet sent its renewal, the subscription is treated as `past_due`, not expired. A subscription that is past its grace window is also expired in the record, with the audit action `subscription.expired`.
 
-- A full refund ends the plan it paid for: the subscription becomes `expired` and the entitlement falls back
-  to the free plan. Expiry and refunds **never delete jobs or other records**; they only block new actions
-  (Phase 6 rule).
-- Partial refunds are not modelled. They are recorded for review.
-- Revocation applies only while the subscription still has the same plan tier. Renewal is not implemented yet.
+## Yearly billing
 
-## Tests
+Yearly billing is wired end to end but **not offered yet**. Each plan in `subscriptionPlans.js` has `yearlyPriceInr: null`. The UI shows the Monthly/Yearly toggle only when at least one plan has a yearly price. Setting a yearly price in config enables it (checkout then uses a yearly Razorpay plan with 10 cycles). No price has been invented.
 
-- `server/test/razorpayIntegration.unit.test.js`: configuration rules, Checkout and webhook signatures,
-  paise conversion, provider error handling, using an injected fake client.
-- `server/test/paymentWebhooks.test.js` (database, runs in CI): checkout price, client-supplied amount refused,
-  bad signature, pending `authorized` payment, amount mismatch, activation once with replay refused, webhook
-  signature, webhook activation and duplicate redelivery, amount mismatch via webhook, full refund and duplicate
-  refund, checkout cancellation, `payment.failed`, unknown events.
-- `server/test/paymentConfig.unit.test.js`: simulation and live-key rules.
-- The database tests use a fake provider client. **No test calls the network.**
-- Client: `client/src/lib/razorpayCheckout.test.js` covers options, the dismiss-after-success guard, and failure messages.
+## Cycle counts
 
-## Not verified
+Razorpay requires a `total_count` for each subscription. Monthly subscriptions use 120 cycles (10 years), yearly use 10 cycles (`server/config/recurringBilling.js`). When the count is reached, the provider completes the subscription and the plan moves to the free tier at period end.
 
-- No live payments. Razorpay test-mode API calls were not made from this sandbox (the provider host is not in
-  the sandbox allowlist), so the SDK calls are verified only against the injected fake client.
-- No browser run of Razorpay Checkout against the test API.
-- Webhook delivery from Razorpay to a deployed URL has not been tested. For manual testing, expose the
-  server with a tunnel and register the URL with the test webhook secret.
+## Invoices
 
-## Manual test-mode checklist
+Every charge creates a transaction with an invoice number. The invoice history is available through `GET /subscriptions/invoices`. PDF invoices are not generated.
 
-1. Create a Razorpay test-mode key pair and a webhook (events: `payment.captured`, `payment.failed`,
-   `refund.processed`) with a secret of your choice.
-2. Set `PAYMENT_MODE=razorpay_test`, `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` in
-   the environment (not in files under version control).
-3. Buy a plan with a Razorpay test card. Confirm the plan activates after the verify call and again via the webhook.
-4. Repeat with a failed test card and confirm the order is marked failed.
-5. Refund the test payment from the dashboard and confirm the webhook marks the transaction `refunded`.
+## Testing
+
+- Locally: `npm run check` (from `server/`) for syntax, then `node --test test/*.unit.test.js` for unit tests. `npm test` also runs the database tests, which need MongoDB and run in CI.
+- `server/test/razorpayIntegration.unit.test.js` covers config, key refusal, signatures, provider error mapping, pricing, and the cycle table.
+- `server/test/paymentWebhooks.test.js` covers the HTTP flow against MongoDB: checkout, forged and valid signatures, pending authorisation, activation, replay refusal, renewal, duplicate event ids, wrong amount, failed renewal, halt and recovery, cancellation (including provider failure), abandoned checkout, full refund, and yearly once priced. It runs in CI, where MongoDB is available.
+- No test calls the Razorpay network API. Nothing has been run against a real Razorpay test account from this environment.
+
+## Known gaps
+
+- **Not verified end to end against Razorpay Test Mode.** Webhook delivery from Razorpay needs a public HTTPS URL configured in the Razorpay Test dashboard. This has not been set up or exercised.
+- Live payments are not enabled. Enabling them needs a separate review, live credentials, and a rotated secret.
+- A failed verification ends that checkout attempt. The user starts a new checkout.
+- Data retention and hard-delete policy are deferred (Phase 12). Current protections stay in place. The only hard delete is the webhook processing lock of a failed delivery (`PaymentWebhookEvent`), which is removed so the provider's retry can run. Transaction and audit records are never hard-deleted by any route.

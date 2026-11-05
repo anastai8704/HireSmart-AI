@@ -1089,7 +1089,7 @@ router.get("/subscriptions/current", authenticate, subscription.getCurrentSubscr
 const planTierSchema = z.enum(Object.keys(ALL_PLANS));
 const checkoutSchema = strict({
   planTier: planTierSchema,
-  billingCycle: z.literal("monthly").optional(),
+  billingCycle: z.enum(["monthly", "yearly"]).optional(),
 });
 const verifyPaymentSchema = strict({
   orderId: z.string().min(1).max(100),
@@ -1104,8 +1104,23 @@ router.post(
   validate(verifyPaymentSchema),
   subscription.verifyPayment,
 );
+const verifySubscriptionSchema = strict({
+  subscriptionId: z.string().min(1).max(100),
+  paymentId: z.string().min(1).max(100),
+  signature: z.string().min(1).max(256),
+  planTier: planTierSchema.optional(),
+});
+router.post(
+  "/subscriptions/verify-subscription",
+  authenticate,
+  validate(verifySubscriptionSchema),
+  subscription.verifySubscription,
+);
 const cancelCheckoutSchema = strict({
-  orderId: z.string().min(1).max(100),
+  orderId: z.string().min(1).max(100).optional(),
+  subscriptionId: z.string().min(1).max(100).optional(),
+}).refine((body) => Boolean(body.orderId) !== Boolean(body.subscriptionId), {
+  message: "Provide exactly one of orderId or subscriptionId",
 });
 router.post(
   "/subscriptions/checkout/cancel",
