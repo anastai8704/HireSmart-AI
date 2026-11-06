@@ -487,23 +487,25 @@ exports.close = asyncHandler(async (req, res) => {
 exports.apply = asyncHandler(async (req, res) => {
   const idem = await idempotency.begin({ req, scope: `application.create:${req.params.jobId}` });
   if (idem.replay) return res.status(idem.replay.statusCode).json(idem.replay.response);
+  // A job must belong to an organization to take applications. Legacy jobs can have no organization
+  // (the Job schema default is null), so such jobs are excluded here and reported as unavailable.
   const job = await Job.findOne({
     _id: req.params.jobId,
     status: "published",
     "moderation.status": { $in: ["approved", "none"] },
+    organization: { $ne: null },
     $or: [{ closesAt: null }, { closesAt: { $gte: new Date() } }],
   });
   if (!job) throw new AppError("Job is not accepting applications", 404, "RESOURCE_NOT_FOUND");
 
-  if (job.organization) {
-    const org = await Organization.findById(job.organization);
-    if (!org || org.verificationStatus !== "verified") {
-      throw new AppError(
-        "Company is not verified. Unverified companies cannot receive applications.",
-        403,
-        "ORGANIZATION_NOT_VERIFIED",
-      );
-    }
+  // Always runs: a missing or dangling organization reference is treated as unverified.
+  const org = await Organization.findById(job.organization);
+  if (!org || org.verificationStatus !== "verified") {
+    throw new AppError(
+      "Company is not verified. Unverified companies cannot receive applications.",
+      403,
+      "ORGANIZATION_NOT_VERIFIED",
+    );
   }
   const resume = await ResumeVersion.findOne({
     _id: req.body.resumeVersionId,
