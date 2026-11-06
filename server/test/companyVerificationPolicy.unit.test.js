@@ -57,11 +57,137 @@ test("website hosts are reduced to the bare domain and invalid URLs are rejected
   assert.equal(policy.normalizeWebsiteHost(""), "");
 });
 
-test("file names are reduced to a safe base name", () => {
+test("file names: normal names are kept, including their extension", () => {
+  assert.equal(policy.sanitizeFileName("cv.pdf"), "cv.pdf");
+  assert.equal(policy.sanitizeFileName("Jane Doe - Resume (2026).docx"), "Jane Doe - Resume (2026).docx");
+  assert.equal(policy.sanitizeFileName("archive.tar.gz"), "archive.tar.gz");
+  assert.equal(policy.sanitizeFileName("  spaced   out.pdf  "), "spaced out.pdf");
+});
+
+test("file names: Unix and Windows paths reduce to the final file name on every platform", () => {
   assert.equal(policy.sanitizeFileName("../../etc/passwd"), "passwd");
-  assert.equal(policy.sanitizeFileName('bad"name\\.pdf'), "badname.pdf");
+  assert.equal(policy.sanitizeFileName("/etc/passwd"), "passwd");
+  assert.equal(policy.sanitizeFileName("C:\\Users\\me\\cv.pdf"), "cv.pdf");
+  assert.equal(policy.sanitizeFileName("..\\..\\secret\\cv.pdf"), "cv.pdf");
+  assert.equal(policy.sanitizeFileName("folder/sub\\file.pdf"), "file.pdf");
+  assert.equal(policy.sanitizeFileName("folder/"), "document", "a trailing separator leaves no file name");
+});
+
+test("file names: unsafe characters are removed from the name, which is kept", () => {
+  assert.equal(policy.sanitizeFileName('bad"name.pdf'), "badname.pdf");
+  assert.equal(policy.sanitizeFileName("semi;colon.pdf"), "semicolon.pdf");
+  assert.equal(policy.sanitizeFileName("tab\tname.pdf"), "tabname.pdf");
+  assert.equal(policy.sanitizeFileName("nul\u0000name.pdf"), "nulname.pdf");
+  assert.equal(policy.sanitizeFileName("del\u007fname.pdf"), "delname.pdf");
+  assert.equal(policy.sanitizeFileName('bad"name\\.pdf'), "document", "the segment after the backslash is only an extension, so it falls back");
+});
+
+test("file names: Windows-invalid characters (: * ? < > |) are removed and the extension is kept", () => {
+  assert.equal(policy.sanitizeFileName("cv:name.pdf"), "cvname.pdf");
+  assert.equal(policy.sanitizeFileName("cv*name.pdf"), "cvname.pdf");
+  assert.equal(policy.sanitizeFileName("cv?name.pdf"), "cvname.pdf");
+  assert.equal(policy.sanitizeFileName("cv<name>.pdf"), "cvname.pdf");
+  assert.equal(policy.sanitizeFileName("cv|name.pdf"), "cvname.pdf");
+  assert.equal(policy.sanitizeFileName("cv:*?<>|name.docx"), "cvname.docx");
+  assert.equal(policy.sanitizeFileName("report: final.pdf"), "report final.pdf", "spaces around the removed character are kept");
+  assert.equal(policy.sanitizeFileName("C:\\cv.pdf"), "cv.pdf", "a drive prefix is a path, not part of the name");
+  assert.equal(policy.sanitizeFileName("cv?.pdf"), "cv.pdf");
+});
+
+test("file names: a leading drive prefix is path syntax, even without a separator", () => {
+  assert.equal(policy.sanitizeFileName("C:cv.pdf"), "cv.pdf");
+  assert.equal(policy.sanitizeFileName("D:folder\\cv.pdf"), "cv.pdf");
+  assert.equal(policy.sanitizeFileName("z:cv.pdf"), "cv.pdf", "any drive letter is recognised");
+  assert.equal(policy.sanitizeFileName("C:"), "document", "a bare drive leaves no name");
+  assert.equal(policy.sanitizeFileName("cv:name.pdf"), "cvname.pdf", "a colon that is not a drive prefix is removed");
+  assert.equal(policy.sanitizeFileName("1:cv.pdf"), "1cv.pdf", "a digit before the colon is not a drive");
+  assert.equal(policy.sanitizeFileName("my:C:cv.pdf"), "myCcv.pdf", "only a leading prefix is treated as a drive");
+});
+
+test("file names: a name made only of Windows-invalid characters falls back to 'document'", () => {
+  assert.equal(policy.sanitizeFileName("::"), "document");
+  assert.equal(policy.sanitizeFileName("*?"), "document");
+  assert.equal(policy.sanitizeFileName("<>|"), "document");
+  assert.equal(policy.sanitizeFileName("?.pdf"), "document", "removing the ? leaves only an extension");
+});
+
+test("file names: Windows-invalid characters count toward the limit and the extension survives truncation", () => {
+  const max = rules.DOCUMENT_LIMITS.maxFileNameLength;
+  const out = policy.sanitizeFileName(`${"x?".repeat(300)}.pdf`);
+  assert.equal(out.length, max);
+  assert.ok(out.endsWith(".pdf"));
+  assert.doesNotMatch(out, /[:*?<>|]/);
+});
+
+test("file names: a segment with no base name falls back to 'document', never to a bare extension", () => {
+  assert.equal(policy.sanitizeFileName(".pdf"), "document");
+  assert.equal(policy.sanitizeFileName("  .pdf  "), "document");
+  assert.equal(policy.sanitizeFileName(".hidden"), "document");
+  assert.equal(policy.sanitizeFileName("C:\\temp\\.pdf"), "document");
+  assert.equal(policy.sanitizeFileName("..."), "document");
+  assert.equal(policy.sanitizeFileName('"""'), "document", "only unsafe characters remain");
+  assert.equal(policy.sanitizeFileName("\u0000.pdf"), "document");
+  assert.equal(policy.sanitizeFileName("a.pdf"), "a.pdf", "a one-character base name is still a base name");
+});
+
+test("file names: empty, blank and dot-only names fall back to 'document'", () => {
   assert.equal(policy.sanitizeFileName(""), "document");
-  assert.ok(policy.sanitizeFileName("x".repeat(500)).length <= rules.DOCUMENT_LIMITS.maxFileNameLength);
+  assert.equal(policy.sanitizeFileName(undefined), "document");
+  assert.equal(policy.sanitizeFileName(null), "document");
+  assert.equal(policy.sanitizeFileName("   "), "document");
+  assert.equal(policy.sanitizeFileName("."), "document");
+  assert.equal(policy.sanitizeFileName(".."), "document");
+  assert.equal(policy.sanitizeFileName("../"), "document");
+  assert.equal(policy.sanitizeFileName("\\"), "document");
+});
+
+test("file names: the result never contains a separator, a control character, a quote or a Windows-invalid character", () => {
+  const hostile = [
+    "../../../../etc/passwd",
+    "..\\..\\..\\windows\\system32\\cv.pdf",
+    'a"b;c\\d/e.pdf',
+    "x\u0000\u0001\u001f.pdf",
+    "C:\\temp\\file\u0007.pdf",
+    "cv:*?<>|name.pdf",
+  ];
+  for (const input of hostile) {
+    const out = policy.sanitizeFileName(input);
+    assert.ok(out.length > 0, `non-empty for ${JSON.stringify(input)}`);
+    assert.doesNotMatch(out, /[\\/\u0000-\u001f\u007f";:*?<>|]/, `clean for ${JSON.stringify(input)}`);
+    assert.notEqual(out, ".");
+    assert.notEqual(out, "..");
+  }
+});
+
+test("file names: long names are cut to the maximum length", () => {
+  const out = policy.sanitizeFileName("x".repeat(500));
+  assert.equal(out.length, rules.DOCUMENT_LIMITS.maxFileNameLength);
+});
+
+test("file names: truncation keeps a valid extension such as .pdf", () => {
+  const max = rules.DOCUMENT_LIMITS.maxFileNameLength;
+  const long = policy.sanitizeFileName(`${"x".repeat(300)}.pdf`);
+  assert.equal(long.length, max);
+  assert.ok(long.endsWith(".pdf"), `expected .pdf to survive, got ...${long.slice(-12)}`);
+  assert.equal(long, `${"x".repeat(max - 4)}.pdf`);
+
+  const fromWindowsPath = policy.sanitizeFileName(`C:\\Users\\me\\${"y".repeat(300)}.docx`);
+  assert.equal(fromWindowsPath.length, max);
+  assert.ok(fromWindowsPath.endsWith(".docx"));
+  assert.ok(!fromWindowsPath.includes("C:"), "the folder part is removed before truncation");
+});
+
+test("file names: truncation without a valid extension cuts the name and never leaves a bare extension", () => {
+  const max = rules.DOCUMENT_LIMITS.maxFileNameLength;
+  const noExtension = policy.sanitizeFileName("z".repeat(300));
+  assert.equal(noExtension.length, max);
+  // An extension longer than 10 characters is not treated as one.
+  const longExtension = policy.sanitizeFileName(`${"w".repeat(300)}.abcdefghijklmnop`);
+  assert.equal(longExtension.length, max);
+  assert.ok(!longExtension.endsWith(".abcdefghijklmnop"));
+  // Spaces before the extension are trimmed; the result still ends with the extension.
+  const spaced = policy.sanitizeFileName(`${"s ".repeat(100)}.pdf`);
+  assert.ok(spaced.length <= max && spaced.endsWith(".pdf") && !spaced.includes("  "));
 });
 
 // ---------------------------------------------------------------------------

@@ -1,7 +1,6 @@
 // Pure company-verification policy (Phase 2). No database or network access in this file, so it
 // can be unit-tested without MongoDB. Persistence lives in services/companyVerificationService.js.
 
-const path = require("node:path");
 const AppError = require("../utils/AppError");
 const {
   FREE_WEBMAIL_DOMAINS,
@@ -95,15 +94,31 @@ const namesMatch = (a, b) => {
   return left.length > 0 && left === normalizeCompanyName(b);
 };
 
-/** Sanitises an uploaded file name for storage metadata and download headers. */
+const FILE_NAME_EXTENSION = /\.[A-Za-z0-9]{1,10}$/;
+
+/**
+ * Sanitises an uploaded file name for storage metadata and download headers.
+ * Both "/" and "\" end a path segment on every platform, so only the final segment is kept.
+ * ("C:\Users\me\cv.pdf" gives "cv.pdf" on Linux and Windows alike.) Control characters, quotes,
+ * semicolons and Windows-invalid characters (: * ? < > |) are removed from that segment. A segment with no base name ("", ".", "..", "...", ".pdf") falls back to
+ * "document". Names longer than the limit are cut, but a short extension such as ".pdf" is kept.
+ */
 const sanitizeFileName = (name) => {
-  const base = path
-    .basename(String(name || ""))
-    .replace(/[\u0000-\u001f\u007f"\\;]/g, "")
+  // A leading drive prefix ("C:", "D:") is path syntax, even when no separator follows it.
+  const lastSegment = String(name || "").replace(/^[A-Za-z]:/, "").split(/[\\/]/).pop() || "";
+  const cleaned = lastSegment
+    .replace(/[\u0000-\u001f\u007f"\\;:*?<>|]/g, "")
     .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, DOCUMENT_LIMITS.maxFileNameLength);
-  return base || "document";
+    .trim();
+  // Only dots, or nothing before a leading dot ("..." or ".pdf"): no usable base name.
+  if (!cleaned || /^\.+$/.test(cleaned) || /^\.[^.]*$/.test(cleaned)) return "document";
+
+  const maxLength = DOCUMENT_LIMITS.maxFileNameLength;
+  if (cleaned.length <= maxLength) return cleaned;
+
+  const extension = cleaned.match(FILE_NAME_EXTENSION)?.[0] ?? "";
+  const stem = cleaned.slice(0, cleaned.length - extension.length).slice(0, maxLength - extension.length).trimEnd();
+  return `${stem}${extension}`;
 };
 
 // ---------------------------------------------------------------------------
