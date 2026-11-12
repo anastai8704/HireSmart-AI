@@ -103,3 +103,18 @@ Still to do, in order:
 Google status: NOT verified live. Needs GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET, GOOGLE_OAUTH_REDIRECT_URI
 and GOOGLE_TOKEN_ENCRYPTION_KEY (32 bytes, base64 or hex). Consent screen and test users must be set in Google Cloud.
 The calendar.events scope is a sensitive scope and may need Google verification for non-test users.
+
+## Checkpoint 9: interview frontend (Requirements 3–6)
+
+| Item | Result |
+|---|---|
+| Backend refactor (candidate view in `domain/interviewViews.js`, `jobId` filter) | server unit suite 214/214; lint 0 |
+| DB-backed `interviewApiFlow.test.js` | NOT RUN (mongodb-memory-server cannot download mongod here) |
+| Client full suite | 33 files, 204 tests pass |
+| Client lint | 0 errors (3 pre-existing warnings in AuthPages.jsx) |
+| Client production build | passes |
+| Routes | `/app/settings/integrations`, `/app/o/:id/interviews/schedule`, recruiter dashboard wired in App.jsx |
+
+Not verified live: Google Calendar/Meet (no credentials), Razorpay, email delivery.
+
+Remaining, in order: Requirements 7–9, 10, 12, 17, 2, then 13 and 18 (docs, tests, final QA). Run DB-backed tests once mongod is available.
