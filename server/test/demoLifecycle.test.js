@@ -148,7 +148,22 @@ nodeTest("demo grants are labelled, expire in the future, and never create payme
   assert.equal(await PaymentTransaction.countDocuments({}), 0, "complimentary grants are not payments or revenue");
 });
 
-nodeTest("repeated seeding keeps existing passwords, accounts and subscriptions unchanged", async () => {
+// Re-throws any error as one line with its first meaningful message line (multi-line errors are lost in CI).
+const oneLine = (fn) => async () => {
+  try {
+    await fn();
+  } catch (error) {
+    const first = String(error && error.message ? error.message : error)
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .slice(0, 2)
+      .join(" / ");
+    throw new Error(`${error?.name || "Error"}: ${first}`.replace(/:\s*/g, " - ").slice(0, 400));
+  }
+};
+
+nodeTest("repeated seeding keeps existing passwords, accounts and subscriptions unchanged", oneLine(async () => {
   await ensureDemoDb();
   await connectDB(ctx.demoUri);
   const before = {
@@ -173,7 +188,7 @@ nodeTest("repeated seeding keeps existing passwords, accounts and subscriptions 
   assert.equal(await Organization.countDocuments({}), before.orgs, "no duplicate companies");
   const adminAfter = await User.findOne({ email: ADMIN }).lean();
   assert.equal(adminAfter && adminAfter.role, "admin", "admin role is kept on rerun");
-});
+}));
 
 nodeTest("reset refuses without --confirm-reset, in production, and for a database name mismatch; data is untouched", async () => {
   await ensureDemoDb();
