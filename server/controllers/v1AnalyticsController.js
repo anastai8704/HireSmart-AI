@@ -4,9 +4,10 @@ const { Application } = require("../models/Application");
 const { CandidateMatch } = require("../models/Recruitment");
 const AIAnalysis = require("../models/AIAnalysis");
 const asyncHandler = require("../middleware/asyncHandler");
+const { istSinceFromQuery } = require("../utils/istTime");
 exports.recruiter = asyncHandler(async (req, res) => {
   const organization = mongoose.Types.ObjectId.createFromHexString(req.auth.organizationId);
-  const since = req.query.from ? new Date(req.query.from) : new Date(Date.now() - 90 * 86400000);
+  const since = istSinceFromQuery(req.query.from, new Date(Date.now() - 90 * 86400000));
   const match = { organization, createdAt: { $gte: since } };
   const [jobs, funnel, timeToStage, matches, sourcePerformance, jobPerformance] = await Promise.all(
     [

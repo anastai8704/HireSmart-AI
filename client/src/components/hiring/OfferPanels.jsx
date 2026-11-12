@@ -1,5 +1,6 @@
 import { useState } from "react";
 import Button from "../ui/Button";
+import { formatDate as formatDateOnly } from "../../lib/utils";
 import Input, { Textarea } from "../ui/Input";
 
 /*
@@ -9,11 +10,7 @@ import Input, { Textarea } from "../ui/Input";
  * offer; "accepted" means the candidate answered it; hiring needs "accepted".
  */
 
-const formatDate = (value) => {
-  if (!value) return "";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "" : date.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
-};
+const formatDate = (value) => (value ? formatDateOnly(value) : "");
 
 const offerOf = (application) => application?.offer || { status: "none" };
 

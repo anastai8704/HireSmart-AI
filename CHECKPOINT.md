@@ -149,3 +149,35 @@ What changed:
 Not verified: DB-backed behaviour (above). Not included: admin download of candidate resume files; live Razorpay (no live billing in this release).
 
 Next: Requirement 10 (Asia/Kolkata everywhere), 12 (searchable dropdowns), 17 (plan badges), 2 (billing UI), 13 and 18 (docs, QA).
+
+## Checkpoint 11: date and time correctness, Asia/Kolkata (Requirement 10)
+
+| Item | Result |
+|---|---|
+| Server unit suite | 235/235 pass (new: `istTime.unit.test.js`, 12 tests) |
+| Server lint | 0 errors |
+| Client suite | 38 files, 250 tests pass (new: `istDates.test.js`, 17 tests) |
+| Client lint | 0 errors (3 pre-existing warnings in AuthPages.jsx) |
+| Client production build | passes |
+| DB-backed tests | NOT RUN (no MongoDB in the sandbox). Changed DB-backed files: none in this checkpoint. |
+
+What changed:
+- One shared rule set. Server: `server/utils/istTime.js` (IST day keys, wall-clock ↔ UTC, half-open day bounds, `DD MMM YYYY`, explicit AM/PM). Client: `utils.js` `formatDate`, `formatTime`, `formatDateTime`, `dayKey`, `istDayBounds`, `istHour`, all defaulting to Asia/Kolkata.
+- Dates are `DD MMM YYYY` (e.g. `05 Nov 2026`); times are `hh:mm AM/PM`. Month names are fixed English, so output does not depend on the browser's ICU build.
+- Browser-zone bugs fixed:
+  - Recruiter reschedule form prefilled and saved times in the browser's zone. Now both use the interview's own timezone (`toZonedLocalInput` / `zonedLocalToUtc`).
+  - Candidate "today" used the browser's midnight. Now IST midnight.
+  - Recruiter greeting used the browser hour. Now IST.
+  - Notification tooltip, offer dates, and `formatInZone` (now `… 10:00 AM IST`) use the shared formatters.
+- Candidate interview buckets no longer overlap. "Upcoming" holds active interviews until their scheduled end. "Past" holds completed interviews and active ones whose end has passed. "Cancelled" is unchanged.
+- Server dates: interview invitation, reschedule, and confirmation messages show IST times. Email date/time helpers default to Asia/Kolkata (an explicit interview timezone is still honoured and labelled). Subscription expiry text uses the IST calendar day, so a plan ending 20:00 UTC on 20 Nov shows 21 Nov. Admin monthly labels and keys use IST. The recruiter analytics `from` filter treats `YYYY-MM-DD` as the start of that IST day, not UTC midnight.
+- Interview model default timezone is now `Asia/Kolkata` (new records only).
+
+Tests cover: IST↔UTC conversion, round trips, DST-independence (checked against the zone database), day boundaries at 18:30 UTC, expiry day, invalid input never rendering "Invalid Date", buckets, and the reschedule conversion.
+
+Known limitations:
+- The reschedule form's timezone is free text. If it is invalid, the conversion returns null and the time is left unchanged silently. Validate the timezone against the list before saving.
+- Existing interview records keep their stored timezone (`UTC` for old records). Display follows that stored value.
+- Placement and employment timestamps were not audited field by field in this pass. They use the shared formatters where displayed.
+
+Still open (not started in this checkpoint): Requirement 7 control-center redesign, Requirement 12 searchable dropdowns, Requirement 17 plan badges, Requirement 2 billing UI redesign, and Requirements 13 and 18 (docs, DB-backed tests, final QA).

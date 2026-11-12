@@ -12,7 +12,8 @@ const AppError = require("../utils/AppError");
 const idempotency = require("../services/idempotencyService");
 const logger = require("../utils/logger");
 const pickDefined = require("../utils/pickDefined");
-const Policy = require("../domain/interviewPolicy");
+const Policy = require("../domain/interviewPolicy");const { formatIstDateTime } = require("../utils/istTime");
+
 const Meeting = require("../services/interviewMeetingService");
 const { candidateInterviewView } = require("../domain/interviewViews");
 
@@ -183,7 +184,7 @@ exports.create = asyncHandler(async (req, res) => {
         type: "interview_invitation",
         category: "interviews",
         title: `Interview invitation: ${application.job?.title || "role"}`,
-        message: `An interview is proposed for ${interview.scheduledStart.toISOString()}.`,
+        message: `An interview is proposed for ${formatIstDateTime(interview.scheduledStart)}.`,
         resourceType: "interview",
         resourceId: interview._id,
         email: application.candidate.email,
@@ -358,7 +359,7 @@ exports.update = asyncHandler(async (req, res) => {
         type: "interview_rescheduled",
         category: "interviews",
         title: `Interview rescheduled: ${interview.title || "role"}`,
-        message: `Your interview was rescheduled to ${interview.scheduledStart.toISOString()}. Please confirm the new time.`,
+        message: `Your interview was rescheduled to ${formatIstDateTime(interview.scheduledStart)}. Please confirm the new time.`,
         resourceType: "interview",
         resourceId: interview._id,
         email: candidate?.email,
@@ -540,7 +541,7 @@ exports.confirm = asyncHandler(async (req, res) => {
         category: "interviews",
         title: `Interview confirmed: ${interview.application?.job?.title || "role"}`,
         message: `${req.user.name} confirmed the interview scheduled for ${
-          interview.scheduledStart ? interview.scheduledStart.toISOString() : "TBD"
+          interview.scheduledStart ? formatIstDateTime(interview.scheduledStart) : "TBD"
         }.`,
         resourceType: "interview",
         resourceId: interview._id,

@@ -13,7 +13,8 @@ const { audit } = require("../services/auditService");
 const { parse, applyCursor, meta } = require("../utils/pagination");
 const { resolveRange, AnalyticsRangeError } = require("../domain/analyticsDefinitions");
 const { computeAnalytics } = require("../services/adminAnalyticsService");
-const { redact } = require("../utils/redact");
+const { redact } = require("../utils/redact");const { TIME_ZONE, istDayKey } = require("../utils/istTime");
+
 
 const requireAdmin = (req) => {
   if (req.auth.platformRole !== "platform_admin")
@@ -152,12 +153,12 @@ exports.overviewAnalytics = asyncHandler(async (req, res) => {
   const cur = new Date(twelveMonthsAgo);
   const now = new Date();
   while (cur <= now) {
-    const ym = cur.toISOString().slice(0, 7);
+    const ym = istDayKey(cur).slice(0, 7);
     const a = appMonthly.find((m) => m._id === ym);
     const p = placementMonthly.find((m) => m._id === ym);
     monthlyTrends.push({
       yearMonth: ym,
-      monthLabel: cur.toLocaleDateString("en-US", { month: "short", year: "2-digit" }),
+      monthLabel: new Intl.DateTimeFormat("en-US", { timeZone: TIME_ZONE, month: "short", year: "2-digit" }).format(cur),
       applications: a ? a.applications : 0,
       hires: a ? a.hires : 0,
       verifiedPlacements: p ? p.verifiedPlacements : 0,

@@ -27,35 +27,26 @@ const roleLabel = (role) =>
     .replace(/_/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase());
 
-/** 14 September 2026 */
-const fmtDate = (value) => {
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
-};
+/** "14 Sep 2026" (DD MMM YYYY, Asia/Kolkata calendar day) */
+const fmtDate = (value) => formatIstDate(value);
 
-/** "Tue, 15 Sep 2026, 3:30 pm" + the zone it was shown in. */
+/** "15 Sep 2026, 03:30 PM IST" by default. An explicit interview timezone is honoured and labelled. */
 const fmtDateTime = (value, timezone) => {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return "";
-  const options = {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  };
+  const zone = timezone || TIME_ZONE;
   let label;
   try {
-    label = timezone
-      ? date.toLocaleString("en-GB", { ...options, timeZone: timezone })
-      : date.toLocaleString("en-GB", { ...options, timeZone: "UTC" });
+    const day = formatIstDate(date, zone);
+    const time = new Intl.DateTimeFormat("en-US", { timeZone: zone, hour: "2-digit", minute: "2-digit", hour12: true }).format(date);
+    label = `${day}, ${time}`;
   } catch (_error) {
-    label = date.toUTCString();
+    return formatIstDateTime(date);
   }
-  return `${label} (${timezone || "UTC"})`;
+  return `${label} (${zone})`;
 };
+
+const { TIME_ZONE, formatIstDate, formatIstDateTime } = require("../../utils/istTime");
 
 const FONT = "Arial, 'Helvetica Neue', Helvetica, sans-serif";
 

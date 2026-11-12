@@ -1,6 +1,7 @@
 // Interview workflow rules for the client (Requirements 3–6). These mirror the server rules in
 // server/domain/interviewPolicy.js for display only. The server is the authority and re-checks every action.
 import { isValidMeetingUrl } from "./interviewFormat";
+import { formatDateTime } from "./utils";
 
 export const START_WINDOW_BEFORE_MS = 15 * 60 * 1000;
 export const START_WINDOW_AFTER_END_MS = 60 * 60 * 1000;
@@ -92,15 +93,10 @@ export const formatInZone = (value, timeZone = DEFAULT_TIMEZONE) => {
   if (!value) return "Not scheduled";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Not scheduled";
-  try {
-    return new Intl.DateTimeFormat("en-IN", {
-      timeZone: isValidTimezone(timeZone) ? timeZone : "UTC",
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(date);
-  } catch {
-    return date.toISOString();
-  }
+  const zone = isValidTimezone(timeZone) ? timeZone : DEFAULT_TIMEZONE;
+  // "05 Nov 2026, 10:00 AM" plus the zone: "IST" for Asia/Kolkata, the zone name otherwise.
+  const label = zone === DEFAULT_TIMEZONE ? "IST" : zone;
+  return `${formatDateTime(date, zone)} ${label}`;
 };
 
 export const applicationJobId = (application) =>

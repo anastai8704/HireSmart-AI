@@ -4,7 +4,6 @@ const { test } = require("node:test");
 const {
   resolveRange,
   ratePercent,
-  summarizeRevenue,
   canonicalStage,
   istDayOf,
   AnalyticsRangeError,
@@ -58,14 +57,6 @@ test("rates use the stated denominator and report null when it is zero", () => {
   assert.equal(ratePercent(1, 3), 33.3);
   assert.equal(ratePercent(0, 0), null);
   assert.equal(ratePercent(2, 0), null);
-});
-
-test("revenue is cash-basis: captured minus refunds; failed and initiated attempts are excluded", () => {
-  const summary = summarizeRevenue({ grossCapturedAmount: 1200, refundsAmount: 200, successfulCount: 2, failedCount: 1 });
-  assert.deepEqual(summary, { grossCaptured: 1200, refunds: 200, netRevenue: 1000, successfulPayments: 2, failedPayments: 1 });
-  const none = summarizeRevenue({});
-  assert.equal(none.netRevenue, 0);
-  assert.equal(none.successfulPayments, 0);
 });
 
 test("legacy application statuses map to lifecycle stages", () => {

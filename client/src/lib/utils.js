@@ -42,19 +42,75 @@ export const formatJobSalary = (job) => {
   return single > 0 ? formatSalary(single) : null;
 };
 
-/** "15 Aug 2026" */
-export const formatDate = (value) => {
-  if (!value) return "-";
+// ---- Requirement 10: one Indian date/time display, Asia/Kolkata by default -------------------------
+// Instants are stored and sent as UTC. Display always uses an explicit zone (default Asia/Kolkata), never
+// the browser's zone, so every user sees the same wall-clock time. Output is built from fixed English month
+// names so it does not depend on the browser's ICU build.
+export const IST_TIME_ZONE = "Asia/Kolkata";
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
 
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "-";
-
-  return new Intl.DateTimeFormat("en-IN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  }).format(date);
+const validZone = (zone) => {
+  if (!zone) return IST_TIME_ZONE;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: zone });
+    return zone;
+  } catch {
+    return IST_TIME_ZONE;
+  }
 };
+
+const zoneParts = (date, zone) => {
+  const parts = {};
+  for (const p of new Intl.DateTimeFormat("en-US", {
+    timeZone: validZone(zone),
+    hourCycle: "h23",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "numeric",
+  }).formatToParts(date)) parts[p.type] = p.value;
+  return {
+    year: Number(parts.year),
+    month: Number(parts.month),
+    day: Number(parts.day),
+    hour: Number(parts.hour) % 24,
+    minute: Number(parts.minute),
+  };
+};
+
+const toValidDate = (value) => {
+  if (!value) return null;
+  const d = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
+};
+
+/** "05 Nov 2026" in the given zone (default Asia/Kolkata). */
+export const formatDate = (value, timezone) => {
+  const date = toValidDate(value);
+  if (!date) return "-";
+  const { year, month, day } = zoneParts(date, timezone);
+  return `${String(day).padStart(2, "0")} ${MONTH_NAMES[month - 1]} ${year}`;
+};
+
+/** Calendar day key "YYYY-MM-DD" in the given zone (default Asia/Kolkata). */
+export const dayKey = (value, timezone) => {
+  const date = toValidDate(value);
+  if (!date) return null;
+  const { year, month, day } = zoneParts(date, timezone);
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+};
+
+/** Start instant (inclusive) and end instant (exclusive) of the Asia/Kolkata calendar day that contains `now`. */
+export const istDayBounds = (now = new Date()) => {
+  const { year, month, day } = zoneParts(now, IST_TIME_ZONE);
+  const start = new Date(Date.UTC(year, month - 1, day) - IST_OFFSET_MS);
+  return { start, end: new Date(start.getTime() + 24 * 60 * 60 * 1000) };
+};
+
+/** Hour of the day (0-23) in Asia/Kolkata, for greetings and time-of-day copy. */
+export const istHour = (now = new Date()) => zoneParts(now, IST_TIME_ZONE).hour;
 
 /** "3 days ago" - friendlier than a raw date in activity feeds. */
 export const formatRelativeTime = (value) => {
@@ -184,42 +240,20 @@ export const debounce = (fn, delay = 350) => {
   };
 };
 
-/** "3:30 PM" or "3:30 PM (IST)" */
+/** "03:30 PM" in the given zone (default Asia/Kolkata). AM/PM is always shown. */
 export const formatTime = (value, timezone) => {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "-";
-  const options = { hour: "numeric", minute: "2-digit" };
-  if (timezone) {
-    try {
-      options.timeZone = timezone;
-    } catch {
-      /* ignore invalid timezone */
-    }
-  }
-  return new Intl.DateTimeFormat("en-IN", options).format(date);
+  const date = toValidDate(value);
+  if (!date) return "-";
+  const { hour, minute } = zoneParts(date, timezone);
+  const h12 = hour % 12 === 0 ? 12 : hour % 12;
+  return `${String(h12).padStart(2, "0")}:${String(minute).padStart(2, "0")} ${hour < 12 ? "AM" : "PM"}`;
 };
 
-/** "15 Aug 2026, 3:30 PM" */
+/** "15 Aug 2026, 03:30 PM" in the given zone (default Asia/Kolkata). */
 export const formatDateTime = (value, timezone) => {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "-";
-  const options = {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  };
-  if (timezone) {
-    try {
-      options.timeZone = timezone;
-    } catch {
-      /* ignore invalid timezone */
-    }
-  }
-  return new Intl.DateTimeFormat("en-IN", options).format(date);
+  const date = toValidDate(value);
+  if (!date) return "-";
+  return `${formatDate(date, timezone)}, ${formatTime(date, timezone)}`;
 };
 
 /** "45 mins", "1 hour", "1.5 hours" */

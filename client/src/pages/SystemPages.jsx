@@ -27,7 +27,7 @@ import { ErrorCallout, PageHeader } from "../components/Product";
 import { authApi, downloadBlob, notificationApi, userApi } from "../lib/api";
 import { useAuth } from "../context/useAuth";
 import { useToast } from "../components/ui/useToast";
-import { cn, formatDate, formatRelativeTime, notificationTarget } from "../lib/utils";
+import { cn, formatDate, formatDateTime, formatRelativeTime, notificationTarget } from "../lib/utils";
 
 /* Role-appropriate filters. Categories come from the backend notification
    record (n.category) with a text fallback for older notifications. */
@@ -250,7 +250,7 @@ export const NotificationsPage = () => {
                           <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-ink-400">
                             <time
                               dateTime={new Date(n.createdAt).toISOString()}
-                              title={new Date(n.createdAt).toLocaleString()}
+                              title={formatDateTime(n.createdAt)}
                             >
                               {formatRelativeTime(n.createdAt)}
                             </time>

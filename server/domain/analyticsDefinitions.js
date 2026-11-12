@@ -71,19 +71,6 @@ const ratePercent = (numerator, denominator) => {
   return Math.round((numerator / denominator) * 1000) / 10;
 };
 
-// Revenue is cash-basis from verified billing records only:
-//   net revenue = gross captured payments created in the range − refunds processed in the range.
-// Failed and initiated attempts never count as revenue or as successful payments.
-const summarizeRevenue = ({ grossCapturedAmount = 0, refundsAmount = 0, successfulCount = 0, failedCount = 0 } = {}) => {
-  const round = (n) => Math.round(n * 100) / 100;
-  return {
-    grossCaptured: round(grossCapturedAmount),
-    refunds: round(refundsAmount),
-    netRevenue: round(grossCapturedAmount - refundsAmount),
-    successfulPayments: successfulCount,
-    failedPayments: failedCount,
-  };
-};
 
 // Legacy application status values are still stored on older records. Map them to the lifecycle names.
 const LEGACY_STAGE_MAP = Object.freeze({
@@ -137,7 +124,6 @@ module.exports = {
   istDayOf,
   istMidnightUtc,
   ratePercent,
-  summarizeRevenue,
   canonicalStage,
   LEGACY_STAGE_MAP,
   METRIC_DEFINITIONS,

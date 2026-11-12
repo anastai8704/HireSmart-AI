@@ -13,11 +13,11 @@ const {
   resolveRange,
   ANALYTICS_TIMEZONE,
   AnalyticsRangeError,
-  summarizeRevenue,
   canonicalStage,
   istDayOf,
 } = require("../domain/analyticsDefinitions");
 const { inRange, dayOf } = require("./reportHelpers");
+const { REVENUE_MATCH, REVENUE_GATEWAYS, summarizeRevenueTotals } = require("../domain/revenueRules");
 const User = require("../models/User");
 const Organization = require("../models/Organization");
 const Job = require("../models/Job");
@@ -313,48 +313,80 @@ const REPORTS = {
       { key: "failedPayments", label: "Failed payments" },
     ],
     async build({ range }) {
+      // Same eligibility as the admin Revenue page: real razorpay captures only (test and live are both
+      // revenue, labelled by mode elsewhere). Simulations, grants and failed attempts never count.
+      // Refunds reduce revenue on the day the refund was processed (refundedAt); legacy rows fall back to updatedAt.
       const [captured, refunds, failed] = await Promise.all([
         PaymentTransaction.aggregate([
-          { $match: { status: { $in: ["captured", "refunded"] }, ...inRange("createdAt", range) } },
+          { $match: { ...REVENUE_MATCH, ...inRange("createdAt", range) } },
           { $group: { _id: dayOf("$createdAt"), amount: { $sum: "$amount" }, count: { $sum: 1 } } },
         ]),
-        // Refund date is the last status update, matching the dashboard definition.
         PaymentTransaction.aggregate([
-          { $match: { status: "refunded", ...inRange("updatedAt", range) } },
-          { $group: { _id: dayOf("$updatedAt"), amount: { $sum: "$amount" } } },
+          {
+            $match: {
+              status: "refunded",
+              gateway: { $in: REVENUE_GATEWAYS },
+              $or: [
+                inRange("refundedAt", range),
+                { refundedAt: null, ...inRange("updatedAt", range) },
+              ],
+            },
+          },
+          {
+            $group: {
+              _id: dayOf({ $ifNull: ["$refundedAt", "$updatedAt"] }),
+              amount: { $sum: "$amount" },
+              count: { $sum: 1 },
+            },
+          },
         ]),
         PaymentTransaction.aggregate([
-          { $match: { status: "failed", ...inRange("createdAt", range) } },
+          { $match: { status: "failed", gateway: { $in: REVENUE_GATEWAYS }, ...inRange("createdAt", range) } },
           { $group: { _id: dayOf("$createdAt"), count: { $sum: 1 } } },
         ]),
       ]);
       const days = new Map();
       const day = (key) => {
-        if (!days.has(key)) days.set(key, { grossCapturedAmount: 0, refundsAmount: 0, successfulCount: 0, failedCount: 0 });
+        if (!days.has(key)) days.set(key, { grossAmount: 0, refundAmount: 0, count: 0, refundCount: 0, failedCount: 0 });
         return days.get(key);
       };
       for (const r of captured) {
         const d = day(r._id);
-        d.grossCapturedAmount += r.amount;
-        d.successfulCount += r.count;
+        d.grossAmount += r.amount;
+        d.count += r.count;
       }
-      for (const r of refunds) day(r._id).refundsAmount += r.amount;
+      for (const r of refunds) {
+        const d = day(r._id);
+        d.refundAmount += r.amount;
+        d.refundCount += r.count;
+      }
       for (const r of failed) day(r._id).failedCount += r.count;
 
+      const toRow = (v) => {
+        const t = summarizeRevenueTotals(v);
+        return {
+          grossCaptured: t.grossCaptured,
+          refunds: t.refunds,
+          netRevenue: t.netRevenue,
+          successfulPayments: t.successfulPayments,
+          failedPayments: v.failedCount,
+        };
+      };
       const rows = [...days.entries()]
         .sort((a, b) => a[0].localeCompare(b[0]))
-        .map(([date, v]) => ({ date, ...summarizeRevenue(v) }));
-      // Totals are computed from the whole range (not by adding rounded daily values).
+        .map(([date, v]) => ({ date, ...toRow(v) }));
+      // Totals come from the whole range (not by adding rounded daily values).
       const totalsInput = [...days.values()].reduce(
         (acc, v) => ({
-          grossCapturedAmount: acc.grossCapturedAmount + v.grossCapturedAmount,
-          refundsAmount: acc.refundsAmount + v.refundsAmount,
-          successfulCount: acc.successfulCount + v.successfulCount,
+          grossAmount: acc.grossAmount + v.grossAmount,
+          refundAmount: acc.refundAmount + v.refundAmount,
+          count: acc.count + v.count,
+          refundCount: acc.refundCount + v.refundCount,
           failedCount: acc.failedCount + v.failedCount,
         }),
-        { grossCapturedAmount: 0, refundsAmount: 0, successfulCount: 0, failedCount: 0 },
+        { grossAmount: 0, refundAmount: 0, count: 0, refundCount: 0, failedCount: 0 },
       );
-      return [...rows, { date: "TOTAL", ...summarizeRevenue(totalsInput) }];
+      return [...rows, { date: "TOTAL", ...toRow(totalsInput) }];
     },
   },
 

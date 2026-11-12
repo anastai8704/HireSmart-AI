@@ -13,7 +13,8 @@ const { Subscription } = require("../models/Subscription");
 const { notifySubscriptionEvent } = require("./billingNotifications");
 const { audit } = require("./auditService");
 const { PAYMENT_GRACE_DAYS } = require("../domain/subscriptionRules");
-const logger = require("../utils/logger");
+const logger = require("../utils/logger");const { formatIstDate } = require("../utils/istTime");
+
 
 const DAY_MS = 24 * 3600 * 1000;
 const TICK_INTERVAL_MS = 15 * 60 * 1000;
@@ -55,7 +56,7 @@ const lapseDue = (sub, now = new Date()) => {
 };
 
 const endKey = (sub) => new Date(sub.currentPeriodEnd).toISOString();
-const endsOn = (sub) => new Date(sub.currentPeriodEnd).toISOString().slice(0, 10);
+const endsOn = (sub) => formatIstDate(sub.currentPeriodEnd);
 
 const REMINDER_COPY = {
   [REMINDER_7D]: {

@@ -64,7 +64,7 @@ const interviewSchema = new mongoose.Schema(
     },
     scheduledStart: { type: Date, default: null, index: true },
     scheduledEnd: { type: Date, default: null },
-    timezone: { type: String, default: "UTC", maxlength: 100 },
+    timezone: { type: String, default: "Asia/Kolkata", maxlength: 100 },
     location: { type: String, default: "", maxlength: 500 },
     meetingUrl: { type: String, default: "", maxlength: 2048 },
     participants: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],

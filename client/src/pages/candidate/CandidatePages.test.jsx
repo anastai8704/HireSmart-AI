@@ -1,3 +1,6 @@
+// Relative to now: the upcoming fixture must stay upcoming (Requirement 10: buckets follow real time).
+const upcomingStart = new Date(Date.now() + 2 * 86400000).toISOString();
+
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -72,8 +75,9 @@ const {
     title: "Technical Interview - System Design",
     type: "video",
     status: "invited",
-    scheduledStart: "2026-09-15T10:00:00Z",
-    scheduledEnd: "2026-09-15T11:00:00Z",
+    // Relative to now so this upcoming fixture stays upcoming (Requirement 10: buckets follow real time).
+    scheduledStart: new Date(Date.now() + 2 * 86400000).toISOString(),
+    scheduledEnd: new Date(Date.now() + 2 * 86400000 + 3600000).toISOString(),
     timezone: "Asia/Kolkata",
     meetingUrl: "https://meet.google.com/abc-defg-hij",
     application: {
@@ -340,6 +344,8 @@ import {
   SavedJobsPage,
   AlertsPage,
 } from "./CandidatePages";
+import { formatDate } from "../../lib/utils";
+
 
 const renderWithClient = (ui, path = "/app/candidate") => {
   const client = new QueryClient({
@@ -377,7 +383,8 @@ describe("Candidate Dashboard", () => {
     expect(screen.getAllByText("Interview").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Offer").length).toBeGreaterThan(0);
     expect(screen.getByText("Technical Interview - System Design")).toBeInTheDocument();
-    expect(screen.getByText(/15 Sept? 2026/)).toBeInTheDocument();
+    // Date is DD MMM YYYY in Asia/Kolkata, derived from the same instant as the fixture.
+    expect(screen.getByText(new RegExp(formatDate(upcomingStart)))).toBeInTheDocument();
   });
 });
 
@@ -542,8 +549,8 @@ describe("Interviews & AI Preparation", () => {
       title: "Technical Interview - System Design",
       type: "video",
       status: "in_progress",
-      scheduledStart: "2026-09-15T10:00:00Z",
-      scheduledEnd: "2026-09-15T11:00:00Z",
+      scheduledStart: new Date(Date.now() - 1800000).toISOString(),
+      scheduledEnd: new Date(Date.now() + 1800000).toISOString(),
       timezone: "Asia/Kolkata",
       application: { job: { title: "Backend Engineer", company: "Acme" }, candidate: { name: "Asha" } },
       joinState: { canJoin: true, reason: "STARTED", message: "The recruiter has started the interview. You can join now." },

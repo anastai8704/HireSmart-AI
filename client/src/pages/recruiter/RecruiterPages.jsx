@@ -62,11 +62,13 @@ import {
   initials,
   isValidMeetingUrl,
   downloadInterviewIcs,
+  istHour,
 } from "../../lib/utils";
+import { DEFAULT_TIMEZONE, toZonedLocalInput, zonedLocalToUtc } from "../../lib/interviewWorkflow";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { CompanyVerificationCard } from "./CompanyVerificationCard";
 const greeting = () => {
-  const hour = new Date().getHours();
+  const hour = istHour();
   return hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 };
 const STAGES = ["submitted", "under_review", "shortlisted", "interview", "offer", "hired"];
@@ -2077,19 +2079,14 @@ export const InterviewDetail = () => {
 
   const openRescheduleModal = () => {
     if (!interview) return;
-    const formatLocal = (d) => {
-      if (!d) return "";
-      const date = new Date(d);
-      if (Number.isNaN(date.getTime())) return "";
-      const pad = (n) => String(n).padStart(2, "0");
-      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-    };
+    // Wall-clock value in the interview's own zone, so the form shows the time the recruiter set.
+    const formatLocal = (d) => toZonedLocalInput(d, interview.timezone || DEFAULT_TIMEZONE);
     setEditForm({
       title: interview.title || "",
       type: interview.type || "video",
       scheduledStart: formatLocal(interview.scheduledStart),
       scheduledEnd: formatLocal(interview.scheduledEnd),
-      timezone: interview.timezone || "UTC",
+      timezone: interview.timezone || DEFAULT_TIMEZONE,
       location: interview.location || "",
       meetingUrl: interview.meetingUrl || "",
     });
@@ -2586,8 +2583,12 @@ export const InterviewDetail = () => {
                 updateInterview.mutate({
                   title: editForm.title,
                   type: editForm.type,
-                  scheduledStart: editForm.scheduledStart ? new Date(editForm.scheduledStart) : undefined,
-                  scheduledEnd: editForm.scheduledEnd ? new Date(editForm.scheduledEnd) : undefined,
+                  scheduledStart: editForm.scheduledStart
+                    ? zonedLocalToUtc(editForm.scheduledStart, editForm.timezone)?.toISOString()
+                    : undefined,
+                  scheduledEnd: editForm.scheduledEnd
+                    ? zonedLocalToUtc(editForm.scheduledEnd, editForm.timezone)?.toISOString()
+                    : undefined,
                   timezone: editForm.timezone,
                   location: editForm.location,
                   meetingUrl: editForm.meetingUrl,

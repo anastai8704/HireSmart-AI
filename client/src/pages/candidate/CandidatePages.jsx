@@ -69,6 +69,7 @@ import {
   formatJobSalary,
   formatRelativeTime,
   downloadInterviewIcs,
+  istDayBounds,
 } from "../../lib/utils";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { safeHttpUrl } from "../../lib/safeUrl";
@@ -2362,9 +2363,18 @@ export const CandidateInterviews = () => {
 
   const allInterviews = q.data?.data || [];
   const now = new Date();
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  const { start: startOfToday, end: endOfToday } = istDayBounds(now);
   const endOfThisWeek = new Date(now.getTime() + 7 * 86400000);
+
+  // Buckets never overlap. An active interview stays "upcoming" until its scheduled end has passed, so a live
+  // interview remains visible while it runs. Completed interviews, and active ones whose end has passed, are "past".
+  const ACTIVE_INTERVIEW_STATUSES = ["invited", "confirmed", "reschedule_requested", "rescheduled", "in_progress"];
+  const hasEnded = (i) => {
+    const end = new Date(i.scheduledEnd || i.scheduledStart || 0);
+    return !Number.isNaN(end.getTime()) && end.getTime() > 0 && end < now;
+  };
+  const isUpcomingBucket = (i) => ACTIVE_INTERVIEW_STATUSES.includes(i.status) && !hasEnded(i);
+  const isPastBucket = (i) => i.status === "completed" || (i.status !== "cancelled" && hasEnded(i));
 
   const filterByTab = (i) => {
     const sDate = i.scheduledStart ? new Date(i.scheduledStart) : null;
@@ -2375,10 +2385,10 @@ export const CandidateInterviews = () => {
       return sDate && sDate >= now && sDate <= endOfThisWeek && i.status !== "cancelled";
     }
     if (tab === "upcoming") {
-      return ["invited", "confirmed", "reschedule_requested", "rescheduled", "in_progress"].includes(i.status);
+      return isUpcomingBucket(i);
     }
     if (tab === "past") {
-      return ["completed"].includes(i.status) || (sDate && sDate < now && i.status !== "cancelled");
+      return isPastBucket(i);
     }
     if (tab === "cancelled") {
       return i.status === "cancelled";
@@ -2397,7 +2407,7 @@ export const CandidateInterviews = () => {
   });
 
   const tabCounts = {
-    upcoming: allInterviews.filter((i) => ["invited", "confirmed", "reschedule_requested", "rescheduled", "in_progress"].includes(i.status)).length,
+    upcoming: allInterviews.filter(isUpcomingBucket).length,
     today: allInterviews.filter((i) => {
       const d = i.scheduledStart ? new Date(i.scheduledStart) : null;
       return d && d >= startOfToday && d < endOfToday && i.status !== "cancelled";
@@ -2406,7 +2416,7 @@ export const CandidateInterviews = () => {
       const d = i.scheduledStart ? new Date(i.scheduledStart) : null;
       return d && d >= now && d <= endOfThisWeek && i.status !== "cancelled";
     }).length,
-    past: allInterviews.filter((i) => ["completed"].includes(i.status) || (i.scheduledStart && new Date(i.scheduledStart) < now && i.status !== "cancelled")).length,
+    past: allInterviews.filter(isPastBucket).length,
     cancelled: allInterviews.filter((i) => i.status === "cancelled").length,
     all: allInterviews.length,
   };
@@ -2475,10 +2485,10 @@ export const CandidateInterviews = () => {
                       {startDate ? (
                         <div className="flex min-w-[56px] flex-col items-center justify-center rounded-xl border border-brand-200 bg-brand-50/70 px-2.5 py-1.5 text-center">
                           <span className="text-[10px] font-bold uppercase tracking-wider text-brand-700">
-                            {startDate.toLocaleDateString("en-US", { month: "short" })}
+                            {formatDate(startDate).split(" ")[1]}
                           </span>
                           <span className="text-lg font-black leading-tight text-ink-950">
-                            {startDate.getDate()}
+                            {formatDate(startDate).split(" ")[0]}
                           </span>
                         </div>
                       ) : (

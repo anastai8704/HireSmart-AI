@@ -1,3 +1,4 @@
+import { formatDateTime } from "./utils";
 // Display helpers for the admin Revenue & Plans and placement screens (Requirements 8–9).
 // Pure functions: no fetching, no rules. The server decides eligibility; these only label what it returns.
 
@@ -13,14 +14,7 @@ export const fmtIst = (value) => {
   if (!value) return "—";
   const d = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleString("en-IN", {
-    timeZone: "Asia/Kolkata",
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return formatDateTime(d, "Asia/Kolkata");
 };
 
 export const PAYMENT_STATUS_LABELS = {

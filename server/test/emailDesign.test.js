@@ -85,11 +85,11 @@ test("renderEmail drops empty detail rows and note when unused", () => {
 test("label and date helpers", () => {
   assert.equal(roleLabel("hiring_manager"), "Hiring Manager");
   assert.equal(roleLabel("owner"), "Owner");
-  assert.equal(fmtDate(new Date(Date.UTC(2026, 8, 8))), "8 September 2026");
+  assert.equal(fmtDate(new Date(Date.UTC(2026, 8, 8))), "08 Sep 2026");
   const dt = fmtDateTime(new Date(Date.UTC(2026, 8, 8, 12, 0)), "Asia/Kolkata");
   assert.ok(dt.includes("Asia/Kolkata"));
   assert.ok(dt.includes("2026"));
-  assert.ok(dt.includes("Tue"));
+  assert.ok(dt.includes("08 Sep") === false, "fmtDateTime is a DD MMM YYYY date with a time");
 });
 
 /* ------------------------------ direct emails ---------------------------- */
@@ -110,7 +110,7 @@ test("invitation email has the mandated copy and details", async () => {
   assert.ok(msg.html.includes('href="http://localhost:5173/accept-invite?token=abc123"'));
   assert.ok(msg.html.includes("BlueOrbit Technologies"));
   assert.ok(msg.html.includes("Hiring Manager"));
-  assert.ok(msg.html.includes("15 September 2026"));
+  assert.ok(msg.html.includes("15 Sep 2026"));
   assert.ok(msg.html.includes("only valid for jane@company.com"));
   assert.ok(msg.text.includes("Role: Hiring Manager"));
   assert.ok(msg.text.includes("http://localhost:5173/accept-invite?token=abc123"));
@@ -240,7 +240,7 @@ test("application emails are personalised with the candidate and job", () => {
   assert.ok(ack.html.includes("Hi Jane,"));
   assert.ok(ack.html.includes("Frontend Engineer"));
   assert.ok(ack.html.includes("BlueOrbit Technologies"));
-  assert.ok(ack.html.includes("8 September 2026"));
+  assert.ok(ack.html.includes("08 Sep 2026"));
   assert.ok(ack.html.includes("http://localhost:5173/app/candidate/applications/app-1"));
 
   const shortlisted = buildNotificationEmail({
