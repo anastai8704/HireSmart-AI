@@ -1409,6 +1409,27 @@ const seedPresentationData = async () => {
       console.log(`[ADMIN] Preserved existing platform admin account: ${existingAdmin.email} (${existingAdmin.name})`);
     }
 
+    // 1b. Demo platform admin: create-only. An existing account is never changed (role, password, status).
+    const demoAdminEmail = String(process.env.DEMO_ADMIN_EMAIL || "tofu1180@gmail.com").trim().toLowerCase();
+    const demoAdmin = await User.findOne({ email: demoAdminEmail }).lean();
+    if (!demoAdmin) {
+      await User.create({
+        name: "Platform Admin (Demo)",
+        email: demoAdminEmail,
+        password: await bcrypt.hash(DEMO_PASSWORD, 10),
+        role: "admin",
+        accountStatus: "active",
+        emailVerified: true,
+        onboardingCompleted: true,
+        timezone: "Asia/Kolkata",
+      });
+      console.log(`  + Created demo Platform Admin: <${demoAdminEmail}>`);
+    } else if (demoAdmin.role !== "admin") {
+      console.log(`  ! <${demoAdminEmail}> exists with role "${demoAdmin.role}". Not changed: grant admin manually if intended.`);
+    } else {
+      console.log(`  ✓ Demo Platform Admin present: <${demoAdminEmail}>`);
+    }
+
     // 2. Organizations
     console.log("\n[1/8] Seeding Verified Organizations & Moderation Queue...");
     const orgMap = {};
@@ -1715,7 +1736,7 @@ const seedPresentationData = async () => {
     const RECRUITER_SUBS = [
       {
         orgSlug: "apex-innovations",
-        tier: "recruiter_growth",
+        tier: "recruiter_enterprise",
         usage: { activeJobsCount: 5, teamMembersCount: 3, aiAnalysesUsedThisMonth: 28 },
       },
       {
@@ -1751,6 +1772,8 @@ const seedPresentationData = async () => {
           organization: org._id,
           subscriberType: "recruiter",
           planTier: item.tier,
+          source: "demo_seed",
+          isDemo: true,
           status: "active",
           currentPeriodStart: daysAgo(5),
           currentPeriodEnd: inDays(25),
@@ -1771,6 +1794,8 @@ const seedPresentationData = async () => {
           candidate: anas._id,
           subscriberType: "candidate",
           planTier: "candidate_plus",
+          source: "demo_seed",
+          isDemo: true,
           status: "active",
           currentPeriodStart: daysAgo(10),
           currentPeriodEnd: inDays(20),

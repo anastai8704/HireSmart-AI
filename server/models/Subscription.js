@@ -48,6 +48,16 @@ const subscriptionSchema = new mongoose.Schema(
       min: 0,
       default: 0,
     },
+    // Where the entitlement came from. A demo grant is complimentary: it has no payment record and is never revenue.
+    source: {
+      type: String,
+      enum: ["razorpay", "demo_seed", "admin_grant"],
+      default: "razorpay",
+    },
+    isDemo: {
+      type: Boolean,
+      default: false,
+    },
     currentPeriodStart: {
       type: Date,
       default: Date.now,

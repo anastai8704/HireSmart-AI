@@ -10,3 +10,6 @@ server/uploads/**
 
 # local email template previews (generated)
 email-previews/
+
+# demo reset backups (local data, never commit)
+server/backups/
