@@ -165,12 +165,14 @@ nodeTest("repeated seeding keeps existing passwords, accounts and subscriptions 
   assert.equal(res.code, 0, failure(res));
   await connectDB(ctx.demoUri);
   const after = await User.findOne({ email: CANDIDATE }).select("+password").lean();
+  assert.ok(after, "candidate still exists after the rerun");
   assert.equal(after.password, changed, "an existing password is not replaced by the seed");
-  assert.notEqual(after.password, passwordBefore);
+  assert.notEqual(after.password, passwordBefore, "candidate password hash changed after the rerun setup");
   assert.equal(await User.countDocuments({}), before.users, "no duplicate accounts");
   assert.equal(await Subscription.countDocuments({}), before.subs, "no duplicate subscriptions");
   assert.equal(await Organization.countDocuments({}), before.orgs, "no duplicate companies");
-  assert.equal((await User.findOne({ email: ADMIN }).lean()).role, "admin");
+  const adminAfter = await User.findOne({ email: ADMIN }).lean();
+  assert.equal(adminAfter && adminAfter.role, "admin", "admin role is kept on rerun");
 });
 
 nodeTest("reset refuses without --confirm-reset, in production, and for a database name mismatch; data is untouched", async () => {
