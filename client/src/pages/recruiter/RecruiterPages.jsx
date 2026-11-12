@@ -68,6 +68,7 @@ import {
 import { DEFAULT_TIMEZONE, toZonedLocalInput, zonedLocalToUtc } from "../../lib/interviewWorkflow";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { CompanyVerificationCard } from "./CompanyVerificationCard";
+import { PlanBadge } from "../../components/billing/PlanBadge";
 const greeting = () => {
   const hour = istHour();
   return hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
@@ -3228,7 +3229,10 @@ const CompanyProfileCard = () => {
   const set = (key) => (e) => setLocalForm({ ...form, [key]: e.target.value });
   return (
     <section className="panel mt-8 p-6">
-      <h2 className="font-bold">Company profile</h2>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="font-bold">Company profile</h2>
+        <PlanBadge compact billingHref={`/app/o/${auth.organizationId}/billing`} />
+      </div>
       <p className="mt-1 text-sm text-ink-500">
         Shown on your public company page —{" "}
         <Link to={`/companies/${org.data?.data?.slug}`} className="text-brand-600 hover:underline">

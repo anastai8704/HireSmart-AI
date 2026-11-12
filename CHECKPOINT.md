@@ -203,3 +203,23 @@ What changed:
 - Tests: `SearchableSelect.test.jsx` (22 tests: keyboard, search, single/multi, clear, loading, empty, disabled, Escape vs dialog, form submit and validation). Existing revenue and team tests updated to open and pick options like a user.
 
 Next: Requirement 17 (plan badges), then Requirement 2 (billing UI).
+
+## Checkpoint 17: plan badges from the real entitlement (Requirement 17)
+
+| Item | Result |
+|---|---|
+| Client suite | 42 files, 297 tests pass (25 new for Req 17) |
+| Client lint | 0 errors (3 pre-existing warnings) |
+| Client production build | passes |
+| Server unit suite | 239 pass, 0 fail |
+| Server lint (touched files) | clean |
+
+What changed:
+- Server: `GET /subscriptions/current` also returns `billingState` (`pendingCheckout`, `lastPaymentFailed`). Derived in `server/domain/billingState.js`. A checkout is pending for 30 minutes from `initiated`. A failed attempt only counts if it is newer than the latest captured or refunded payment.
+- Client: `lib/planStatus.js` (`planBadgeFor`) maps entitlement and billing state to a label, status, and tone. Only `active`, paid, not scheduled to cancel is tone `paid`. Scheduled cancellation shows "Ends <date>" as a warning. Expired, canceled, and missing entitlement never show as paid.
+- `hooks/usePlanEntitlement.js`: one query keyed by the active workspace (candidates have no workspace). No request for platform admins.
+- `components/billing/PlanBadge.jsx` and `PlanSummaryCard.jsx`: shown in the AppShell account menu and workspace switcher, Settings (Plan card), My Profile (candidate Onboarding header and recruiter Company profile card), and both billing pages. Compact chips link to billing.
+
+Decision still open: the required "Professional" label has no catalogue equivalent. The UI uses the real catalogue names (Free, Starter, Growth, Enterprise, Career Plus). Mapping to "Professional" needs a user decision.
+
+Next: Requirement 2 (billing UI redesign).

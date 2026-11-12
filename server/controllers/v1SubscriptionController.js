@@ -1,5 +1,6 @@
 const { Subscription } = require("../models/Subscription");
 const { REVENUE_STATUSES, refundStatusOf, revenueMode, isRevenueEligible } = require("../domain/revenueRules");
+const { billingStateFrom } = require("../domain/billingState");
 const { PaymentTransaction } = require("../models/PaymentTransaction");
 const { ALL_PLANS, CANDIDATE_PLANS, RECRUITER_PLANS } = require("../config/subscriptionPlans");
 const {
@@ -113,6 +114,22 @@ exports.getPlans = asyncHandler(async (_req, res) => {
 /**
  * Candidate or Recruiter: Get current active plan & quota usage
  */
+// Whether a checkout is in progress or the last payment failed. Used only for the plan badge wording.
+const billingStateFor = async (subscriber) => {
+  const base = { subscriberType: subscriber.subscriberType, subscriberId: subscriber.subscriberId };
+  const [initiated, failed, captured] = await Promise.all([
+    PaymentTransaction.findOne({ ...base, status: "initiated" }).sort({ _id: -1 }).select("createdAt").lean(),
+    PaymentTransaction.findOne({ ...base, status: "failed" }).sort({ _id: -1 }).select("_id").lean(),
+    PaymentTransaction.findOne({ ...base, status: { $in: REVENUE_STATUSES } }).sort({ _id: -1 }).select("_id").lean(),
+  ]);
+  return billingStateFrom({
+    initiatedAt: initiated?.createdAt || null,
+    failedId: failed?._id || null,
+    capturedId: captured?._id || null,
+    now: new Date(),
+  });
+};
+
 exports.getCurrentSubscription = asyncHandler(async (req, res) => {
   const subscriber = await resolveBillingSubscriber(req);
   let sub;
@@ -137,11 +154,13 @@ exports.getCurrentSubscription = asyncHandler(async (req, res) => {
   const planDetails = ALL_PLANS[sub.planTier] || ALL_PLANS.candidate_free;
   // What is in force right now (expired or unpaid plans fall back to the free limits).
   const entitlement = await getEffectiveSubscription(subscriber.subscriberType, subscriber.subscriberId);
+  const billingState = await billingStateFor(subscriber);
   res.json({
     data: {
       subscription: sub,
       plan: planDetails,
       entitlement,
+      billingState,
     },
   });
 });

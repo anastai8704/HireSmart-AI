@@ -33,6 +33,7 @@ import Avatar from "../ui/Avatar";
 import Button from "../ui/Button";
 import Modal from "../ui/Modal";
 import { Logo, LogoMark } from "../brand/Logo";
+import { PlanBadge } from "../billing/PlanBadge";
 
 const candidateGroups = [
   [
@@ -233,6 +234,9 @@ const AppShell = () => {
             >
               Workspace
             </label>
+            <div className="mb-1.5">
+              <PlanBadge compact />
+            </div>
             <div className="relative">
               <select
                 id="organization-switcher"
@@ -426,6 +430,9 @@ const AppShell = () => {
                       <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-brand-600">
                         {auth.workspaceRole?.replace("_", " ")}
                       </p>
+                      <div className="mt-2">
+                        <PlanBadge compact />
+                      </div>
                     </div>
                     <div className="p-1.5">
                       <NavLink

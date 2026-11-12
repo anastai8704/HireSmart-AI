@@ -28,6 +28,7 @@ import { authApi, downloadBlob, notificationApi, userApi } from "../lib/api";
 import { useAuth } from "../context/useAuth";
 import { useToast } from "../components/ui/useToast";
 import { cn, formatDate, formatDateTime, formatRelativeTime, notificationTarget } from "../lib/utils";
+import { PlanSummaryCard } from "../components/billing/PlanSummaryCard";
 
 /* Role-appropriate filters. Categories come from the backend notification
    record (n.category) with a text fallback for older notifications. */
@@ -979,6 +980,7 @@ export const SettingsPage = () => {
           </div>
         </nav>
         <div className="min-w-0">
+          {section === "account" && auth.user && <PlanSummaryCard />}
           {section === "account" && (auth.user ? <AccountSection auth={auth} /> : <SkeletonList rows={3} />)}
           {section === "security" && <SecuritySection />}
           {section === "notifications" && (auth.user ? <PrefsSection /> : <SkeletonList rows={3} />)}

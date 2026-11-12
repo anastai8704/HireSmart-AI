@@ -74,6 +74,7 @@ import {
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { safeHttpUrl } from "../../lib/safeUrl";
 import { SearchableSelect } from "../../components/ui/SearchableSelect";
+import { PlanBadge } from "../../components/billing/PlanBadge";
 
 const getVersions = (response) => response?.meta?.versions || [];
 const useResumes = () => useQuery({ queryKey: ["resumes"], queryFn: resumeApi.list });
@@ -631,6 +632,7 @@ export const OnboardingPage = () => {
         eyebrow="Profile"
         title="Tell your professional story"
         description="This context improves job recommendations and candidate matching. Sensitive attributes are not used for ranking."
+        action={<PlanBadge billingHref="/app/candidate/plans" />}
       />
       <form
         className="panel space-y-5 p-6 sm:p-8"

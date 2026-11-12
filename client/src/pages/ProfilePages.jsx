@@ -22,6 +22,7 @@ import { useToast } from "../components/ui/useToast";
 
 import { ROLE_PROFILES, profileRoleFor } from "../lib/profileConfig";
 import { CandidatePrivacyPanel } from "../components/hiring/CandidatePrivacyPanel";
+import { PlanBadge } from "../components/billing/PlanBadge";
 
 const formFrom = (u) =>
   u
@@ -138,6 +139,7 @@ export const ProfilePage = () => {
         eyebrow="Profile"
         title="My Profile"
         description={config.description}
+        action={<PlanBadge billingHref={auth.role === "candidate" ? "/app/candidate/plans" : auth.organizationId ? `/app/o/${auth.organizationId}/billing` : undefined} />}
       />
       <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
         <aside className="space-y-4 lg:sticky lg:top-20 lg:self-start">

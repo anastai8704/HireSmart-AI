@@ -20,6 +20,7 @@ import { useToast } from "../../components/ui/useToast";
 import { openRazorpayCheckout } from "../../lib/razorpayCheckout";
 import { hasYearlyPrice, cycleAvailable, displayPrice, cycleSuffix } from "../../lib/billingCycle";
 import { formatDate } from "../../lib/utils";
+import { PlanBadge } from "../../components/billing/PlanBadge";
 
 export const RecruiterBilling = () => {
   const toast = useToast();
@@ -181,6 +182,7 @@ export const RecruiterBilling = () => {
         eyebrow="Company Workspace"
         title="Subscription & Billing"
         description="Manage your hiring capacity, active job posting allowances, team seats, and invoices."
+        action={<PlanBadge />}
       />
 
       {/* Current Active Plan Banner & Quota Usage */}

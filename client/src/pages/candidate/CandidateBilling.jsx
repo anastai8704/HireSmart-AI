@@ -16,6 +16,7 @@ import { useToast } from "../../components/ui/useToast";
 import { openRazorpayCheckout } from "../../lib/razorpayCheckout";
 import { hasYearlyPrice, cycleAvailable, displayPrice, cycleSuffix } from "../../lib/billingCycle";
 import { formatDate } from "../../lib/utils";
+import { PlanBadge } from "../../components/billing/PlanBadge";
 
 export const CandidateBilling = () => {
   const toast = useToast();
@@ -170,6 +171,7 @@ export const CandidateBilling = () => {
         eyebrow="Career Membership"
         title="Candidate Membership & Plans"
         description="Accelerate your interview callbacks with AI resume enhancement, tailored interview prep, and priority matching."
+        action={<PlanBadge />}
       />
 
       {/* Current Active Plan Header */}
