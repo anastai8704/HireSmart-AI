@@ -247,7 +247,7 @@ Limitations, documented not hidden:
 
 Next: Requirement 7 (control-center redesign).
 
-## Checkpoint 7: admin control center (Requirement 7)
+## Checkpoint 13: admin control center (Requirement 7)
 
 | Item | Result |
 |---|---|
@@ -283,8 +283,39 @@ Closed in this checkpoint:
 - Revenue reports (`reportService.js`) were checked against the rules. Gross uses the capture day, refunds use `refundedAt`, and only Razorpay `captured` and `refunded` records count. Simulation, grants and failed attempts are excluded. No change needed.
 - Admin candidate resume visibility (Req 9): `GET /admin/candidates/:id/resumes` and `.../versions/:versionId/download`, platform admins only. Each list and download is audited before anything is returned, so a failed audit blocks the access. UI: "Resumes" on candidate rows in Admin Users, with a warning that access is audited. Tests: `CandidateResumesModal.test.jsx`.
 - Employment-status payloads are validated server-side (`domain/employmentDates.js`). An invalid date is 422 `INVALID_DATE` (it used to be stored as Invalid Date). An end before the start is 422 `INVALID_DATE_RANGE`. Unit tests included.
-- Placement verification (`domain/placementVerification.js`): only after the joining is confirmed (`joining_confirmed`, `currently_working`, `employment_ended`). `selected` and `hired` are refused with 409 `NOT_VERIFIABLE_YET`, and a second verification is refused with 409 `ALREADY_VERIFIED`. The admin button mirrors the rule and explains why it is disabled.
+- Placement verification: the stricter rule that refused `selected` and `hired` placements (`NOT_VERIFIABLE_YET`) was reverted in the final QA phase. It contradicted the existing contract in `test/placementAuthorization.test.js`, which requires an admin to verify a hired placement. The original behaviour is kept.
 - AppShell admin nav: added the Subscriptions entry (the page and route already existed).
 - `PlacementsPages.test.jsx` exists with 5 behaviour tests, all passing.
 
 Still open: DB-backed server tests (`adminRevenuePlacements`, `adminAnalytics`, the new admin endpoints and the placement verification rules) need a running MongoDB and have not been executed yet. See the final phase.
+
+## Final QA phase (Requirements 13 and 18)
+
+Ran the full gates on the branch and fixed the defects that CI found. CI run `43197411278` on `a305f46`:
+backend and frontend-contract both succeeded. The backend job ran `npm test` against MongoDB 7 (63/63 test files pass).
+
+| Commit | Summary |
+|---|---|
+| `7f0ae7d` | fix(payments): `PaymentTransaction` validate hook is async (Mongoose 9 passes no `next`); fixes `next is not a function` on every checkout |
+| `5408122` | fix(interviews): candidate confirm and reschedule return the candidate view (no feedback, no event id); interviews expose `id` |
+| `6cc8d4a` | fix(placements): restore admin verification of pre-joining placements (see the note above) |
+| `ea8673d` | fix(revenue): one refund rule (`refundsInRange`) for overview, report and daily chart |
+| `7d852ee` | fix(notifications): register `subscription_expiring_7d`, `subscription_expiring_1d`, `subscription_expired` |
+| `e418d73` | test(email): date-format assertion matches DD MMM YYYY |
+| `3cb0b86` | test(reports): revenue fixture uses Razorpay captured records (sandbox records are never revenue) |
+| `a305f46` | deps(server): mongoose 9.8.0 to 9.12.1 for critical advisories (`npm audit` now 0) |
+
+Gates (local and CI):
+
+| Gate | Result |
+|---|---|
+| Server `npm run check`, `npm run lint` | pass |
+| Server unit suite | 251/251 |
+| Server `npm test` (DB-backed, CI, MongoDB 7) | 63/63 files pass |
+| Server `npm audit --omit=dev --audit-level=high` | 0 vulnerabilities (CI and local) |
+| Client `vitest` | 47 files, 334 tests pass |
+| Client `eslint .` | 0 errors, 3 pre-existing warnings |
+| Client `npm run build` | passes |
+| Client `npm audit --omit=dev` | 0 vulnerabilities |
+
+See `docs/FINAL_VERIFICATION.md` for the Requirement 1–18 status table and the open items.

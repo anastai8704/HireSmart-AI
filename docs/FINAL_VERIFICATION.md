@@ -153,3 +153,51 @@ The original symptom was a zero pending count shown next to a visible company ca
 - `cd client && npm run build` → success
 
 CI for the Phase 13 commit is listed in the final report. Database-backed suites run only in CI.
+
+---
+
+# Final QA report: Requirements 1–18 (branch `arena/a534346b-hiresmart-ai`)
+
+Status key: **Verified** means automated tests ran and passed (CI DB-backed tests count as verified). **Code-checked** means
+the code was read against the requirement but has no dedicated automated test. **Not verified** means it needs a live
+external service or credentials that the sandbox does not have. Nothing is marked Verified without a test result.
+
+CI evidence: run `43197411278` on `a305f46`. Backend job: `npm ci`, `npm run check`, `npm run lint`, `npm run indexes:create`
+(32 collections), `npm test` (63/63 DB-backed files pass against MongoDB 7), `npm audit --omit=dev --audit-level=high` (0).
+Frontend-contract job: `npm ci`, lint, `vitest` (334 tests), build. Both green.
+
+| Req | Area | Status | Evidence / open item |
+|---|---|---|---|
+| 1 | Razorpay ₹999 Starter, webhook authority, duplicates, invalid signature, retry | Verified (test mode) | `paymentWebhooks`, `paymentSecurity`, `razorpayIntegration.unit` in CI. Not verified: a live Razorpay Test Mode checkout (needs keys). |
+| 2 | Billing & Quotas redesign, history filters, cancel scheduled vs immediate | Verified (client) | Client billing helper tests; `GET /subscriptions/invoices` filters (`domain/paymentHistory.js`). Visual check in a browser not done. |
+| 3 | Job-first interview scheduling, binding fields | Verified | `interviewApiFlow`, `interviewWorkflow` (CI). `APPLICATION_JOB_MISMATCH` covered. |
+| 4 | Google Calendar/Meet, encrypted tokens, honest labels | Partly verified | Unit: `googleCalendar`, token encryption. Not verified: live OAuth and Calendar (no credentials). Without credentials the app reports `setup_required`, never a fake Meet. |
+| 5 | Recruiter interview UI, start control | Verified (client) | Client tests; `POST .../start` covered in `interviewApiFlow`. |
+| 6 | Candidate join gating (`in_progress` only), early/late/cancelled/rescheduled/missing link | Verified | `interviewApiFlow` join gating and start window; candidate view fix in `5408122`. |
+| 7 | Admin control center, metrics reconcile | Verified (CI) / partly | `adminAnalytics`, `reports` (totals match overview, fixed in `3cb0b86`). Overview endpoint has no dedicated integration test. Readiness covers DB and job store only, not payments or email. |
+| 8 | Revenue & Plans: captured-only, refunds subtracted, test/live separated | Verified | `adminRevenuePlacements`, `reports` (CI), `revenueRules.unit` (refund attribution, `ea8673d`). |
+| 9 | Placements and employment statuses, history kept, sensitive access audited | Verified (CI) | `placementAuthorization`, `employmentDates.unit`; resume access audited (`admin.candidate_resumes_viewed`). Placement rule decision: see CHECKPOINT (rule reverted). |
+| 10 | Asia/Kolkata display, UTC storage, no past interviews, completed excluded from Upcoming | Verified | `istTime.unit`, `istDates.test` (client), `interviewWorkflow` (past-date check). |
+| 11 | Demo accounts, hashed passwords, development-only reset with backup, idempotent seed | Verified (guards); seed run not verified in CI | `demoResetPolicy.unit` (refuses production, requires confirm, exact database name, local host, backup before delete). `DEMO_PASSWORD` comes from env (min 12 chars); nothing hardcoded. Not verified: running `seed:demo` against a real database. |
+| 12 | Shared accessible searchable combobox | Verified (client) | Client combobox tests (`acf6450`). |
+| 13 | Full gate run and this report | Verified | Gates above. `npm audit` fixed by a semver-compatible update, not `--force`. |
+| 14 | Free vs Paid central entitlement, backend enforcement, error codes | Verified | `subscriptionEnforcement` (CI), `subscriptionCheck` middleware. |
+| 15 | Demo plans: recruiter Enterprise, candidate Career Plus, `source=demo_seed`, `isDemo=true`, no Razorpay transactions | Code-checked + seed guards | Seed grants use `recruiter_enterprise`, `candidate_plus`, `source: demo_seed`, `isDemo: true`. No dedicated automated test of the seeded state yet. |
+| 16 | Expiry reminders (7d, 1d, expiry), idempotent, in-app and email, fallback to Free without deletion, no invented grace | Verified (CI) / partly | `notificationsAudit` (CI), `subscriptionReminders.unit`, `notificationAudit.unit` (types registered in `7d852ee`). Email delivery not verified (no SMTP). |
+| 17 | Plan badges from server entitlement, neutral Free badge | Verified (client) | Badge tests (`55a74c9`). Open decision: the "Professional" label has no catalogue match; the UI uses the catalogue names (Free, Starter, Growth, Enterprise, Career Plus). |
+| 18 | End-to-end tests for Free and Paid recruiter and candidate flows, expiry, demo accounts | Partly verified | Route-level and workflow tests in CI cover these flows. There is no browser-level E2E suite; that is a stated gap. |
+
+## Open items (not fixed in this phase)
+
+1. Live external services: Razorpay Test Mode end to end, Google OAuth and Calendar, SMTP delivery, and the reminder worker against real time. These need your own credentials. Set them in `server/.env` (see `docs/ENVIRONMENT.md`) and test in that order.
+2. Requirement 17 "Professional" label: needs your decision (rename or map to a catalogue plan).
+3. No browser-level E2E suite (Requirement 18). The current coverage is API and component level.
+4. Demo seed and reset have not been run against a real database in this environment. CI covers the guards only.
+5. Readiness endpoint does not check payment or email providers.
+
+## Integrity checks performed
+
+- No hard deletes in payment, subscription, placement or job code. The only deletes are account registration rollback, user-initiated removals, and the development-only reset (which backs up first).
+- All `/admin` routes sit behind `requirePlatformAdmin`.
+- Candidate-facing interview responses omit feedback and meeting links until the interview starts.
+- Sandbox (`simulation`) records are excluded from revenue, which is now covered by `reports.test.js`.
