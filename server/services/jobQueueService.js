@@ -90,7 +90,16 @@ const execute = async (job) => {
 };
 const enqueue = async ({ type, owner, organization = null, payload, maxAttempts = 3 }) => {
   const job = await JobRun.create({ type, owner, organization, payload, maxAttempts });
-  if (config.processJobsInline) await execute(await JobRun.findById(job._id).select("+payload"));
+  if (config.processJobsInline) {
+    try {
+      await execute(await JobRun.findById(job._id).select("+payload"));
+    } catch (error) {
+      // A failed email is recorded on the job and retried later (execute() has already scheduled the retry).
+      // It must not fail the action that produced the notification; the notification itself is already saved.
+      if (type !== "notification.email") throw error;
+      logger.warn(`Email job ${job._id} failed and will retry: ${error.message}`);
+    }
+  }
   return JobRun.findById(job._id);
 };
 const processNext = async () => {
