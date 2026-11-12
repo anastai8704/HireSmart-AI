@@ -1,7 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { cleanup, render, screen } from "@testing-library/react";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 
 const state = {
   user: { displayName: "Test User" },
@@ -24,6 +24,10 @@ vi.mock("../../context/useAuth", () => ({
 vi.mock("../../lib/api", () => ({
   notificationApi: { list: () => Promise.resolve({ data: [] }) },
 }));
+
+afterEach(() => {
+  cleanup();
+});
 
 const renderShell = (path) => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -77,3 +81,52 @@ describe("AppShell smoke", () => {
     expect(screen.getByText("Security & Audit")).toBeInTheDocument();
   });
 });
+
+describe("AppShell platform header (Requirement 7)", () => {
+  const renderAdmin = () => {
+    state.role = "admin";
+    state.user = { displayName: "Platform Admin" };
+    state.workspaceRole = "admin";
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={["/app/admin"]}>
+          <Routes>
+            <Route path="/app" element={<AppShell />}>
+              <Route path="admin" element={<div>ADMIN HOME</div>} />
+              <Route path="admin/search" element={<div>ADMIN SEARCH PAGE</div>} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+  };
+
+  it("submits the header search to the admin search page with the query", async () => {
+    const { default: userEvent } = await import("@testing-library/user-event");
+    renderAdmin();
+    const input = screen.getByRole("searchbox", { name: "Search companies and users" });
+    await userEvent.type(input, "Meridian{enter}");
+    expect(await screen.findByText("ADMIN SEARCH PAGE")).toBeInTheDocument();
+  });
+
+  it("ignores a header search shorter than two characters", async () => {
+    const { default: userEvent } = await import("@testing-library/user-event");
+    renderAdmin();
+    await userEvent.type(screen.getByRole("searchbox", { name: "Search companies and users" }), "a{enter}");
+    expect(screen.getByText("ADMIN HOME")).toBeInTheDocument();
+  });
+
+  it("shows the current date in Asia/Kolkata as DD MMM YYYY", () => {
+    renderAdmin();
+    const expected = new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Asia/Kolkata",
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    }).format(new Date());
+    expect(screen.getByTestId("admin-header-date")).toHaveTextContent(/^\d{2} [A-Z][a-z]{2} \d{4}$/);
+    expect(screen.getByTestId("admin-header-date").textContent.replace(/\./g, "")).toBe(expected.replace(/\./g, ""));
+  });
+});
+
