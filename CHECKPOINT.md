@@ -319,3 +319,41 @@ Gates (local and CI):
 | Client `npm audit --omit=dev` | 0 vulnerabilities |
 
 See `docs/FINAL_VERIFICATION.md` for the Requirement 1–18 status table and the open items.
+
+## Final QA phase: audit restart (Requirements 1–18)
+
+Earlier QA summaries marked several requirements "Verified" without a per-criterion check. This phase rechecked each requirement against the code, tests and CI. The authoritative result is the matrix in `docs/FINAL_VERIFICATION.md` (18 requirement sections).
+
+Commits in this phase (branch `arena/a534346b-hiresmart-ai`):
+
+| Commit | Summary | Verified |
+| --- | --- | --- |
+| `fbd745f` | fix(billing): bad Checkout signature defers to webhook reconciliation (Req 1) | CI run `43200087753`: backend failed on one test assertion in `paymentWebhooks` (count of orders). Not a product failure. |
+| `5221b7b` | test(billing): slot-hold assertion counts orders before and after the refused checkout; Google Calendar setup guide and Google/demo env variables (Req 4, 11, 13) | CI run `43200905003`: success |
+| `a2771e5` | docs: demo accounts guide (Req 11) | CI run `43201039503`: backend success, frontend-contract success |
+| (final) | docs: final verification matrix (18 requirements) and this checkpoint | See the CI run on the final SHA (below) |
+
+Corrections to the earlier record:
+
+- The `fbd745f` commit message said billing search was added. Search already existed on the server (`q` on `/subscriptions/invoices`) and in the client. The commit did not add it.
+- Earlier notes said there was no Payment ID column. The column exists and shows the gateway payment ID.
+- Requirement 14 was marked Verified in the previous report, but `PLAN_LIMIT_REACHED`, `SUBSCRIPTION_EXPIRED` and `FEATURE_NOT_INCLUDED` are not implemented.
+- Requirement 9 was marked Verified, but the spec's seven employment statuses are not implemented.
+
+Local gates on `a2771e5`: server `check` and `lint` exit 0; `npm audit --omit=dev --audit-level=high`: 0 vulnerabilities. Client vitest 339/339, lint 0 errors (3 warnings), build passes. The 12 DB-backed server test files cannot run in this sandbox (MongoDB download blocked); CI runs them and passed on `5221b7b`.
+
+Open items (the matrix lists the full set):
+
+- Req 9: implement the spec's employment statuses, or agree a mapping. Decision needed.
+- Req 18: no browser E2E suite.
+- Req 14: add the three missing error codes.
+- Req 7: header search, recent-operations lists, current-date display.
+- Req 2: payment-method column (method not stored), currency column, receipts.
+- Req 12: header organization switcher still native `<select>`.
+- Req 4: background poll for pending conferences.
+- Req 17: "Professional" label decision.
+- BLOCKED: Razorpay Test Mode, Google OAuth/Calendar/Meet, SMTP.
+
+Checkpoint numbering note: the table above stops at checkpoint 8. The body headings "Checkpoint 13: admin control center (Requirement 7)" (commit `550e1da`) is the admin control center checkpoint. Earlier notes called it "Checkpoint 7"; the table's checkpoint 7 is `916978e` (demo and reset).
+
+No pull request has been opened. Waiting for your approval before any PR.

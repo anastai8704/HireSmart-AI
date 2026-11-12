@@ -1,203 +1,212 @@
-# Final verification report (Phase 13)
+# Final verification report: Requirements 1–18
 
-This report records what was checked, how, and what is still open. It does not claim that every vulnerability has
-been eliminated. "CI" means the GitHub Actions run for the commit named in the row. Database-backed tests run only in
-CI, because this sandbox has no MongoDB.
+Branch: `arena/a534346b-hiresmart-ai`. Written against the code at the final QA checkpoint (see `CHECKPOINT.md`).
 
-Commits covered: Phase 12 at `2a74677` (CI run `42069765305`, backend and frontend-contract both green). Phase 13 changes
-are listed in the last section.
+This report replaces the earlier summary, which marked several requirements "Verified" without a per-criterion check.
+Every status below was rechecked against the source code, the tests, and the CI results for the named commits.
 
-## 1. Implemented and tested
+## Status key
 
-| Area | Evidence |
-| --- | --- |
-| Authentication, sessions, refresh rotation, CSRF on refresh, reuse detection | `server/test/*` (CI, DB-backed); Phase 8 notes in `docs/SECURITY.md` |
-| Role permissions and route access | `server/test/securityRoutes.unit.test.js` freezes the public route list and checks every `/admin` route (CI and local `node --test`) |
-| Company verification and job moderation | `server/test/jobModeration.test.js` (CI), including "counts and queues agree" and draft-edit regression |
-| Candidate workflow (apply, duplicate, resume state, draft/missing job, concurrency, idempotency) | `server/test/dataIntegrity.test.js` (CI); `docs/TESTING.md` |
-| Pagination | `server/test/pagination.unit.test.js` (local 7/7; CI) |
-| Analytics and reports, CSV formula-injection protection, export row cap, audit of exports | `server/test/reports.unit.test.js` (local 6/6), `reports.test.js` (CI); `docs/REPORTS.md` |
-| Subscriptions and payment state machine (test mode only) | Phase 6/7 suites (CI); `docs/PAYMENTS.md` |
-| Notifications, audit log fields, redaction | Phase 9 suites (CI); `docs/SECURITY.md` |
-| Error handling (typed errors, validation 422, `CODE` fields) | Covered by the API suites above (CI) |
-| Frontend unit and component tests | Client `npx vitest run`: 28 files, 148 tests passing (local, this session) |
-| Production frontend build | `npm run build` in `client/` succeeds (local, this session) |
-| Server lint | `npm run lint` in `server/`: 0 errors, 0 warnings (local, after Phase 13 cleanup) |
-| Client lint | `npm run lint` in `client/`: 0 errors, 3 warnings (see section 4) |
-| Dependency audit | `npm audit --omit=dev`: 0 vulnerabilities for server and client (Phase 11, unchanged since) |
-| Unused dependencies | Every declared dependency is referenced in non-test source (Phase 12 scan) |
+- **PASS**: the criteria are met in code, and automated tests (CI for DB-backed tests) cover them. Browser or live-service checks are listed separately.
+- **PARTIAL**: some criteria are met, others are missing or unverified. Each gap is listed.
+- **BLOCKED**: needs an external service or credentials that this sandbox does not have. Not verified.
+- **FAIL**: a stated criterion is not implemented, or it is implemented differently from the requirement.
+- **NOT TESTED**: the code exists, but the behaviour was not exercised.
 
-## 2. Implemented, awaiting external credentials or configuration
+## Verification matrix
 
-- **Razorpay Test Mode checkout** against a real Razorpay Test Mode account: not run. Code path and signature checks are
-  covered by tests only. Requires `RAZORPAY_KEY_ID` (`rzp_test_...`), `RAZORPAY_KEY_SECRET`, and a test plan created in
-  the Razorpay dashboard.
-- **Deployed webhook URL** (`POST /api/v1/payments/webhooks/razorpay`): not registered or verified in any deployed
-  environment. Requires `RAZORPAY_WEBHOOK_SECRET` and a public HTTPS URL.
-- **Real e-mail delivery**: templates and queueing are tested. Delivery through a real SMTP provider is not verified.
-- **Yearly plan prices**: not set. All plans keep `yearlyPriceInr: null`. Pricing has not been finalised, so none was
-  invented.
+| Req | Area | Status | Key evidence | Main open item |
+|---|---|---|---|---|
+| 1 | Razorpay ₹999 Starter, webhook authority, duplicates, bad signature, retry | PARTIAL | Bad-signature Checkout fix (`fbd745f`); DB tests pass in CI on `5221b7b` (run `43200905003`) | Live Razorpay Test Mode: BLOCKED (no keys) |
+| 2 | Billing & Quotas redesign; history search, filters, pagination; scheduled vs immediate cancel | PARTIAL | `q` search on `/subscriptions/invoices` (escaped, case-insensitive, `domain/paymentHistory.js`); search input in `PaymentHistory.jsx`; Payment ID column shows gateway payment ID | No payment-method column (not stored); no currency column; no receipt action (GST receipts not available); no browser check |
+| 3 | Job-first interview scheduling; application loaded per job; binding fields | PARTIAL | `APPLICATION_JOB_MISMATCH`; candidate copied from application; interview tests in CI | Fields are stored as `organization`, `job`, `application`, `candidate`, `createdBy`, `participants`, not `organizationId`, `jobId`, … (semantically equivalent; not renamed) |
+| 4 | Google Calendar and Meet via official API; encrypted tokens; honest labels | PARTIAL | `conferenceDataVersion=1`, `hangoutsMeet`, `calendar.events` scope, AES-256-GCM refresh tokens, revoke on disconnect, labels, failure states | Live OAuth and Calendar: BLOCKED; no background poll for pending conferences (manual retry only) |
+| 5 | Recruiter interview UI and start control | PASS | `interviewApiFlow` (`POST …/start`), client interview tests (CI) | Not exercised in a browser |
+| 6 | Candidate join only when `in_progress`; early, late, cancelled, rescheduled, missing link | PASS | `candidateJoinState` and start window in `domain/interviewPolicy.js`; `interviewApiFlow`; `interviewWorkflow` tests | Not exercised in a browser |
+| 7 | Admin control center; metrics reconcile with records | PARTIAL | Health panel, drill-down queues, all-time totals, analytics range presets, KPI definitions (`analyticsDefinitions.js`) | No header global search; no recent-operations lists (companies, job submissions, upcoming interviews, placement updates, payments); no current-date display |
+| 8 | Revenue & Plans: captured-only, refunds subtracted, test/live separated | PASS | `domain/revenueRules.js` (captured/refunded, Razorpay only, refunds by `refundedAt`); revenue tests in CI | Live revenue is zero by design because live keys are refused |
+| 9 | Placements and employment; status set; history kept; sensitive access audited | FAIL | Append-only `employmentHistory`; reported and verified events kept separate; resume access audited | Spec statuses (`offer_accepted`, `pending_joining`, `joined_pending_verification`, `active_verified`, `employment_end_pending_verification`, `employment_ended_verified`, `status_unconfirmed`) are not implemented; the code uses `hired`, `joining_confirmed`, `placement_verified`, `currently_working`, `employment_ended`. Candidate-reported end of employment applies immediately, not after verification |
+| 10 | Asia/Kolkata `DD MMM YYYY`; UTC storage; no past scheduling; completed excluded from Upcoming | PASS | `formatDate` (`DD MMM YYYY`, IST); `SCHEDULE_IN_PAST` server check; `interviewWorkflow` buckets exclude cancelled and ended | — |
+| 11 | Demo accounts; hashed passwords; guarded reset with backup; idempotent seed; synthetic payments | PARTIAL | `demoResetPolicy` refuses production, requires confirm flag, exact database name, backup before delete; seed bcrypt-hashes `DEMO_PASSWORD`; no `PaymentTransaction` rows for demo grants; `docs/DEMO_ACCOUNTS.md` | Seed and reset have not been run against a real database (no MongoDB here) |
+| 12 | Shared accessible searchable combobox for all roles | PARTIAL | `SearchableSelect` (WAI-ARIA combobox) used in 15 files | Header organization switcher in `AppShell.jsx` is still a native `<select>` (not converted: dark-theme styling needs a visual check) |
+| 13 | Gates: check, lint, tests, frontend tests, build, audit; 15-item delivery report | PARTIAL | Gates below; CI green on `a2771e5` (both jobs) | Final CI on the final commit must be confirmed (see CHECKPOINT) |
+| 14 | Central entitlement; backend enforcement; four error codes; org vs user scope | PARTIAL | Central enforcement in `middleware/subscriptionCheck.js`; `UPGRADE_REQUIRED` tested (`subscriptionEnforcement`) | `PLAN_LIMIT_REACHED`, `SUBSCRIPTION_EXPIRED`, `FEATURE_NOT_INCLUDED` are not implemented |
+| 15 | Demo plans: recruiter Enterprise, candidate Career Plus, `source=demo_seed`, `isDemo=true`, no Razorpay records | PARTIAL | Seed grants use these values (`seed-presentation-demo.js`) | Seeded state not tested against a database |
+| 16 | 7-day, 1-day and expiry notices; idempotent key; retry; fallback to Free; no invented grace | PARTIAL | `subscriptionNoticeService.js` key `type:subscriptionId:billingPeriodEnd`; `subscriptionReminders.unit` and `notificationsAudit` in CI | Email delivery: BLOCKED (no SMTP); failed-email retry not verified |
+| 17 | Plan badges from server entitlement; neutral Free; updates after state changes | PARTIAL | Badge tests (client) | "Professional" label has no catalogue match (user decision pending); UI uses Free, Starter, Growth, Enterprise, Career Plus; update-after-change not tested |
+| 18 | E2E tests for Free and Paid recruiter and candidate flows, expiry, demo accounts | FAIL | Route-level and component tests in CI | No browser E2E suite exists in the repository |
 
-## 3. Partially implemented
+Summary: PASS 4 (Requirements 5, 6, 8, 10). PARTIAL 12 (Requirements 1, 2, 3, 4, 7, 11, 12, 13, 14, 15, 16, 17). FAIL 2 (Requirements 9, 18). Total 18.
 
-- **Browser end-to-end tests**: none. Workflows are tested at the API level (`docs/TESTING.md`, coverage matrix shows
-  workflows 2, 8, 14, 15 partially).
-- **Responsive interface**: not verified in a real browser at mobile and desktop widths. Not claimed.
-- **Migrations**: `migrate:v1` and `migrate:applications` scripts exist but are not run by CI. They have not been rehearsed
-  against a restored copy of a real database.
-- **Dashboard metrics versus database records**: the report and analytics tests check that summary totals agree with
-  the underlying records for the cases they cover. Not every dashboard widget is cross-checked against raw records.
-- **Company analytics page**: has no CSV export button yet. The server endpoints support it (`docs/REPORTS.md`).
+The project is not complete: 14 of 18 requirements are not PASS. Items marked BLOCKED need external credentials and are not verified.
 
-## 4. Not implemented
+## Requirement 1: Razorpay ₹999 Starter subscription
 
-- **PDF invoice generation**: pending.
-- **Malware scanning** for uploaded files: pending.
-- **Data retention and hard-delete policy**: deliberately deferred by the product owner. Current protections are kept
-  and the gap is documented in `docs/SECURITY.md`. Revisit before launch.
-- **Live payment mode**: not enabled and not authorised. The server refuses live keys and `NODE_ENV=production`
-  payments.
-- **Client lint warnings**: 3 warnings in `client/src/pages/auth/AuthPages.jsx` (`react-hooks/incompatible-library`,
-  from `react-hook-form`'s `watch()`). Left as-is; they are library compatibility warnings, not errors.
+- **Status:** PARTIAL.
+- **Fixed in this phase (`fbd745f`):** a rejected browser signature used to mark the order `failed`. The provider's later real charge was then recorded as a renewal. A bad signature now defers to webhook reconciliation (`deferForReconciliation`). Commit `5221b7b` corrected a test assertion that CI showed was wrong (the product behaviour was correct).
+- **Reviewed and found correct in code:** webhook authority and dedupe; amount, currency and plan checks; activation only on captured payments; past-due handling; the subscription slot held until period end.
+- **Automated:** `paymentWebhooks` (bad signature → `initiated`; late charge on first purchase; slot held at period end), `paymentSecurity`, `razorpayIntegration.unit`. These are DB-backed and pass in CI on `5221b7b` and `a2771e5`.
+- **BLOCKED:** a live Razorpay Test Mode checkout. The sandbox has no keys. This must be run by you (see the Windows steps).
 
-## 5. Known risks (accepted or open)
+## Requirement 2: Billing & Quotas redesign
 
-- Dev-only CORS reflects any origin when `CORS_ORIGIN` is empty. Production must set `CORS_ORIGIN`.
-- `/avatars/:key` is a public capability URL (accepted).
-- Per-account login throttling can temporarily lock an account (accepted trade-off).
-- `JWT_EXPIRES_IN` is read but unused.
-- `payment.captured` handling depends on `subscription_id` being present on the payment entity. Not yet confirmed against
-  a real Razorpay Test Mode payload.
-- A dismissed subscription Checkout is cancelled locally only. The provider-side subscription stays `created` until it
-  expires.
-- Refunds are counted in revenue by `updatedAt`.
-- The demo seed (`npm run seed:demo`) creates accounts with one known demo password. It now refuses
-  `NODE_ENV=production`, but the password is still in source. Do not use that dataset outside local or test databases.
-- Historical study and planning documents in `docs/` (for example `LEARN.md`, `VIVA.md`, `RESUME.md`,
-  `PROJECT_AUDIT.md`) may contain outdated statements. They are not product documentation.
+- **Status:** PARTIAL.
+- **Present:** overview, plan cards, billing history with search (`q`, escaped, matches transaction, invoice, gateway payment and order, and subscription references), status filter, IST date range, cursor pagination, Payment ID column (gateway payment ID, or "Not yet issued"), mode column, scheduled-vs-immediate cancel wording.
+- **Missing against the spec's table:** a payment-method column (the webhook does not store the method, so it is not available), a currency column (amounts are INR only), and a receipt or invoice action (the UI states that GST receipts are not available yet, which the spec permits "where supported").
+- **Correction:** the earlier commit message and report said search was missing. Search exists on the server and client. It is tested by `paymentHistory.unit`.
 
-## 6. Manual configuration required before any deployment
+## Requirement 3: Job-first interview scheduling
 
-1. Set `NODE_ENV=production`, a strong `JWT_SECRET`, `CORS_ORIGIN`, and SMTP settings (`SMTP_HOST`, `SMTP_USER`,
-   `SMTP_PASS`). Production startup validation refuses unsafe values (`docs/ENVIRONMENT.md`).
-2. Keep `PAYMENT_MODE=disabled` until Razorpay Test Mode checkout and the deployed webhook have been verified.
-3. Run `npm run migrate:v1` (and `migrate:applications` if legacy data exists), then `npm run indexes:create`, then
-   `npm run bootstrap:admin`, against the target database. Do not run any seed script there.
-4. Register the webhook URL in the Razorpay dashboard and use the matching webhook secret.
+- **Status:** PARTIAL.
+- **Present:** the recruiter selects a job first; applications load only for that job (client). The server rejects an application from another job (`APPLICATION_JOB_MISMATCH`). The candidate is copied from the application. Interview tests in CI (`interviewApiFlow`, `interviewWorkflow`) pass.
+- **Gap:** the stored field names differ from the spec. They are `organization`, `job`, `application`, `candidate`, `createdBy` and `participants`. This was kept (not renamed) to avoid a data migration.
 
-## 7. Remaining production blockers
+## Requirement 4: Google Calendar and Google Meet
 
-1. Data retention and hard-delete policy (deferred decision; must be made before launch).
-2. Razorpay Test Mode checkout verified end-to-end, including the `payment.captured` payload check and the
-   dismissed-Checkout provider state.
-3. Deployed webhook URL configured and verified.
-4. Yearly pricing decision (or a decision to launch monthly only).
-5. PDF invoices, if they are part of launch scope.
-6. Browser end-to-end and responsive checks.
-7. Migration rehearsal on a restored database copy.
+- **Status:** PARTIAL.
+- **Present (code):** official Calendar API with `conferenceDataVersion=1` and `conferenceData.createRequest.conferenceSolutionKey.type = hangoutsMeet`. Scope `calendar.events`. Refresh tokens are encrypted with AES-256-GCM. Disconnect revokes the token. "Google Meet" is shown only when a Meet was created through the Google entry point. Manual links are labelled "Manual link". Failures are recorded and shown as "Meet link failed" with retry. Without credentials the app reports setup required and never fakes a Meet link.
+- **Gaps:** there is no background poll for pending conferences (manual retry only).
+- **BLOCKED:** live OAuth consent, a real Meet creation, and a revoke against Google. No credentials were available. Never claim a Meet was created until a real call has succeeded.
+- **Setup:** `docs/GOOGLE_CALENDAR_SETUP.md`.
 
-## 8. Moderation-count discrepancy: re-investigation
+## Requirement 5: Recruiter interview UI
 
-The original symptom was a zero pending count shown next to a visible company card. The full analysis is in
-`docs/PROJECT_AUDIT.md`.
+- **Status:** PASS.
+- **Evidence:** start control calls `POST …/start`; the interview moves to `in_progress` (`interviewApiFlow`, client interview tests, CI).
+- **Not done:** no browser check of the layout.
 
-- **Confirmed causes (code, fixed and tested):**
-  1. Saving a draft's edits wrote a pending change, so drafts were counted as pending.
-  2. Closed jobs stayed in the pending count but were excluded from bulk approval.
-  3. The job preview depended on a legacy list capped at 50 jobs.
-  4. The recruiter dashboard counted pending by listing only, not by pending change.
-- **Resolution:** one shared predicate (`needsReviewExpr`) now drives every pending count, queue, and bulk action.
-  Regression tests: `server/test/jobModeration.test.js`, "drafts: editing a draft does not create a pending change"
-  and "counts and queues agree: the summary matches the company's records".
-- **Not confirmed:** the exact production data state that produced the zero-count screen. No production database
-  was available. To confirm it for affected data, run the read-only drift report, then apply it after reviewing the
-  dry run:
-  `cd server && node scripts/moderation-drift-report.js` (dry run), then `--apply` (clears stale draft proposals only).
+## Requirement 6: Candidate join gating
 
-## 9. Production paths: no dummy analytics or hardcoded payment success
+- **Status:** PASS.
+- **Evidence:** `candidateJoinState` allows Join only when the status is `in_progress` and a link exists. Cancelled, ended, rescheduled and missing-link states each have a distinct reason and message. The start window (15 minutes before start, 60 minutes after end) is in `interviewPolicy.js`. Covered by `interviewApiFlow` and `interviewWorkflow` (CI).
 
-- Searched `server/` and `client/src/` for `Math.random`, `mock`, `dummy`, and `fake` in production code. None
-  found in server code. The landing page's product-preview data is labelled as demo UI in its own comment.
-- Every write that sets a payment to `captured` happens after a payment-signature check (`verify-payment`) or a verified
-  webhook. The `simulation` payment mode is allowed only when `NODE_ENV` is `development` or `test`.
+## Requirement 7: Admin control center
 
-## 10. Review scans (Phase 13)
+- **Status:** PARTIAL.
+- **Present:** platform health panel, drill-down queues, all-time totals, analytics with range presets (7d, 30d, 90d, custom), chart groups, recent activity. KPI definitions are in `domain/analyticsDefinitions.js`. The totals reconcile with the overview (`reports`, CI).
+- **Missing:** a header global search (the header has no search); recent-operations lists (companies, job submissions, upcoming interviews, placement updates, payments); the current date display. The admin list endpoints already accept `limit`, filters and cursor pagination, so these lists can be added on top of them.
 
-- **Hardcoded secrets** (`rzp_live_`, `rzp_test_` literals, AWS key, OpenAI-style key, private key blocks) in tracked
-  non-test, non-document files: none found. The demo password in `seed-presentation-demo.js` is the exception noted in
-  section 5.
-- **Debug statements**: no `console.log`/`console.debug` in production server code (scripts excluded) or client source.
-  No `debugger` statements.
-- **TODO / FIXME / XXX** in server and client source: none.
-- **Focused or skipped tests** (`.only`, `.skip`, `xit`): none.
-- **Hardcoded localhost in client source**: none (only a code comment). API calls use `/api/v1` unless
-  `VITE_API_URL` is set.
-- **Unused code**: 13 unused identifiers were flagged by ESLint in `server/controllers/v1PlacementController.js` and
-  `server/scripts/seed-presentation-demo.js`. Unused names were removed. In the placement controller, the model modules
-  are kept as side-effect-only requires, so Mongoose model registration does not change. The unused `notify` import was
-  removed.
-- **Duplicate or stray files**: none tracked (no backup, copy, log, or env files; no `node_modules` or `dist`).
-- **Unprotected admin routes**: `/api/v1/admin/*` is guarded as a prefix (`requirePlatformAdmin`). The two
-  organisation-scoped audit endpoints require `audit.read`. Public mutating routes are only auth flows, the invitation
-  accept link, and the Razorpay webhook (signature-checked).
-- **Stale documentation**: README, `docs/backend-api.md`, `docs/ENVIRONMENT.md` rewritten in Phase 12 and checked
-  against code; relative links verified. Other feature documents were kept (see section 5).
+## Requirement 8: Revenue & Plans
 
-## 11. Commands run in Phase 13 (local)
+- **Status:** PASS.
+- **Evidence:** `domain/revenueRules.js` counts only `captured` and `refunded` records from `razorpay`. Net revenue equals gross minus refunds, with refunds attributed to their `refundedAt` date. Sandbox records are labelled `simulation` and excluded. Demo grants have no payment record. Tests: `revenueRules.unit`, `adminRevenuePlacements`, `reports` (CI).
+- **Live:** no live revenue exists until live keys are used. This is by design.
 
-- `cd server && npm run lint` → 0 errors, 0 warnings
-- `cd server && node --test test/reports.unit.test.js test/pagination.unit.test.js test/securityRoutes.unit.test.js` → 17 pass, 0 fail
-- `cd server && NODE_ENV=production node scripts/seed-presentation-demo.js` → refuses with an error and exit code 1
-- `cd client && npx eslint .` → 0 errors, 3 warnings
-- `cd client && npx vitest run` → 28 files, 148 tests passing
-- `cd client && npm run build` → success
+## Requirement 9: Placements and employment
 
-CI for the Phase 13 commit is listed in the final report. Database-backed suites run only in CI.
+- **Status:** FAIL.
+- **Present:** the flow Company → Job → Application → Candidate → Placement exists. `employmentHistory` is append-only and records reported and verified events separately. Resume access is audited. Candidate and company permissions are enforced (`placementAuthorization`).
+- **Not met:** the spec's seven employment statuses are not implemented (see the matrix). The code's status set is `selected`, `hired`, `joining_confirmed`, `placement_verified`, `currently_working`, `employment_ended`. A candidate-reported end of employment is applied immediately, and the spec requires it to wait for verification.
+- **Decision needed:** whether to map the existing states onto the spec's seven, or to implement the spec's set. This changes the state machine, the existing data, and the UI, so it was not done in this phase.
 
----
+## Requirement 10: Dates and times
 
-# Final QA report: Requirements 1–18 (branch `arena/a534346b-hiresmart-ai`)
+- **Status:** PASS.
+- **Evidence:** `formatDate` displays `DD MMM YYYY` in Asia/Kolkata by default (`client/src/lib/utils.js`). Dates are stored in UTC. Scheduling in the past is rejected on the server (`SCHEDULE_IN_PAST`). The Upcoming bucket excludes cancelled and completed interviews (`interviewWorkflow`). Tests: `istTime.unit`, `istDates.test`.
 
-Status key: **Verified** means automated tests ran and passed (CI DB-backed tests count as verified). **Code-checked** means
-the code was read against the requirement but has no dedicated automated test. **Not verified** means it needs a live
-external service or credentials that the sandbox does not have. Nothing is marked Verified without a test result.
+## Requirement 11: Demo accounts
 
-CI evidence: run `43197411278` on `a305f46`. Backend job: `npm ci`, `npm run check`, `npm run lint`, `npm run indexes:create`
-(32 collections), `npm test` (63/63 DB-backed files pass against MongoDB 7), `npm audit --omit=dev --audit-level=high` (0).
-Frontend-contract job: `npm ci`, lint, `vitest` (334 tests), build. Both green.
+- **Status:** PARTIAL.
+- **Present:** accounts `tofu1180@gmail.com` (admin, override with `DEMO_ADMIN_EMAIL`), `2025mca150@gmail.com` (recruiter) and `tanastai5018@gmail.com` (candidate). The password is read only from `DEMO_PASSWORD` (minimum 12 characters) and is bcrypt-hashed before storage. Nothing is hard-coded in code or docs. Reset is never run at startup. The guard policy is unit-tested (`demoResetPolicy`). Seed is an upsert (idempotent). Demo grants create no `PaymentTransaction`. See `docs/DEMO_ACCOUNTS.md`.
+- **Gap:** the seed and reset have not been run against a real database. This needs a disposable local database.
 
-| Req | Area | Status | Evidence / open item |
-|---|---|---|---|
-| 1 | Razorpay ₹999 Starter, webhook authority, duplicates, invalid signature, retry | Verified (test mode) | `paymentWebhooks`, `paymentSecurity`, `razorpayIntegration.unit` in CI. Not verified: a live Razorpay Test Mode checkout (needs keys). |
-| 2 | Billing & Quotas redesign, history filters, cancel scheduled vs immediate | Verified (client) | Client billing helper tests; `GET /subscriptions/invoices` filters (`domain/paymentHistory.js`). Visual check in a browser not done. |
-| 3 | Job-first interview scheduling, binding fields | Verified | `interviewApiFlow`, `interviewWorkflow` (CI). `APPLICATION_JOB_MISMATCH` covered. |
-| 4 | Google Calendar/Meet, encrypted tokens, honest labels | Partly verified | Unit: `googleCalendar`, token encryption. Not verified: live OAuth and Calendar (no credentials). Without credentials the app reports `setup_required`, never a fake Meet. |
-| 5 | Recruiter interview UI, start control | Verified (client) | Client tests; `POST .../start` covered in `interviewApiFlow`. |
-| 6 | Candidate join gating (`in_progress` only), early/late/cancelled/rescheduled/missing link | Verified | `interviewApiFlow` join gating and start window; candidate view fix in `5408122`. |
-| 7 | Admin control center, metrics reconcile | Verified (CI) / partly | `adminAnalytics`, `reports` (totals match overview, fixed in `3cb0b86`). Overview endpoint has no dedicated integration test. Readiness covers DB and job store only, not payments or email. |
-| 8 | Revenue & Plans: captured-only, refunds subtracted, test/live separated | Verified | `adminRevenuePlacements`, `reports` (CI), `revenueRules.unit` (refund attribution, `ea8673d`). |
-| 9 | Placements and employment statuses, history kept, sensitive access audited | Verified (CI) | `placementAuthorization`, `employmentDates.unit`; resume access audited (`admin.candidate_resumes_viewed`). Placement rule decision: see CHECKPOINT (rule reverted). |
-| 10 | Asia/Kolkata display, UTC storage, no past interviews, completed excluded from Upcoming | Verified | `istTime.unit`, `istDates.test` (client), `interviewWorkflow` (past-date check). |
-| 11 | Demo accounts, hashed passwords, development-only reset with backup, idempotent seed | Verified (guards); seed run not verified in CI | `demoResetPolicy.unit` (refuses production, requires confirm, exact database name, local host, backup before delete). `DEMO_PASSWORD` comes from env (min 12 chars); nothing hardcoded. Not verified: running `seed:demo` against a real database. |
-| 12 | Shared accessible searchable combobox | Verified (client) | Client combobox tests (`acf6450`). |
-| 13 | Full gate run and this report | Verified | Gates above. `npm audit` fixed by a semver-compatible update, not `--force`. |
-| 14 | Free vs Paid central entitlement, backend enforcement, error codes | Verified | `subscriptionEnforcement` (CI), `subscriptionCheck` middleware. |
-| 15 | Demo plans: recruiter Enterprise, candidate Career Plus, `source=demo_seed`, `isDemo=true`, no Razorpay transactions | Code-checked + seed guards | Seed grants use `recruiter_enterprise`, `candidate_plus`, `source: demo_seed`, `isDemo: true`. No dedicated automated test of the seeded state yet. |
-| 16 | Expiry reminders (7d, 1d, expiry), idempotent, in-app and email, fallback to Free without deletion, no invented grace | Verified (CI) / partly | `notificationsAudit` (CI), `subscriptionReminders.unit`, `notificationAudit.unit` (types registered in `7d852ee`). Email delivery not verified (no SMTP). |
-| 17 | Plan badges from server entitlement, neutral Free badge | Verified (client) | Badge tests (`55a74c9`). Open decision: the "Professional" label has no catalogue match; the UI uses the catalogue names (Free, Starter, Growth, Enterprise, Career Plus). |
-| 18 | End-to-end tests for Free and Paid recruiter and candidate flows, expiry, demo accounts | Partly verified | Route-level and workflow tests in CI cover these flows. There is no browser-level E2E suite; that is a stated gap. |
+## Requirement 12: Searchable combobox
 
-## Open items (not fixed in this phase)
+- **Status:** PARTIAL.
+- **Present:** `SearchableSelect` implements the WAI-ARIA combobox pattern with a listbox, keyboard support and labels. It is used in 15 files across roles.
+- **Gap:** the header organization switcher (`AppShell.jsx`, `#organization-switcher`) is still a native `<select>`. It was left as is because its styling is for the dark header and it needs a visual check.
 
-1. Live external services: Razorpay Test Mode end to end, Google OAuth and Calendar, SMTP delivery, and the reminder worker against real time. These need your own credentials. Set them in `server/.env` (see `docs/ENVIRONMENT.md`) and test in that order.
-2. Requirement 17 "Professional" label: needs your decision (rename or map to a catalogue plan).
-3. No browser-level E2E suite (Requirement 18). The current coverage is API and component level.
-4. Demo seed and reset have not been run against a real database in this environment. CI covers the guards only.
-5. Readiness endpoint does not check payment or email providers.
+## Requirement 13: Gates and delivery report
 
-## Integrity checks performed
+- **Status:** PARTIAL (the final CI run on the final commit is pending).
+- **Local results on `a2771e5` (this phase):**
+  - Server: `npm run check` exit 0; `npm run lint` exit 0; `npm audit --omit=dev --audit-level=high`: 0 vulnerabilities.
+  - Server unit tests: 12 DB-backed files cannot run in this sandbox because the MongoDB binary download is blocked. Their results come from CI.
+  - Client: vitest 47 files, 339 tests passed; lint 0 errors, 3 warnings; build succeeded.
+- **CI:** run `43201039503` on `a2771e5`: backend success, frontend-contract success. Run `43200905003` on `5221b7b`: success. Run `43200087753` on `fbd745f`: backend failed on one assertion, fixed in `5221b7b`.
+- **Not used:** `npm audit fix --force`.
 
-- No hard deletes in payment, subscription, placement or job code. The only deletes are account registration rollback, user-initiated removals, and the development-only reset (which backs up first).
-- All `/admin` routes sit behind `requirePlatformAdmin`.
-- Candidate-facing interview responses omit feedback and meeting links until the interview starts.
-- Sandbox (`simulation`) records are excluded from revenue, which is now covered by `reports.test.js`.
+### Delivery report (15 items)
+
+1. Branch and checkpoints: `arena/a534346b-hiresmart-ai`; checkpoints in `CHECKPOINT.md`.
+2. Requirement 1 fix: `fbd745f` (bad signature), `5221b7b` (test).
+3. Billing: search and Payment ID already present; the earlier report was wrong to claim otherwise.
+4. Google docs: `docs/GOOGLE_CALENDAR_SETUP.md`, `docs/ENVIRONMENT.md`.
+5. Demo docs: `docs/DEMO_ACCOUNTS.md` (commit `a2771e5`).
+6. Gates: see Requirement 13.
+7. CI: `a2771e5` green (both jobs).
+8. Audit: 0 high or critical production vulnerabilities.
+9. Failing items: Requirements 9 and 18 (FAIL).
+10. Partial items: 1, 2, 3, 4, 7, 11, 12, 13, 14, 15, 16, 17.
+11. Blocked (external): Razorpay Test Mode, Google OAuth and Calendar, SMTP email.
+12. Not run: seed and reset against a real database; browser checks of every screen.
+13. Decisions needed: the "Professional" plan label; the Req 9 status model.
+14. Not implemented: header search, recent-operations lists, the employment status set, the three missing entitlement error codes, the browser E2E suite, payment method and receipts.
+15. Next step: approve or change the Req 9 status model and the "Professional" label; then the gaps above are scheduled.
+
+## Requirement 14: Entitlements
+
+- **Status:** PARTIAL.
+- **Present:** the enforcement point is `middleware/subscriptionCheck.js`, which applies the plan limits for jobs, members and AI usage. `UPGRADE_REQUIRED` is returned and tested (`subscriptionEnforcement`, CI). Recruiter subscriptions are scoped to the organization, candidate subscriptions to the user, and platform admins keep platform access.
+- **Missing:** `PLAN_LIMIT_REACHED`, `SUBSCRIPTION_EXPIRED` and `FEATURE_NOT_INCLUDED` are not returned anywhere in the server code. Limit and expiry cases return `UPGRADE_REQUIRED` only.
+
+## Requirement 15: Demo plans
+
+- **Status:** PARTIAL.
+- **Present:** the seed grants the recruiter demo organization the highest recruiter tier (`recruiter_enterprise`) and the demo candidate `candidate_plus`, with `source: demo_seed`, `isDemo: true` and no payment records.
+- **Gap:** the seeded state has not been checked against a database.
+
+## Requirement 16: Expiry reminders
+
+- **Status:** PARTIAL.
+- **Present:** `services/subscriptionNoticeService.js` sends the 7-day and 1-day reminders and the expiry notice for paid subscriptions that will not renew (cancelled at period end, or no provider subscription). Each notice key is `type:subscriptionId:billingPeriodEnd`, so a notice is sent once per window. Expiry falls back to Free without deleting data. Scheduled cancellation keeps access until period end. No grace period is invented. Tests: `subscriptionReminders.unit`, `notificationsAudit` (CI).
+- **BLOCKED:** email delivery needs SMTP. Failed-email retry is not verified.
+
+## Requirement 17: Plan badges
+
+- **Status:** PARTIAL.
+- **Present:** the badge is derived from the entitlement returned by the server. Free is shown neutrally. Badge tests exist (client).
+- **Gaps:** the "Professional" label has no catalogue match, so the UI uses the catalogue names. This needs your decision. Badge update after a state change is not tested.
+
+## Requirement 18: End-to-end tests
+
+- **Status:** FAIL.
+- **Present:** route-level and component tests cover the Free and Paid flows, expiry and demo accounts (CI).
+- **Not met:** the repository has no browser E2E framework or suite, and the criteria require E2E tests. Adding one is a separate task.
+
+## External integrations: unverified
+
+- Razorpay Test Mode (checkout, webhooks, refunds): BLOCKED, no keys.
+- Google OAuth, Calendar and Meet: BLOCKED, no credentials.
+- SMTP email and the reminder worker against real time: BLOCKED, no SMTP.
+- MongoDB-backed demo seed and reset against a real database: NOT TESTED here.
+
+## Windows PowerShell: pull and check
+
+```powershell
+cd C:\path\to\HireSmart-AI
+git fetch origin
+git checkout arena/a534346b-hiresmart-ai
+git pull origin arena/a534346b-hiresmart-ai
+
+cd server
+npm ci
+npm run check
+npm run lint
+npm test          # needs MongoDB reachable; CI runs it
+
+cd ..\client
+npm ci
+npx vitest run
+npm run build
+```
+
+To run the demo seed on a disposable local database only (never production):
+
+```powershell
+cd ..\server
+$env:DEMO_PASSWORD="<choose a password of at least 12 characters>"
+npm run seed:demo
+```
+
+Do not run `demo:reset` on a database you need to keep. See `docs/DEMO_ACCOUNTS.md`.
