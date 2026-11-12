@@ -79,3 +79,27 @@ Not yet implemented (in suggested order):
 Verification still needed: `npm test` (DB-backed suites need MongoDB), frontend `npm test` and `npm run build`, `npm audit`, real Razorpay Test Mode checkout and webhook, real Google Calendar/Meet with credentials.
 
 Demo password: never stored in code or docs. Set `DEMO_PASSWORD` (min 12 characters) in `server/.env` and use the same value for the three demo accounts. Requirement 11 names the password for local demo only; do not commit it.
+
+## Continuation note after checkpoint 8 (resume from the latest remote commit)
+
+Done (backend, unit-tested): job-first binding, start state and window, candidate join gating and view filtering,
+Google OAuth connect/callback/status/disconnect, Calendar event create/patch/delete with conferenceDataVersion=1,
+honest meeting states, retry endpoint, `interview_started` notice (in-app only).
+
+Still to do, in order:
+
+1. Frontend for Requirements 3–6 (not started):
+   - Recruiter interview scheduling: company -> job -> applications for that job -> candidate -> schedule. Use the
+     existing `/organizations/:id/jobs/:jobId/applications` list. Send `jobId` with `applicationId`.
+   - Recruiter dashboard: upcoming/today/week/past/cancelled, filters, Start, Open Meet (staff join), feedback view.
+   - Candidate interview page: use `joinState` from the API. Join disabled with "Waiting for recruiter to start" until
+     `canJoin`. Never show feedback.
+   - Google settings page at `/app/settings/integrations` (the OAuth callback redirects there with `?google=`).
+     The page does not exist yet; the callback currently lands on a missing route.
+2. DB-backed API tests for start/join/cross-org/job mismatch/candidate view (write, then run with MongoDB). Not run.
+3. Requirements 7–9 (admin dashboard, Revenue & Plans, placements/employment), 10 (Asia/Kolkata), 12 (searchable
+   combobox), 17 (plan badges), 2 (billing UI), 13 (docs), 18 (E2E).
+
+Google status: NOT verified live. Needs GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET, GOOGLE_OAUTH_REDIRECT_URI
+and GOOGLE_TOKEN_ENCRYPTION_KEY (32 bytes, base64 or hex). Consent screen and test users must be set in Google Cloud.
+The calendar.events scope is a sensitive scope and may need Google verification for non-test users.
