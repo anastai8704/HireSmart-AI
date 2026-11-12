@@ -49,7 +49,8 @@ const childEnv = (extra = {}) => ({
 // One line that says why a child process failed (the test runner summary keeps only the first line).
 const failure = (res) => {
   const lines = String(res.out || "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-  return `exit ${res.code}: ${lines.slice(-4).join(" | ").slice(0, 700)}`;
+  const reason = lines.find((l) => /Seed execution failed|Error:|refus|not allowed|ECONN|Missing/i.test(l)) || lines[lines.length - 1] || "no output";
+  return `exit ${res.code}: ${reason}`.slice(0, 400);
 };
 
 const runNode = async (args, env) => {
