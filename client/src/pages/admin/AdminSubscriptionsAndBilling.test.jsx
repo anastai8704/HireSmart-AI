@@ -3,6 +3,8 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
+const billing = vi.hoisted(() => ({ current: null }));
+
 vi.mock("../../context/useAuth", () => ({
   useAuth: () => ({
     user: { displayName: "Admin User", email: "admin@example.com" },
@@ -94,8 +96,21 @@ vi.mock("../../lib/api", () => ({
         },
       }),
     current: () =>
-      Promise.resolve({
+      billing.current
+        ? Promise.resolve(billing.current)
+        : Promise.resolve({
         data: {
+          entitlement: {
+            tier: "recruiter_starter",
+            planName: "Starter",
+            status: "active",
+            paid: true,
+            reason: "active",
+            periodEnd: "2026-10-01T00:00:00Z",
+            cancelAtPeriodEnd: false,
+            limits: { activeJobs: 3, teamMembers: 2, aiAnalysesPerMonth: 50 },
+          },
+          billingState: {},
           subscription: {
             planTier: "recruiter_starter",
             status: "active",
@@ -215,15 +230,22 @@ describe("Subscriptions, Monetization & Billing UI", () => {
 
   it("renders recruiter billing page with plan limits and quota bars", async () => {
     renderPage(<RecruiterBilling />, "/app/o/org-1/billing");
-    expect(await screen.findByText("Starter Plan")).toBeInTheDocument();
-    expect(await screen.findByText("Active Jobs")).toBeInTheDocument();
-    expect(await screen.findByText("2 / 3")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Starter plan" })).toBeInTheDocument();
+    expect(await screen.findByText("Active job postings")).toBeInTheDocument();
+    expect(await screen.findByText("2 of 3")).toBeInTheDocument();
     expect(await screen.findByText("Growth")).toBeInTheDocument();
   });
 
   it("renders candidate career plus membership comparison and upgrade", async () => {
+    billing.current = {
+      data: {
+        entitlement: { tier: "candidate_free", planName: "Free Standard", status: "free", paid: false, reason: "no_subscription", periodEnd: null, cancelAtPeriodEnd: false, limits: { activeJobs: 0, teamMembers: 0, aiAnalysesPerMonth: 5 } },
+        billingState: {},
+        subscription: { planTier: "candidate_free", usage: { aiAnalysesUsedThisMonth: 1 } },
+      },
+    };
     renderPage(<CandidateBilling />, "/app/candidate/plans");
-    expect(await screen.findByText("Standard Free Plan")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Free Standard plan" })).toBeInTheDocument();
     expect(await screen.findByText("Career Plus")).toBeInTheDocument();
     expect(await screen.findByText("₹149")).toBeInTheDocument();
     expect(await screen.findByText("Unlimited Applications")).toBeInTheDocument();

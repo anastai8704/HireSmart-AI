@@ -223,3 +223,26 @@ What changed:
 Decision still open: the required "Professional" label has no catalogue equivalent. The UI uses the real catalogue names (Free, Starter, Growth, Enterprise, Career Plus). Mapping to "Professional" needs a user decision.
 
 Next: Requirement 2 (billing UI redesign).
+
+## Checkpoint 2: recruiter and candidate billing redesign (Requirement 2)
+
+| Item | Result |
+|---|---|
+| Client suite | 45 files, 322 tests pass (new: billing model, payment history, recruiter billing page) |
+| Client lint | 0 errors (3 pre-existing warnings) |
+| Client production build | passes |
+| Server unit suite | 245 pass, 0 fail (6 new for payment history filters) |
+
+What changed:
+- Server: `GET /subscriptions/invoices` takes an allow-listed `status` (`all`, `captured`, `refunded`, `failed`) and an IST `from`/`to` day range (inclusive; reversed or malformed days return 422). Default is all three states, never abandoned `initiated` checkouts. Rules are in `domain/paymentHistory.js`.
+- Client, shared: `lib/billingModel.js` (status wording, quota rows from real limits only, plan-card actions, history labels), `hooks/useSubscriptionCheckout.js` (checkout and verification logic moved out of both pages, behaviour unchanged), `components/billing/CurrentPlanPanel.jsx` (status, renewal or expiry, quota meters, cancel renewal behind a confirmation), `PlanComparison.jsx`, `CheckoutDialog.jsx`, `PaymentHistory.jsx` (status and IST date filters, cursor "Load more", Test Mode, Live Mode and sandbox labels).
+- Pages: `RecruiterBilling.jsx` and `CandidateBilling.jsx` rebuilt on the shared pieces. Removed the hardcoded "Active" badge, the invented quota fallbacks (3, 2, 50), and the PDF button that only showed a success toast.
+- Plan card actions: current, renew (lapsed paid plan), upgrade or switch, and "Payment pending" (no second checkout while one is pending).
+
+Limitations, documented not hidden:
+- GST PDF receipts are not implemented. The history says so and points to support. No download control is shown.
+- Failed payments are now listed in the history (they are real payment states). The default filter changed accordingly; only billing pages consume this endpoint.
+- The DB-backed invoice endpoint is not covered by an executed integration test (no MongoDB in this sandbox yet). Covered by pure unit tests of the filter rules only.
+- Admin subscription fixtures were updated to the server's real response shape (entitlement and billing state included).
+
+Next: Requirement 7 (control-center redesign).

@@ -36,6 +36,7 @@ const AppError = require("../utils/AppError");
 const crypto = require("node:crypto");
 const mongoose = require("mongoose");
 const { parse, applyCursor, meta } = require("../utils/pagination");
+const { historyStatusesFor, historyWindow, createdAtFilter } = require("../domain/paymentHistory");
 
 const ORGANIZATION_PERMISSION = "organization.manage";
 
@@ -500,9 +501,17 @@ exports.getInvoices = asyncHandler(async (req, res) => {
   const { subscriberType, subscriberId } = subscriber;
 
   const page = parse(req.query);
+  const statuses = historyStatusesFor(req.query.status);
+  if (!statuses) {
+    throw new AppError("status must be all, captured, refunded or failed", 422, "INVALID_FILTER");
+  }
+  const window = historyWindow({ from: req.query.from, to: req.query.to });
+  if (!window) {
+    throw new AppError("from and to must be YYYY-MM-DD days, with from on or before to", 422, "INVALID_FILTER");
+  }
   // Same transaction records the admin Revenue & Plans page reads (domain/revenueRules.js). Sandbox captures are
   // shown but labelled mode "simulation" and eligibleForRevenue false, so they can never be mistaken for real payments.
-  const base = { subscriberType, subscriberId, status: { $in: REVENUE_STATUSES } };
+  const base = { subscriberType, subscriberId, status: { $in: statuses }, ...createdAtFilter(window) };
   const filter = applyCursor(base, page.after);
 
   const items = await PaymentTransaction.find(filter).sort({ _id: -1 }).limit(page.limit);

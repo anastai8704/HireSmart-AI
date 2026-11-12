@@ -1,409 +1,125 @@
+// Candidate membership (Requirement 2). Every plan state, limit and action comes from the server.
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  Sparkles,
-  Check,
-  CheckCircle2,
-  Zap,
-} from "lucide-react";
-import Button from "../../components/ui/Button";
-import Badge from "../../components/ui/Badge";
-import Modal from "../../components/ui/Modal";
-import { ErrorState, LoadingState } from "../../components/ui/States";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+
 import { PageHeader } from "../../components/Product";
-import { subscriptionApi } from "../../lib/api";
-import { useToast } from "../../components/ui/useToast";
-import { openRazorpayCheckout } from "../../lib/razorpayCheckout";
-import { hasYearlyPrice, cycleAvailable, displayPrice, cycleSuffix } from "../../lib/billingCycle";
-import { formatDate } from "../../lib/utils";
 import { PlanBadge } from "../../components/billing/PlanBadge";
+import { CurrentPlanPanel } from "../../components/billing/CurrentPlanPanel";
+import { PlanComparison } from "../../components/billing/PlanComparison";
+import { PaymentHistory } from "../../components/billing/PaymentHistory";
+import { CheckoutDialog } from "../../components/billing/CheckoutDialog";
+import { ErrorState, LoadingState } from "../../components/ui/States";
+import { useToast } from "../../components/ui/useToast";
+import { subscriptionApi } from "../../lib/api";
+import { useSubscriptionCheckout } from "../../hooks/useSubscriptionCheckout";
+import { describeBillingState } from "../../lib/billingModel";
+
+const CHECKOUT_COPY = {
+  title: (plan) => `Upgrade to ${plan.name}`,
+  subline: "Career membership",
+};
 
 export const CandidateBilling = () => {
   const toast = useToast();
   const qc = useQueryClient();
-
-  const [selectedPlan, setSelectedPlan] = useState(null);
-  const [checkoutData, setCheckoutData] = useState(null);
-  const [processing, setProcessing] = useState(false);
   const [billingCycle, setBillingCycle] = useState("monthly");
 
   const subQuery = useQuery({
     queryKey: ["candidate-subscription"],
     queryFn: () => subscriptionApi.current(),
   });
+  const plansQuery = useQuery({ queryKey: ["subscription-plans"], queryFn: subscriptionApi.plans });
 
-  const plansQuery = useQuery({
-    queryKey: ["subscription-plans"],
-    queryFn: subscriptionApi.plans,
-  });
-
-  const invoicesQuery = useQuery({
-    queryKey: ["candidate-invoices"],
-    queryFn: () => subscriptionApi.invoices(),
-  });
-
-  const checkoutMutation = useMutation({
-    mutationFn: ({ planTier, billingCycle }) => subscriptionApi.checkout({ planTier, billingCycle }),
-    onSuccess: (res) => {
-      setCheckoutData(res.data);
-    },
-    onError: (err) => {
-      toast.error(err.message || "Failed to initiate upgrade");
-    },
+  const checkout = useSubscriptionCheckout({
+    organizationId: undefined,
+    invalidateKeys: [["candidate-subscription"], ["plan-entitlement"], ["candidate-payments"]],
+    successMessage: "Career Plus is now active.",
   });
 
   const cancelMutation = useMutation({
     mutationFn: () => subscriptionApi.cancel(),
     onSuccess: (res) => {
-      toast.success(res.message || "Your subscription will not renew.");
+      toast.success(res.message || "Your membership will not renew.");
       qc.invalidateQueries({ queryKey: ["candidate-subscription"] });
+      qc.invalidateQueries({ queryKey: ["plan-entitlement"] });
     },
-    onError: (err) => {
-      toast.error(err.message || "Could not cancel the subscription. Please try again.");
-    },
-  });
-
-  const cancelCheckoutMutation = useMutation({
-    mutationFn: (body) => subscriptionApi.cancelCheckout(body),
-  });
-
-  const verifyMutation = useMutation({
-    mutationFn: ({ kind, ...payload }) =>
-      kind === "subscription"
-        ? subscriptionApi.verifySubscription(payload)
-        : subscriptionApi.verifyPayment(payload),
-    onSuccess: (res) => {
-      if (res.data?.status === "pending") {
-        // Delayed confirmation: the plan activates when the provider confirms the payment.
-        toast.info(res.data.message);
-        setProcessing(false);
-        return;
-      }
-      toast.success(res.data?.message || "Career Plus unlocked successfully!");
-      qc.invalidateQueries({ queryKey: ["candidate-subscription"] });
-      qc.invalidateQueries({ queryKey: ["candidate-invoices"] });
-      setSelectedPlan(null);
-      setCheckoutData(null);
-      setProcessing(false);
-    },
-    onError: (err) => {
-      toast.error(err.message || "Payment verification failed");
-      setProcessing(false);
-    },
+    onError: (err) => toast.error(err.message || "Could not stop renewal. Please try again."),
   });
 
   if (subQuery.isLoading || plansQuery.isLoading) {
     return <LoadingState message="Loading your career membership details…" />;
   }
+  if (subQuery.error) return <ErrorState error={subQuery.error} onRetry={subQuery.refetch} />;
+  if (plansQuery.error) return <ErrorState error={plansQuery.error} onRetry={plansQuery.refetch} />;
 
-  if (subQuery.error) {
-    return <ErrorState error={subQuery.error} onRetry={subQuery.refetch} />;
-  }
-
-  const sub = subQuery.data?.data?.subscription || {};
-  // Free plans are not sold: they appear only as the current plan.
-  const candidatePlans = (plansQuery.data?.data?.candidate || []).filter(
-    (p) => p.priceInr > 0 || p.tier === sub.planTier,
+  const data = subQuery.data?.data || {};
+  const subscription = data.subscription || {};
+  const entitlement = data.entitlement || null;
+  const billingState = data.billingState || {};
+  const model = describeBillingState({ entitlement, subscription, billingState });
+  // Free plans are not sold: they appear only as the plan in force.
+  const plans = (plansQuery.data?.data?.candidate || []).filter(
+    (p) => p.priceInr > 0 || p.tier === entitlement?.tier,
   );
-  const invoices = invoicesQuery.data?.data || [];
 
-  const handleOpenUpgrade = (plan) => {
-    setSelectedPlan(plan);
-    checkoutMutation.mutate({ planTier: plan.tier, billingCycle });
-  };
-
-  const handleConfirmPayment = () => {
-    if (!checkoutData) return;
-    setProcessing(true);
-
-    // Razorpay test mode: a recurring subscription. Checkout authorises it; the server verifies the charge.
-    if (checkoutData.subscription?.mode === "razorpay_subscription") {
-      const subscription = checkoutData.subscription;
-      openRazorpayCheckout({
-        order: subscription,
-        plan: selectedPlan,
-        handlers: {
-          onSuccess: (payment) =>
-            verifyMutation.mutate({
-              kind: "subscription",
-              subscriptionId: payment.subscriptionId,
-              paymentId: payment.paymentId,
-              signature: payment.signature,
-              planTier: selectedPlan.tier,
-            }),
-          onDismiss: () => {
-            setProcessing(false);
-            cancelCheckoutMutation.mutate({ subscriptionId: subscription.subscriptionId });
-          },
-          onFailed: (message) => {
-            setProcessing(false);
-            toast.error(message || "The payment was not successful. You can try again.");
-          },
-        },
-      }).catch((error) => {
-        setProcessing(false);
-        toast.error(error.message || "Could not open the payment window");
-      });
-      return;
-    }
-
-    const helper = checkoutData.simulationHelper;
-    if (!helper) {
-      // The server only issues sandbox payment proofs. Never fabricate one on the client.
-      setProcessing(false);
-      toast.error("Payments are not available on this server. Please contact support.");
-      return;
-    }
-    // Sandbox payment: the server issued and signed these values during checkout.
-    verifyMutation.mutate({
-      orderId: helper.orderId,
-      paymentId: helper.paymentId,
-      signature: helper.signature,
-      planTier: selectedPlan.tier,
-    });
-  };
-
-  const isCareerPlus = sub.planTier === "candidate_plus";
+  const scrollToPlans = () => document.getElementById("plan-options")?.scrollIntoView({ behavior: "smooth", block: "start" });
 
   return (
     <div className="page-wrap space-y-8">
       <PageHeader
         eyebrow="Career Membership"
         title="Candidate Membership & Plans"
-        description="Accelerate your interview callbacks with AI resume enhancement, tailored interview prep, and priority matching."
+        description="Your membership status, AI usage, renewal and payment history."
         action={<PlanBadge />}
       />
 
-      {/* Current Active Plan Header */}
-      <div className="rounded-2xl border border-brand-200 bg-gradient-to-r from-brand-50 via-white to-white p-6 shadow-sm">
-        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-          <div className="flex items-center gap-3">
-            <span className="rounded-xl bg-brand-600 p-2.5 text-white">
-              <Sparkles className="h-6 w-6" />
-            </span>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-xl font-bold text-ink-950">
-                  {isCareerPlus ? "Career Plus Member" : "Standard Free Plan"}
-                </h2>
-                <Badge tone={isCareerPlus ? "success" : "ink"}>Active</Badge>
-              </div>
-              <p className="text-xs text-ink-500">
-                {isCareerPlus
-                  ? `Unlimited AI matching & career copilot active · Renews ${formatDate(sub.currentPeriodEnd)}`
-                  : "You are currently using basic free job application tools."}
-              </p>
-            </div>
-          </div>
+      <CurrentPlanPanel
+        model={model}
+        subscription={subscription}
+        entitlement={entitlement}
+        usage={subscription.usage}
+        isRecruiter={false}
+        onUpgrade={scrollToPlans}
+        onCancelRenewal={() => cancelMutation.mutate()}
+        cancelling={cancelMutation.isPending}
+      />
 
-          {!isCareerPlus && (
-            <Button
-              variant="primary"
-              leftIcon={<Zap className="h-4 w-4" />}
-              onClick={() => handleOpenUpgrade(candidatePlans.find((p) => p.tier === "candidate_plus") || candidatePlans[1])}
-            >
-              Upgrade to Career Plus
-            </Button>
-          )}
-        </div>
+      <div id="plan-options" className="scroll-mt-6">
+        <PlanComparison
+          plans={plans}
+          entitlement={entitlement}
+          subscription={subscription}
+          model={model}
+          billingCycle={billingCycle}
+          onCycleChange={setBillingCycle}
+          onSelect={(plan) => checkout.startCheckout(plan, billingCycle)}
+          starting={checkout.starting}
+          selectedTier={checkout.selectedPlan?.tier}
+          headingId="plan-options-heading"
+          title="Membership plans"
+          description="Unlock AI resume enhancement, interview preparation and priority matching."
+        />
       </div>
 
-      {hasYearlyPrice(candidatePlans) && (
-        <div role="group" aria-label="Billing cycle" className="inline-flex rounded-lg border border-ink-200 p-1 text-xs font-semibold">
-          {["monthly", "yearly"].map((c) => (
-            <button
-              key={c}
-              type="button"
-              aria-pressed={billingCycle === c}
-              onClick={() => setBillingCycle(c)}
-              className={`rounded-md px-3 py-1.5 ${billingCycle === c ? "bg-brand-600 text-white" : "text-ink-600 hover:bg-ink-50"}`}
-            >
-              {c === "monthly" ? "Monthly" : "Yearly"}
-            </button>
-          ))}
-        </div>
-      )}
+      <PaymentHistory
+        queryKeyBase={["candidate-payments"]}
+        organizationId={undefined}
+        plans={plansQuery.data?.data?.candidate}
+        title="Payment history"
+      />
 
-      {sub.status === "past_due" && (
-        <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-          Your last renewal payment did not go through. Please check your payment method. Your plan stays active for a short grace period.
-        </div>
-      )}
-      {sub.cancelAtPeriodEnd && ["active", "past_due"].includes(sub.status) && (
-        <div className="rounded-xl border border-ink-200 bg-ink-50 p-4 text-sm text-ink-700">
-          Your plan will not renew. It stays active until {formatDate(sub.currentPeriodEnd)}.
-        </div>
-      )}
-      {sub.providerSubscriptionId && ["active", "past_due"].includes(sub.status) && !sub.cancelAtPeriodEnd && (
-        <div className="flex justify-end">
-          <Button variant="outline" loading={cancelMutation.isPending} onClick={() => cancelMutation.mutate()}>
-            Cancel renewal
-          </Button>
-        </div>
-      )}
-
-      {/* Comparison Grid */}
-      <div className="grid gap-6 md:grid-cols-2">
-        {candidatePlans.map((p) => {
-          const isCurrent = sub.planTier === p.tier;
-          const isPlus = p.tier === "candidate_plus";
-
-          return (
-            <div
-              key={p.tier}
-              className={`flex flex-col justify-between rounded-2xl border bg-white p-6 shadow-sm transition-all ${
-                isPlus ? "border-brand-500 ring-2 ring-brand-500/20" : "border-ink-100"
-              }`}
-            >
-              <div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-lg font-bold text-ink-950">{p.name}</h3>
-                    {isPlus && <Badge tone="brand">Recommended</Badge>}
-                  </div>
-                  {isCurrent && <Badge tone="success">Current Plan</Badge>}
-                </div>
-                <p className="mt-1 text-xs text-ink-500">{p.description}</p>
-                <div className="mt-4 flex items-baseline gap-1">
-                  <span className="text-3xl font-extrabold text-ink-950">
-                    {displayPrice(p, billingCycle)}
-                  </span>
-                  <span className="text-xs text-ink-500">/ {cycleSuffix(billingCycle)}</span>
-                </div>
-
-                <hr className="my-5 border-ink-100" />
-
-                <ul className="space-y-3 text-xs text-ink-700">
-                  {p.features.map((f, i) => (
-                    <li key={i} className="flex items-start gap-2.5">
-                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-                      <span>{f}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              <div className="mt-6">
-                {isCurrent ? (
-                  <Button variant="outline" className="w-full cursor-default" disabled>
-                    Current Plan
-                  </Button>
-                ) : (
-                  <Button
-                    variant="primary"
-                    className="w-full"
-                    onClick={() => handleOpenUpgrade(p)}
-                    disabled={!cycleAvailable(p, billingCycle)}
-                  >
-                    Unlock Career Plus
-                  </Button>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Payment History & Receipts */}
-      {invoices.length > 0 && (
-        <div className="rounded-2xl border border-ink-100 bg-white shadow-sm">
-          <div className="border-b border-ink-100 p-6">
-            <h3 className="text-base font-bold text-ink-900">Payment Invoices & Receipts</h3>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-ink-50/70 text-xs font-semibold text-ink-500">
-                <tr>
-                  <th className="px-6 py-3">Invoice #</th>
-                  <th className="px-6 py-3">Date</th>
-                  <th className="px-6 py-3">Plan</th>
-                  <th className="px-6 py-3">Amount</th>
-                  <th className="px-6 py-3">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-ink-100 text-ink-800">
-                {invoices.map((inv) => (
-                  <tr key={inv._id} className="hover:bg-ink-50/50">
-                    <td className="px-6 py-4 font-mono text-xs font-bold text-ink-900">
-                      {inv.invoiceNumber || inv.transactionNumber}
-                    </td>
-                    <td className="px-6 py-4 text-xs text-ink-500">{formatDate(inv.createdAt)}</td>
-                    <td className="px-6 py-4 capitalize">{inv.planTier?.replace("_", " ")}</td>
-                    <td className="px-6 py-4 font-bold text-ink-900">₹{inv.amount?.toLocaleString("en-IN")}</td>
-                    <td className="px-6 py-4">
-                      <Badge tone={inv.status === "captured" ? "success" : "warning"}>{inv.status}</Badge>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Checkout Modal */}
-      {selectedPlan && (
-        <Modal
-          open={Boolean(selectedPlan)}
-          onClose={() => {
-            setSelectedPlan(null);
-            setCheckoutData(null);
-          }}
-          title={`Upgrade to ${selectedPlan.name}`}
-        >
-          <div className="space-y-4">
-            <div className="rounded-xl border border-brand-100 bg-brand-50 p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="font-bold text-ink-950">{selectedPlan.name} Membership</h4>
-                  <p className="text-xs text-ink-500">Instant AI unlock · {billingCycle === "yearly" ? "Yearly" : "Monthly"} billing</p>
-                </div>
-                <span className="text-2xl font-extrabold text-brand-700">
-                  {displayPrice(selectedPlan, billingCycle)}
-                </span>
-              </div>
-            </div>
-
-            <div className="space-y-2 text-xs text-ink-600">
-              <p className="font-semibold text-ink-900">Features unlocked instantly:</p>
-              <ul className="space-y-1.5">
-                {selectedPlan.features.map((f, i) => (
-                  <li key={i} className="flex items-center gap-2">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                    <span>{f}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {checkoutData?.order?.mode === "simulation" && (
-              <div className="rounded-lg bg-emerald-50 p-3 text-xs text-emerald-800">
-                <span className="font-bold">Test Sandbox Mode:</span> Immediate activation without actual charge.
-              </div>
-            )}
-
-            <div className="mt-6 flex justify-end gap-3">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setSelectedPlan(null);
-                  setCheckoutData(null);
-                }}
-                disabled={processing}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="primary"
-                onClick={handleConfirmPayment}
-                loading={processing || checkoutMutation.isPending}
-              >
-                Confirm & Pay {displayPrice(selectedPlan, billingCycle)}
-              </Button>
-            </div>
-          </div>
-        </Modal>
-      )}
+      <CheckoutDialog
+        plan={checkout.selectedPlan}
+        checkoutData={checkout.checkoutData}
+        billingCycle={billingCycle}
+        processing={checkout.processing}
+        starting={checkout.starting}
+        onConfirm={checkout.confirmPayment}
+        onClose={checkout.close}
+        copy={CHECKOUT_COPY}
+      />
     </div>
   );
 };
+
+export default CandidateBilling;
