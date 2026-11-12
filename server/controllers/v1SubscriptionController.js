@@ -262,6 +262,23 @@ const assertNoRecurringSubscription = async (subscriber) => {
   }
 };
 
+const PENDING_MESSAGE = "We received your payment and are confirming it. Your plan activates automatically once it is confirmed.";
+
+/**
+ * The provider captured a payment, but this request could not apply it (for example the internal record is not
+ * linked yet). The order stays initiated so the webhook or a retry can complete it. Nothing is granted here.
+ */
+const deferForReconciliation = async (req, txn, reason, providerPaymentId) => {
+  await audit({
+    req,
+    organization: txn.subscriberType === "organization" ? txn.subscriberId : null,
+    action: "subscription.verification_deferred",
+    resourceType: "payment_transaction",
+    resourceId: txn._id,
+    metadata: { planTier: txn.planTier, reason, providerPaymentId: String(providerPaymentId) },
+  });
+};
+
 const invalidVerification = () =>
   new AppError("Payment verification failed. Invalid transaction signature.", 400, "PAYMENT_VERIFICATION_FAILED");
 
@@ -349,8 +366,10 @@ exports.verifySubscription = asyncHandler(async (req, res) => {
 
   const payment = await fetchProviderPayment(paymentId);
   if (!paymentBelongsToSubscription(payment, subscriptionId)) {
-    await failTransaction(req, txn, "subscription_mismatch");
-    throw invalidVerification();
+    // The provider data disagrees with this order. The payment is not failed on our side: the order stays open for reconciliation.
+    await deferForReconciliation(req, txn, "subscription_mismatch", paymentId);
+    res.status(202).json({ data: { status: "pending", message: PENDING_MESSAGE } });
+    return;
   }
   if (payment.status === "failed") {
     await failTransaction(req, txn, "provider_failed");
@@ -366,8 +385,10 @@ exports.verifySubscription = asyncHandler(async (req, res) => {
     throw new AppError("Payment has already been processed", 409, "PAYMENT_ALREADY_PROCESSED");
   }
   if (!["activated", "renewed"].includes(result.outcome)) {
-    await failTransaction(req, txn, result.outcome);
-    throw invalidVerification();
+    // A captured payment the provider reports is not a customer failure. Defer to reconciliation; never grant or revoke here.
+    await deferForReconciliation(req, txn, result.outcome, paymentId);
+    res.status(202).json({ data: { status: "pending", message: PENDING_MESSAGE } });
+    return;
   }
 
   const sub = await Subscription.findOne({ providerSubscriptionId: subscriptionId }).lean();
