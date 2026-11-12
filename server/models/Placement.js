@@ -10,6 +10,16 @@ const placementStatuses = Object.freeze([
   "employment_ended",
 ]);
 
+const employmentStatuses = Object.freeze([
+  "offer_accepted",
+  "pending_joining",
+  "joined_pending_verification",
+  "active_verified",
+  "employment_end_pending_verification",
+  "employment_ended_verified",
+  "status_unconfirmed",
+]);
+
 const placementSchema = new mongoose.Schema(
   {
     application: {
@@ -85,7 +95,16 @@ const placementSchema = new mongoose.Schema(
           _id: false,
           event: {
             type: String,
-            enum: ["placement_created", "joining_confirmed", "employment_reported", "placement_verified"],
+            enum: [
+              "placement_created",
+              "joining_confirmed",
+              "employment_reported",
+              "placement_verified",
+              "employment_verified",
+              "employment_rejected",
+              "employment_resolved",
+              "employment_migrated",
+            ],
             required: true,
           },
           fromStatus: { type: String, default: "" },
@@ -99,6 +118,18 @@ const placementSchema = new mongoose.Schema(
         },
       ],
       default: [],
+    },
+    // Canonical employment status (Requirement 9). Separate from the placement lifecycle `status` above.
+    // `status` is the current value (a pending value while a change awaits verification). `lastVerifiedStatus` is
+    // the last verified fact and only moves when an authorised employer or administrator verifies a change.
+    employment: {
+      status: { type: String, enum: [...employmentStatuses, ""], default: "", index: true },
+      lastVerifiedStatus: { type: String, enum: [...employmentStatuses, ""], default: "" },
+      reportedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+      reportedAt: { type: Date, default: null },
+      verifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+      verifiedAt: { type: Date, default: null },
+      migratedAt: { type: Date, default: null },
     },
     employmentStatusUpdatedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
     employmentStatusUpdatedAt: { type: Date, default: null },
@@ -117,4 +148,5 @@ placementSchema.plugin(protectRecords);
 module.exports = {
   Placement: mongoose.model("Placement", placementSchema),
   placementStatuses,
+  employmentStatuses,
 };

@@ -112,8 +112,8 @@ exports.overviewAnalytics = asyncHandler(async (req, res) => {
     Placement.countDocuments({ status: "joining_confirmed" }),
     // "Verified" means a platform admin verified it, never an organization- or candidate-reported status.
     Placement.countDocuments({ "verification.isVerified": true }),
-    Placement.countDocuments({ status: "currently_working" }),
-    Placement.countDocuments({ status: "employment_ended" }),
+    Placement.countDocuments({ "employment.status": "active_verified" }),
+    Placement.countDocuments({ "employment.status": "employment_ended_verified" }),
   ]);
 
   // 6. 12-Month Time-Series Aggregations
@@ -145,7 +145,13 @@ exports.overviewAnalytics = asyncHandler(async (req, res) => {
             $sum: { $cond: [{ $eq: ["$verification.isVerified", true] }, 1, 0] },
           },
           joinings: {
-            $sum: { $cond: [{ $in: ["$status", ["joining_confirmed", "placement_verified", "currently_working"]] }, 1, 0] },
+            $sum: {
+              $cond: [
+                { $or: [{ $in: ["$status", ["joining_confirmed", "placement_verified"]] }, { $eq: ["$employment.status", "active_verified"] }] },
+                1,
+                0,
+              ],
+            },
           },
         },
       },

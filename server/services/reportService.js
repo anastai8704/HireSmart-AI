@@ -27,6 +27,7 @@ const { Subscription } = require("../models/Subscription");
 const { PaymentTransaction } = require("../models/PaymentTransaction");
 const AuditLog = require("../models/AuditLog");
 const AppError = require("../utils/AppError");
+const { effectiveEmploymentStatus } = require("../domain/employmentStatus");
 
 /** Maximum rows in one export. Larger requests are refused with a clear message rather than truncated silently. */
 const MAX_ROWS = 10000;
@@ -208,6 +209,7 @@ const REPORTS = {
     columns: [
       { key: "placementId", label: "Placement id" },
       { key: "jobTitle", label: "Job title" },
+      { key: "placementStatus", label: "Placement status" },
       { key: "employmentStatus", label: "Employment status" },
       { key: "statusSource", label: "Status source" },
       { key: "verified", label: "Independently verified" },
@@ -217,12 +219,13 @@ const REPORTS = {
     async build({ range, organizationId }) {
       const filter = { ...inRange("createdAt", range), ...(organizationId ? { organization: organizationId } : {}) };
       const docs = await records(
-        Placement.find(filter).select("status employmentStatusSource verification createdAt employmentStatusUpdatedAt job").populate("job", "title").sort({ createdAt: 1 }),
+        Placement.find(filter).select("status employment employmentStatusSource verification createdAt employmentStatusUpdatedAt job offerDetails joiningConfirmation employmentHistory").populate("job", "title").sort({ createdAt: 1 }),
       );
       return docs.map((p) => ({
         placementId: String(p._id),
         jobTitle: p.job?.title || "",
-        employmentStatus: p.status || "",
+        placementStatus: p.status || "",
+        employmentStatus: effectiveEmploymentStatus(p),
         statusSource: p.employmentStatusSource || "",
         verified: p.verification?.isVerified === true,
         createdAt: toIso(p.createdAt),

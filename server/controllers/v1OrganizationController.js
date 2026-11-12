@@ -169,7 +169,10 @@ exports.adminGetOrgDetails = asyncHandler(async (req, res) => {
     Application.countDocuments({ organization: org._id, status: { $in: ["hired", "Selected"] } }),
     Placement.countDocuments({
       organization: org._id,
-      status: { $in: ["joining_confirmed", "placement_verified", "verified_placement", "currently_working"] },
+      $or: [
+        { status: { $in: ["joining_confirmed", "placement_verified", "verified_placement"] } },
+        { "employment.status": { $in: ["joined_pending_verification", "active_verified", "employment_end_pending_verification"] } },
+      ],
     }),
     Placement.countDocuments({
       organization: org._id,

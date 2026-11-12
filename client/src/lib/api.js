@@ -257,6 +257,8 @@ export const adminApi = {
     api.get(`/admin/placements/${encodeURIComponent(placementId)}/candidate-profile`),
   verifyPlacement: (placementId, body) =>
     api.post(`/admin/placements/${placementId}/verify`, body),
+  resolveEmployment: (placementId, body) =>
+    api.post(`/admin/placements/${placementId}/employment/resolve`, body),
   audit: (params) => api.get(`/admin/audit-logs${query(params)}`),
   security: (params) => api.get(`/admin/security-events${query(params)}`),
   suspend: (id, reason) => api.post(`/admin/users/${id}/suspend`, { reason }),
@@ -280,6 +282,8 @@ export const placementApi = {
   orgPlacements: (orgId, params) => api.get(`/organizations/${orgId}/placements${query(params)}`),
   updateEmploymentStatus: (placementId, body) =>
     api.patch(`/placements/${placementId}/employment-status`, body),
+  verifyEmployment: (placementId, body = {}) => api.post(`/placements/${placementId}/employment/verify`, body),
+  rejectEmployment: (placementId, body) => api.post(`/placements/${placementId}/employment/reject`, body),
 };
 
 // Company verification (Phase 2). Recruiters see only their own status; admins see the full case.

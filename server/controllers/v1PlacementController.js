@@ -9,6 +9,15 @@ const { audit } = require("../services/auditService");
 const asyncHandler = require("../middleware/asyncHandler");
 const AppError = require("../utils/AppError");
 const { parseOptionalDate, assertEmploymentRange } = require("../domain/employmentDates");
+const {
+  REPORTED_TARGETS,
+  canReport,
+  canVerify,
+  canResolve,
+  rejectTarget,
+  isVerifiedStatus,
+  effectiveEmploymentStatus,
+} = require("../domain/employmentStatus");
 const CandidateProfile = require("../models/CandidateProfile");
 const pipeline = require("../domain/candidatePipeline");
 const { parse, applyCursor, meta } = require("../utils/pagination");
@@ -29,11 +38,13 @@ const placementAdminView = (placement) => {
   const value = placement.toObject ? placement.toObject() : { ...placement };
   value.employmentFacts = {
     reported: {
-      status: placement.status,
+      status: effectiveEmploymentStatus(placement),
       source: placement.employmentStatusSource || "",
       updatedAt: placement.employmentStatusUpdatedAt || null,
     },
+    lifecycleStatus: placement.status,
     verified: {
+      status: placement.employment?.lastVerifiedStatus || "",
       isVerified: Boolean(placement.verification?.isVerified),
       verifiedAt: placement.verification?.verifiedAt || null,
       verifiedBy: placement.verification?.verifiedBy?.name || null,
@@ -154,6 +165,28 @@ exports.candidateConfirmJoining = asyncHandler(async (req, res) => {
     confirmedAt: new Date(),
     candidateNotes: String(req.body.candidateNotes || "").slice(0, 2000),
   };
+  // The candidate's joining is a PENDING employment change until an employer or administrator verifies it (Requirement 9).
+  const employmentFrom = effectiveEmploymentStatus(placement);
+  if (canReport({ from: employmentFrom, to: "joined_pending_verification" }).ok) {
+    placement.employment = {
+      ...(placement.employment?.toObject ? placement.employment.toObject() : placement.employment || {}),
+      status: "joined_pending_verification",
+      lastVerifiedStatus: placement.employment?.lastVerifiedStatus || (isVerifiedStatus(employmentFrom) ? employmentFrom : ""),
+      reportedBy: req.user._id,
+      reportedAt: new Date(),
+      verifiedBy: null,
+      verifiedAt: null,
+    };
+    placement.employmentHistory.push({
+      event: "employment_reported",
+      fromStatus: employmentFrom,
+      toStatus: "joined_pending_verification",
+      source: "candidate_reported",
+      actor: req.user._id,
+      at: new Date(),
+      startDate: actualJoiningDate,
+    });
+  }
   placement.employmentHistory.push({
     event: "joining_confirmed",
     fromStatus: statusBeforeConfirmation,
@@ -245,35 +278,28 @@ exports.adminVerifyPlacement = asyncHandler(async (req, res) => {
 });
 
 /**
- * Candidate, organization member or platform admin: record an employment status change.
+ * Employment workflow (Requirement 9). The placement lifecycle (`status`) is not changed here.
  *
- * - Candidates may only change their own placements.
- * - Organization members may only change placements that belong to their organization
- *   (the route enforces an active `application.manage` membership).
- * - Every change records its source. Nothing here writes to the candidate's profile:
- *   employment is never inferred or copied into experience automatically.
- * - Transitions are validated: currently_working only from hired-stage statuses;
- *   employment_ended only from currently_working.
+ * - report:  a candidate or an organization member records a PENDING change. The last verified status does not move.
+ * - verify:  an authorised organization member or a platform administrator confirms a pending change.
+ *            Nobody verifies a change they reported themselves, except a platform administrator.
+ * - reject:  a pending change is withdrawn; the record returns to its last verified status.
+ * - resolve: a platform administrator sets status_unconfirmed to a verifiable status, with a note.
+ *
+ * Every step appends to employmentHistory and writes an audit entry. Nothing is deleted.
  */
 const EMPLOYMENT_SOURCE_BY_ROLE = Object.freeze({
   candidate: "candidate_reported",
   organization: "organization_reported",
   platform_admin: "platform_reported",
 });
-const CURRENTLY_WORKING_FROM = Object.freeze(["hired", "joining_confirmed", "placement_verified"]);
 
-exports.updateEmploymentStatus = asyncHandler(async (req, res) => {
-  const { status, startDate, endDate, exitReason } = req.body;
-  if (!["currently_working", "employment_ended"].includes(status)) {
-    throw new AppError(
-      "Invalid employment status. Expected 'currently_working' or 'employment_ended'",
-      400,
-      "INVALID_STATUS",
-    );
-  }
-
+const loadPlacementForEmployment = async (req, { allowCandidate }) => {
   const isPlatformAdmin = req.auth.platformRole === "platform_admin";
   const isCandidate = !isPlatformAdmin && req.user.role === "candidate";
+  if (isCandidate && !allowCandidate) {
+    throw new AppError("Resource not found", 404, "RESOURCE_NOT_FOUND");
+  }
   const query = { _id: req.params.placementId };
   if (isCandidate) {
     query.candidate = req.user._id;
@@ -283,56 +309,75 @@ exports.updateEmploymentStatus = asyncHandler(async (req, res) => {
     }
     query.organization = req.auth.organizationId;
   }
-
-  const placement = await Placement.findOne(query).populate("job", "title");
+  const placement = await Placement.findOne(query).populate("job", "title").populate("candidate", "name");
   if (!placement) {
     throw new AppError("Placement record not found", 404, "RESOURCE_NOT_FOUND");
   }
+  return { placement, isPlatformAdmin, isCandidate };
+};
 
-  // Dates are checked before anything changes: an invalid date or a range that ends before it starts is rejected.
+const employmentError = (result, fallbackMessage) => {
+  const messages = {
+    INVALID_STATUS: "Invalid employment status.",
+    INVALID_TRANSITION: "This employment change is not allowed from the current status.",
+    CHANGE_ALREADY_PENDING: "An employment change is already waiting for verification.",
+    NOT_PENDING: "There is no pending employment change to act on.",
+    SELF_VERIFICATION_NOT_ALLOWED: "A change cannot be verified by the person who reported it.",
+    NOT_UNCONFIRMED: "Only a record with status_unconfirmed can be resolved.",
+  };
+  return new AppError(messages[result.code] || fallbackMessage, 409, result.code);
+};
+
+exports.updateEmploymentStatus = asyncHandler(async (req, res) => {
+  const { status, startDate, endDate, exitReason } = req.body;
+  const { placement, isPlatformAdmin, isCandidate } = await loadPlacementForEmployment(req, { allowCandidate: true });
+
+  const from = effectiveEmploymentStatus(placement);
+  const check = canReport({ from, to: status });
+  if (!check.ok) {
+    if (check.code === "INVALID_STATUS") {
+      throw new AppError(`Invalid employment status. Expected one of: ${Object.keys(REPORTED_TARGETS).join(", ")}`, 400, "INVALID_STATUS");
+    }
+    throw employmentError(check, "Employment change not allowed");
+  }
+
+  // Dates are checked before anything changes.
   const suppliedStart = parseOptionalDate(startDate, "startDate");
   const suppliedEnd = parseOptionalDate(endDate, "endDate");
   assertEmploymentRange(suppliedStart || placement.employmentPeriod?.startDate || null, suppliedEnd);
 
-  const previousStatus = placement.status;
-  if (status === "currently_working") {
-    if (!CURRENTLY_WORKING_FROM.includes(previousStatus)) {
-      throw new AppError(
-        `Cannot change employment status from ${previousStatus} to ${status}`,
-        409,
-        "INVALID_TRANSITION",
-      );
-    }
-    placement.status = "currently_working";
-    placement.employmentPeriod.startDate = suppliedStart || new Date();
-  } else {
-    if (previousStatus !== "currently_working") {
-      throw new AppError(
-        `Cannot change employment status from ${previousStatus} to ${status}`,
-        409,
-        "INVALID_TRANSITION",
-      );
-    }
-    placement.status = "employment_ended";
-    placement.employmentPeriod.endDate = suppliedEnd || new Date();
+  const now = new Date();
+  if (status === "joined_pending_verification" || status === "pending_joining") {
+    placement.employmentPeriod.startDate = suppliedStart || placement.employmentPeriod.startDate || now;
+  }
+  if (status === "employment_end_pending_verification") {
+    placement.employmentPeriod.endDate = suppliedEnd || now;
     placement.employmentPeriod.exitReason = String(exitReason || "").slice(0, 2000);
   }
 
+  placement.employment = {
+    ...(placement.employment?.toObject ? placement.employment.toObject() : placement.employment || {}),
+    status,
+    lastVerifiedStatus: placement.employment?.lastVerifiedStatus || (isVerifiedStatus(from) ? from : ""),
+    reportedBy: req.user._id,
+    reportedAt: now,
+    verifiedBy: null,
+    verifiedAt: null,
+  };
   placement.employmentStatusSource = isPlatformAdmin
     ? EMPLOYMENT_SOURCE_BY_ROLE.platform_admin
     : isCandidate
       ? EMPLOYMENT_SOURCE_BY_ROLE.candidate
       : EMPLOYMENT_SOURCE_BY_ROLE.organization;
   placement.employmentStatusUpdatedBy = req.user._id;
-  placement.employmentStatusUpdatedAt = new Date();
-  // Reported change, kept as history. The verified fact is a separate event (placement_verified).
+  placement.employmentStatusUpdatedAt = now;
   placement.employmentHistory.push({
     event: "employment_reported",
-    fromStatus: previousStatus,
-    toStatus: placement.status,
+    fromStatus: from,
+    toStatus: status,
     source: placement.employmentStatusSource,
     actor: req.user._id,
-    at: placement.employmentStatusUpdatedAt,
+    at: now,
     startDate: placement.employmentPeriod.startDate,
     endDate: placement.employmentPeriod.endDate,
     note: placement.employmentPeriod.exitReason || "",
@@ -342,34 +387,151 @@ exports.updateEmploymentStatus = asyncHandler(async (req, res) => {
   await audit({
     req,
     organization: placement.organization,
-    action: `placement.status_${status}`,
+    action: `placement.employment_reported`,
     resourceType: "placement",
     resourceId: placement._id,
-    previousState: { employmentStatus: previousStatus },
-    newState: { employmentStatus: placement.status },
-    metadata: {
-      previousStatus,
-      newStatus: placement.status,
-      source: placement.employmentStatusSource,
-    },
+    previousState: { employmentStatus: from },
+    newState: { employmentStatus: status, verified: false },
+    metadata: { source: placement.employmentStatusSource },
   });
 
-  // A change the candidate reported is shown to the company. Recruiter-entered changes are not echoed back to them.
   if (isCandidate) {
     notifyCompanyLeads(placement.organization._id || placement.organization, {
       type: "joining_status_updated",
       title: "Candidate reported an employment update",
-      message: `A candidate reported that their employment status for ${placement.offerDetails?.designation || "a placement"} changed to "${placement.status.replace(/_/g, " ")}". Source: candidate-reported.`,
+      message: `A candidate reported an employment change for ${placement.offerDetails?.designation || "a placement"}: "${status.replace(/_/g, " ")}". It waits for verification. Source: candidate-reported.`,
       resourceType: "placement",
       resourceId: placement._id,
-      key: `employment:${placement._id}:${placement.employmentStatusUpdatedAt.toISOString()}`,
+      key: `employment:${placement._id}:${now.toISOString()}`,
     }).catch(() => {});
   }
 
-  // Candidate-facing response: keep recruiter/candidate contact details out of employment updates.
   const response = placement.toObject();
   delete response.verification?.adminRemarks;
   res.json({ data: response });
+});
+
+exports.verifyEmployment = asyncHandler(async (req, res) => {
+  const { placement, isPlatformAdmin } = await loadPlacementForEmployment(req, { allowCandidate: false });
+  const from = effectiveEmploymentStatus(placement);
+  const check = canVerify({
+    from,
+    reportedById: placement.employment?.reportedBy,
+    verifierId: req.user._id,
+    isPlatformAdmin,
+  });
+  if (!check.ok) throw employmentError(check, "Employment change cannot be verified");
+
+  const now = new Date();
+  placement.employment = {
+    ...(placement.employment?.toObject ? placement.employment.toObject() : placement.employment || {}),
+    status: check.nextStatus,
+    lastVerifiedStatus: check.nextStatus,
+    verifiedBy: req.user._id,
+    verifiedAt: now,
+  };
+  placement.employmentHistory.push({
+    event: "employment_verified",
+    fromStatus: from,
+    toStatus: check.nextStatus,
+    source: isPlatformAdmin ? EMPLOYMENT_SOURCE_BY_ROLE.platform_admin : EMPLOYMENT_SOURCE_BY_ROLE.organization,
+    actor: req.user._id,
+    at: now,
+    note: String(req.body?.note || "").slice(0, 2000),
+  });
+  await placement.save();
+
+  await audit({
+    req,
+    organization: placement.organization,
+    action: "placement.employment_verified",
+    resourceType: "placement",
+    resourceId: placement._id,
+    previousState: { employmentStatus: from },
+    newState: { employmentStatus: check.nextStatus, verified: true },
+  });
+  res.json({ data: placement.toObject() });
+});
+
+exports.rejectEmployment = asyncHandler(async (req, res) => {
+  const { placement, isPlatformAdmin } = await loadPlacementForEmployment(req, { allowCandidate: false });
+  const from = effectiveEmploymentStatus(placement);
+  const reason = String(req.body?.reason || "").trim();
+  if (!reason) throw new AppError("A reason is required to reject an employment change", 422, "VALIDATION_FAILED");
+
+  const check = rejectTarget({ from, lastVerifiedStatus: placement.employment?.lastVerifiedStatus });
+  if (!check.ok) throw employmentError(check, "Employment change cannot be rejected");
+
+  const now = new Date();
+  placement.employment = {
+    ...(placement.employment?.toObject ? placement.employment.toObject() : placement.employment || {}),
+    status: check.nextStatus,
+    verifiedBy: req.user._id,
+    verifiedAt: now,
+  };
+  placement.employmentHistory.push({
+    event: "employment_rejected",
+    fromStatus: from,
+    toStatus: check.nextStatus,
+    source: isPlatformAdmin ? EMPLOYMENT_SOURCE_BY_ROLE.platform_admin : EMPLOYMENT_SOURCE_BY_ROLE.organization,
+    actor: req.user._id,
+    at: now,
+    note: reason.slice(0, 2000),
+  });
+  await placement.save();
+
+  await audit({
+    req,
+    organization: placement.organization,
+    action: "placement.employment_rejected",
+    resourceType: "placement",
+    resourceId: placement._id,
+    previousState: { employmentStatus: from },
+    newState: { employmentStatus: check.nextStatus },
+  });
+  res.json({ data: placement.toObject() });
+});
+
+exports.resolveEmployment = asyncHandler(async (req, res) => {
+  requireAdmin(req);
+  const { placement } = await loadPlacementForEmployment(req, { allowCandidate: false });
+  const from = effectiveEmploymentStatus(placement);
+  const to = req.body?.status;
+  const note = String(req.body?.note || "").trim();
+  if (!note) throw new AppError("A note is required to resolve an unconfirmed employment record", 422, "VALIDATION_FAILED");
+
+  const check = canResolve({ from, to });
+  if (!check.ok) throw employmentError(check, "Employment record cannot be resolved");
+
+  const now = new Date();
+  placement.employment = {
+    ...(placement.employment?.toObject ? placement.employment.toObject() : placement.employment || {}),
+    status: to,
+    lastVerifiedStatus: to,
+    verifiedBy: req.user._id,
+    verifiedAt: now,
+  };
+  placement.employmentHistory.push({
+    event: "employment_resolved",
+    fromStatus: from,
+    toStatus: to,
+    source: EMPLOYMENT_SOURCE_BY_ROLE.platform_admin,
+    actor: req.user._id,
+    at: now,
+    note: note.slice(0, 2000),
+  });
+  await placement.save();
+
+  await audit({
+    req,
+    organization: placement.organization,
+    action: "admin.placement_employment_resolved",
+    resourceType: "placement",
+    resourceId: placement._id,
+    previousState: { employmentStatus: from },
+    newState: { employmentStatus: to },
+  });
+  res.json({ data: placement.toObject() });
 });
 
 /**
@@ -384,8 +546,8 @@ exports.adminPlacementCompanies = asyncHandler(async (req, res) => {
         _id: "$organization",
         total: { $sum: 1 },
         hired: { $sum: { $cond: [{ $eq: ["$status", "hired"] }, 1, 0] } },
-        currentlyWorking: { $sum: { $cond: [{ $eq: ["$status", "currently_working"] }, 1, 0] } },
-        employmentEnded: { $sum: { $cond: [{ $eq: ["$status", "employment_ended"] }, 1, 0] } },
+        currentlyWorking: { $sum: { $cond: [{ $eq: ["$employment.status", "active_verified"] }, 1, 0] } },
+        employmentEnded: { $sum: { $cond: [{ $eq: ["$employment.status", "employment_ended_verified"] }, 1, 0] } },
         verified: { $sum: { $cond: [{ $eq: ["$verification.isVerified", true] }, 1, 0] } },
         lastChangeAt: { $max: "$updatedAt" },
       },
@@ -425,7 +587,7 @@ exports.adminPlacementCompanyJobs = asyncHandler(async (req, res) => {
         _id: "$job",
         total: { $sum: 1 },
         verified: { $sum: { $cond: [{ $eq: ["$verification.isVerified", true] }, 1, 0] } },
-        currentlyWorking: { $sum: { $cond: [{ $eq: ["$status", "currently_working"] }, 1, 0] } },
+        currentlyWorking: { $sum: { $cond: [{ $eq: ["$employment.status", "active_verified"] }, 1, 0] } },
       },
     },
     { $sort: { total: -1 } },

@@ -8,9 +8,10 @@ import Button from "../../components/ui/Button";
 import { EmptyState, ErrorState, LoadingState } from "../../components/ui/States";
 import { PageHeader } from "../../components/Product";
 import useToast from "../../components/ui/useToast";
-import { adminApi } from "../../lib/api";
+import { adminApi, placementApi } from "../../lib/api";
 import {
   EMPLOYMENT_EVENT_LABELS,
+  EMPLOYMENT_STATUS_LABELS,
   fmtCount,
   fmtIst,
   PLACEMENT_STATUS_LABELS,
@@ -18,7 +19,8 @@ import {
 } from "../../lib/revenueFormat";
 import { SearchableSelect } from "../../components/ui/SearchableSelect";
 
-const STATUS_FILTER = ["", "hired", "joining_confirmed", "placement_verified", "currently_working", "employment_ended"];
+// Pipeline filter (the placement lifecycle). Employment status is shown on each row and in the detail view.
+const STATUS_FILTER = ["", "hired", "joining_confirmed", "placement_verified"];
 
 const VerifiedBadge = ({ verified }) => (
   <Badge variant={verified ? "success" : "warning"}>{verified ? "Platform verified" : "Not verified"}</Badge>
@@ -177,7 +179,8 @@ export const AdminPlacements = () => {
                             </td>
                             <td className="px-3 py-2">{p.job?.title || "Job removed"}</td>
                             <td className="px-3 py-2">
-                              {PLACEMENT_STATUS_LABELS[p.status] || p.status}
+                              {EMPLOYMENT_STATUS_LABELS[p.employment?.status] || "Not recorded yet"}
+                              <div className="text-xs text-ink-500">Pipeline: {PLACEMENT_STATUS_LABELS[p.status] || p.status}</div>
                               <div className="text-xs text-ink-500">{SOURCE_LABELS[p.employmentStatusSource] || ""}</div>
                             </td>
                             <td className="px-3 py-2"><VerifiedBadge verified={Boolean(p.verification?.isVerified)} /></td>
@@ -306,6 +309,36 @@ export const AdminPlacementDetail = () => {
     retry: false,
   });
 
+  const [resolveTo, setResolveTo] = useState("");
+  const [resolveNote, setResolveNote] = useState("");
+  const verifyEmployment = useMutation({
+    mutationFn: () => placementApi.verifyEmployment(placementId, { note: resolveNote.trim() || undefined }),
+    onSuccess: () => {
+      toast.success?.("Employment change verified");
+      setResolveNote("");
+      queryClient.invalidateQueries({ queryKey: ["admin-placement-detail", placementId] });
+    },
+    onError: (err) => toast.error?.(err?.response?.data?.error?.message || "Could not verify this change"),
+  });
+  const rejectEmployment = useMutation({
+    mutationFn: () => placementApi.rejectEmployment(placementId, { reason: resolveNote.trim() }),
+    onSuccess: () => {
+      toast.success?.("Employment change rejected");
+      setResolveNote("");
+      queryClient.invalidateQueries({ queryKey: ["admin-placement-detail", placementId] });
+    },
+    onError: (err) => toast.error?.(err?.response?.data?.error?.message || "Could not reject this change"),
+  });
+  const resolveEmployment = useMutation({
+    mutationFn: () => adminApi.resolveEmployment(placementId, { status: resolveTo, note: resolveNote.trim() }),
+    onSuccess: () => {
+      toast.success?.("Record resolved");
+      setResolveNote("");
+      setResolveTo("");
+      queryClient.invalidateQueries({ queryKey: ["admin-placement-detail", placementId] });
+    },
+    onError: (err) => toast.error?.(err?.response?.data?.error?.message || "Could not resolve this record"),
+  });
   const verify = useMutation({
     mutationFn: () => adminApi.verifyPlacement(placementId, { adminRemarks: remarks.trim() }),
     onSuccess: () => {
@@ -336,6 +369,84 @@ export const AdminPlacementDetail = () => {
       />
 
       <div className="grid gap-6 lg:grid-cols-2">
+        <section aria-label="Employment review" className="space-y-4 rounded-xl border border-ink-100 bg-white p-5">
+          <h2 className="text-sm font-bold text-ink-900">Employment review</h2>
+          {["joined_pending_verification", "employment_end_pending_verification"].includes(p.employment?.status) && (
+            <div className="space-y-3">
+              <p className="text-sm text-ink-600">
+                {EMPLOYMENT_STATUS_LABELS[p.employment.status]}. Verify it only after checking evidence. The person who reported it cannot verify it.
+              </p>
+              <label className="block text-xs font-semibold text-ink-600">
+                Note (required to reject)
+                <textarea
+                  maxLength={2000}
+                  rows={2}
+                  value={resolveNote}
+                  onChange={(e) => setResolveNote(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-ink-200 px-3 py-2 text-sm"
+                />
+              </label>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                  disabled={verifyEmployment.isPending}
+                  onClick={() => verifyEmployment.mutate()}
+                >
+                  Verify change
+                </button>
+                <button
+                  type="button"
+                  className="rounded-lg border border-red-300 px-3 py-2 text-sm font-semibold text-red-700 disabled:opacity-50"
+                  disabled={rejectEmployment.isPending || !resolveNote.trim()}
+                  onClick={() => rejectEmployment.mutate()}
+                >
+                  Reject change
+                </button>
+              </div>
+            </div>
+          )}
+          {p.employment?.status === "status_unconfirmed" && (
+            <div className="space-y-3">
+              <p className="text-sm text-ink-600">
+                The existing records do not show enough evidence for this status. Choose the status the evidence supports and give a note.
+              </p>
+              <SearchableSelect
+                label="Resolve to"
+                placeholder="Choose a status"
+                value={resolveTo}
+                onChange={(e) => setResolveTo(e.target.value)}
+                options={[
+                  { value: "offer_accepted", label: EMPLOYMENT_STATUS_LABELS.offer_accepted },
+                  { value: "pending_joining", label: EMPLOYMENT_STATUS_LABELS.pending_joining },
+                  { value: "active_verified", label: EMPLOYMENT_STATUS_LABELS.active_verified },
+                  { value: "employment_ended_verified", label: EMPLOYMENT_STATUS_LABELS.employment_ended_verified },
+                ]}
+              />
+              <label className="block text-xs font-semibold text-ink-600">
+                Note (required)
+                <textarea
+                  maxLength={2000}
+                  rows={2}
+                  value={resolveNote}
+                  onChange={(e) => setResolveNote(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-ink-200 px-3 py-2 text-sm"
+                />
+              </label>
+              <button
+                type="button"
+                className="rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                disabled={resolveEmployment.isPending || !resolveTo || !resolveNote.trim()}
+                onClick={() => resolveEmployment.mutate()}
+              >
+                Resolve record
+              </button>
+            </div>
+          )}
+          {!["joined_pending_verification", "employment_end_pending_verification", "status_unconfirmed"].includes(p.employment?.status) && (
+            <p className="text-sm text-ink-500">No employment change is waiting for review.</p>
+          )}
+        </section>
         <section aria-label="Placement facts" className="space-y-4 rounded-xl border border-ink-100 bg-white p-5">
           <h2 className="text-sm font-bold text-ink-900">Status</h2>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
@@ -345,11 +456,16 @@ export const AdminPlacementDetail = () => {
             <dd>{p.job?.title || "Job removed"}</dd>
             <dt className="text-ink-500">Candidate email</dt>
             <dd className="break-all">{p.candidate?.email || "—"}</dd>
-            <dt className="text-ink-500">Reported status</dt>
+            <dt className="text-ink-500">Employment status</dt>
             <dd>
-              {PLACEMENT_STATUS_LABELS[p.status] || p.status}
+              {EMPLOYMENT_STATUS_LABELS[p.employment?.status] || "Not recorded yet"}
+              <div className="text-xs text-ink-500">
+                Last verified: {EMPLOYMENT_STATUS_LABELS[p.employment?.lastVerifiedStatus] || "none yet"}
+              </div>
               <div className="text-xs text-ink-500">{SOURCE_LABELS[p.employmentFacts?.reported?.source] || "No change reported yet"}</div>
             </dd>
+            <dt className="text-ink-500">Pipeline status</dt>
+            <dd>{PLACEMENT_STATUS_LABELS[p.status] || p.status}</dd>
             <dt className="text-ink-500">Verification</dt>
             <dd>
               <VerifiedBadge verified={isVerified} />

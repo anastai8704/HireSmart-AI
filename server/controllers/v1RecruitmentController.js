@@ -726,6 +726,7 @@ const { JobModerationEvent } = require("../models/JobModerationEvent");
 const CandidateProfile = require("../models/CandidateProfile");
 const { Placement } = require("../models/Placement");
 const pipeline = require("../domain/candidatePipeline");
+const { deriveLegacyEmployment } = require("../domain/employmentStatus");
 
 /** Writes one stage change only if the application is still in the stage it was read in. */
 const moveApplication = async ({ app, toStatus, fromStatus, actorId, note, extraSet = {} }) => {
@@ -787,6 +788,11 @@ exports.transition = asyncHandler(async (req, res) => {
     try {
       // Created from the recorded offer only. Re-hiring never resets an existing placement's progress.
       const offer = updated.offer || {};
+      // Initial employment status follows the same rule as the migration (Requirement 9): accepted offer, or unconfirmed.
+      const initialEmployment = deriveLegacyEmployment({
+        status: "hired",
+        offerDetails: { acceptedAt: offer.respondedAt || null },
+      });
       await Placement.updateOne(
         { application: app._id },
         {
@@ -796,6 +802,10 @@ exports.transition = asyncHandler(async (req, res) => {
             candidate: app.candidate._id,
             job: app.job._id,
             status: "hired",
+            employment: {
+              status: initialEmployment.status,
+              lastVerifiedStatus: initialEmployment.lastVerifiedStatus,
+            },
             employmentHistory: [{ event: "placement_created", toStatus: "hired", source: "platform_reported", actor: req.user._id, at: new Date() }],
             offerDetails: {
               designation: offer.designation || app.job?.title || "",

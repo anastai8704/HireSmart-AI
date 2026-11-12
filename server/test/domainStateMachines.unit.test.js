@@ -36,10 +36,13 @@ test("application stages match the recruitment rules that were enforced before P
 });
 
 test("placement employment status: reporting and ending follow the lifecycle", () => {
-  assert.equal(sm.canTransition("placementEmployment", "hired", "currently_working"), true);
-  assert.equal(sm.canTransition("placementEmployment", "currently_working", "employment_ended"), true);
-  assert.equal(sm.canTransition("placementEmployment", "hired", "employment_ended"), false);
-  assert.equal(sm.canTransition("placementEmployment", "employment_ended", "currently_working"), false);
+  assert.equal(sm.canTransition("placementEmployment", "offer_accepted", "joined_pending_verification"), true);
+  assert.equal(sm.canTransition("placementEmployment", "joined_pending_verification", "active_verified"), true);
+  assert.equal(sm.canTransition("placementEmployment", "active_verified", "employment_end_pending_verification"), true);
+  assert.equal(sm.canTransition("placementEmployment", "employment_end_pending_verification", "employment_ended_verified"), true);
+  assert.equal(sm.canTransition("placementEmployment", "offer_accepted", "active_verified"), false, "verification cannot skip the pending step");
+  assert.equal(sm.canTransition("placementEmployment", "employment_ended_verified", "active_verified"), false, "ended is final");
+  assert.equal(sm.canTransition("placementEmployment", "active_verified", "employment_ended_verified"), false, "an exit must be reported first");
 });
 
 test("payments and subscriptions have terminal states", () => {

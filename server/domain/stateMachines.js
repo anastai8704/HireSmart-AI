@@ -68,13 +68,19 @@ const applicationStage = freeze({
  * Employment status (Placement.status). Verification (Placement.verification.isVerified) is a
  * separate fact and does not appear here.
  */
+/**
+ * Canonical employment status (Requirement 9). Edges are the workflow in domain/employmentStatus.js:
+ * reports create pending states, verification moves them to verified states, rejection returns to the last verified
+ * status. status_unconfirmed is resolved by an administrator only.
+ */
 const placementEmployment = freeze({
-  selected: ["hired"],
-  hired: ["joining_confirmed", "placement_verified", "currently_working"],
-  joining_confirmed: ["placement_verified", "currently_working"],
-  placement_verified: ["currently_working"],
-  currently_working: ["employment_ended"],
-  employment_ended: [],
+  offer_accepted: ["pending_joining", "joined_pending_verification"],
+  pending_joining: ["joined_pending_verification"],
+  joined_pending_verification: ["active_verified", "offer_accepted", "pending_joining"],
+  active_verified: ["employment_end_pending_verification"],
+  employment_end_pending_verification: ["employment_ended_verified", "active_verified"],
+  employment_ended_verified: [],
+  status_unconfirmed: ["offer_accepted", "pending_joining", "active_verified", "employment_ended_verified"],
 });
 
 /** Payment transaction (PaymentTransaction.status). Refunds are recorded, never re-captured. */

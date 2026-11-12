@@ -1007,6 +1007,31 @@ router.get("/admin/verification/documents/:documentId", authenticate, verificati
 router.get("/admin/placements", authenticate, placement.listAdminPlacements);
 router.get("/admin/placements/companies", authenticate, placement.adminPlacementCompanies);
 router.get("/admin/placements/companies/:organizationId/jobs", authenticate, placement.adminPlacementCompanyJobs);
+router.post(
+  "/placements/:placementId/employment/verify",
+  authenticate,
+  requireOrganizationForNonCandidate("application.manage"),
+  validate(strict({ note: z.string().max(2000).optional() })),
+  placement.verifyEmployment,
+);
+router.post(
+  "/placements/:placementId/employment/reject",
+  authenticate,
+  requireOrganizationForNonCandidate("application.manage"),
+  validate(strict({ reason: z.string().min(1).max(2000) })),
+  placement.rejectEmployment,
+);
+router.post(
+  "/admin/placements/:placementId/employment/resolve",
+  authenticate,
+  validate(
+    strict({
+      status: z.enum(["offer_accepted", "pending_joining", "active_verified", "employment_ended_verified"]),
+      note: z.string().min(1).max(2000),
+    }),
+  ),
+  placement.resolveEmployment,
+);
 router.get("/admin/placements/:placementId", authenticate, placement.adminPlacementDetail);
 router.get("/admin/placements/:placementId/candidate-profile", authenticate, placement.adminCandidateProfileForPlacement);
 router.post("/admin/placements/:placementId/verify", authenticate, placement.adminVerifyPlacement);
@@ -1120,7 +1145,7 @@ router.patch(
   requireOrganizationForNonCandidate("application.manage"),
   validate(
     strict({
-      status: z.enum(["currently_working", "employment_ended"]),
+      status: z.enum(["pending_joining", "joined_pending_verification", "employment_end_pending_verification"]),
       startDate: z.string().max(40).optional(),
       endDate: z.string().max(40).optional(),
       exitReason: z.string().max(2000).optional(),

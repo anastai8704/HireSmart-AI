@@ -306,29 +306,54 @@ nodeTest("sensitive profile: admin reads are audited; recruiters get nothing and
   assert.equal(audit.metadata.placementId, String(ctx.placementId));
 });
 
-nodeTest("employment: candidate reports leaving, admin verifies; earlier records are kept, reported and verified stay distinct", async () => {
-  // Candidate starts working: hired → currently_working.
-  const start = await request(app)
+nodeTest("employment workflow: candidate reports, admin verifies, exit is pending until verified; history kept", async () => {
+  const { Placement } = require("../models/Placement");
+  await Placement.updateOne(
+    { _id: ctx.placementId },
+    { $set: { employment: { status: "offer_accepted", lastVerifiedStatus: "offer_accepted" } } },
+  );
+  const base = `/api/v1/placements/${ctx.placementId}/employment`;
+
+  // Candidate reports joining: pending, not verified.
+  const joined = await request(app)
     .patch(`/api/v1/placements/${ctx.placementId}/employment-status`)
     .set(auth(ctx.candidate))
-    .send({ status: "currently_working", startDate: new Date(Date.now() - 1 * DAY_MS).toISOString() });
-  assert.equal(start.status, 200, JSON.stringify(start.body));
+    .send({ status: "joined_pending_verification", startDate: new Date(Date.now() - 1 * DAY_MS).toISOString() });
+  assert.equal(joined.status, 200, JSON.stringify(joined.body));
+  assert.equal(joined.body.data.employment.status, "joined_pending_verification");
+  assert.equal(joined.body.data.employment.lastVerifiedStatus, "offer_accepted");
 
-  // Candidate reports leaving: currently_working → employment_ended.
-  const end = await request(app)
+  // A candidate cannot verify their own report.
+  const selfVerify = await request(app).post(`${base}/verify`).set(auth(ctx.candidate)).send({});
+  assert.equal(selfVerify.status, 404);
+
+  // Admin verifies the joining.
+  const verifiedJoin = await request(app).post(`${base}/verify`).set(auth(ctx.admin.token)).send({ note: "Offer letter checked" });
+  assert.equal(verifiedJoin.status, 200, JSON.stringify(verifiedJoin.body));
+  assert.equal(verifiedJoin.body.data.employment.status, "active_verified");
+
+  // Candidate reports leaving: pending. The last verified status remains active_verified.
+  const exit = await request(app)
     .patch(`/api/v1/placements/${ctx.placementId}/employment-status`)
     .set(auth(ctx.candidate))
-    .send({ status: "employment_ended", endDate: new Date().toISOString(), exitReason: "Relocated" });
-  assert.equal(end.status, 200, JSON.stringify(end.body));
+    .send({ status: "employment_end_pending_verification", endDate: new Date().toISOString(), exitReason: "Relocated" });
+  assert.equal(exit.status, 200, JSON.stringify(exit.body));
+  assert.equal(exit.body.data.employment.status, "employment_end_pending_verification");
+  assert.equal(exit.body.data.employment.lastVerifiedStatus, "active_verified");
 
-  // Invalid transition is refused and records nothing.
+  // Invalid while pending: refused, nothing recorded.
   const invalid = await request(app)
     .patch(`/api/v1/placements/${ctx.placementId}/employment-status`)
     .set(auth(ctx.candidate))
-    .send({ status: "currently_working" });
+    .send({ status: "joined_pending_verification" });
   assert.equal(invalid.status, 409);
 
-  // Admin verifies the record. Verification does not overwrite the reported employment status.
+  // Admin verifies the exit.
+  const verifiedExit = await request(app).post(`${base}/verify`).set(auth(ctx.admin.token)).send({});
+  assert.equal(verifiedExit.status, 200, JSON.stringify(verifiedExit.body));
+  assert.equal(verifiedExit.body.data.employment.status, "employment_ended_verified");
+
+  // The placement-level verification is separate and does not change employment.
   const verify = await request(app)
     .post(`/api/v1/admin/placements/${ctx.placementId}/verify`)
     .set(auth(ctx.admin.token))
@@ -338,10 +363,11 @@ nodeTest("employment: candidate reports leaving, admin verifies; earlier records
   const detail = await request(app).get(`/api/v1/admin/placements/${ctx.placementId}`).set(auth(ctx.admin.token));
   const history = detail.body.data.placement.employmentHistory;
   const events = history.map((h) => h.event);
-  assert.deepEqual(events.filter((e) => e === "employment_reported").length, 2, "both reports kept");
+  assert.equal(events.filter((e) => e === "employment_reported").length, 2, "both reports kept");
+  assert.equal(events.filter((e) => e === "employment_verified").length, 2, "both verifications kept");
   assert.ok(events.includes("placement_created"), "creation event kept");
-  assert.ok(events.includes("placement_verified"), "verification event added");
-  assert.equal(detail.body.data.placement.status, "employment_ended", "reported status is not overwritten by verification");
+  assert.ok(events.includes("placement_verified"), "placement verification event kept");
+  assert.equal(detail.body.data.placement.employment.status, "employment_ended_verified");
   assert.equal(detail.body.data.placement.employmentFacts.reported.source, "candidate_reported");
   assert.equal(detail.body.data.placement.employmentFacts.verified.isVerified, true);
 });

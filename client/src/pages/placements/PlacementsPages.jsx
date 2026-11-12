@@ -11,11 +11,12 @@ import { EmptyState, ErrorState, LoadingState } from "../../components/ui/States
 import { PageHeader } from "../../components/Product";
 import { useToast } from "../../components/ui/useToast";
 import { placementApi } from "../../lib/api";
-import { fmtIst, PLACEMENT_STATUS_LABELS, SOURCE_LABELS } from "../../lib/revenueFormat";
+import { EMPLOYMENT_STATUS_LABELS, fmtIst, PLACEMENT_STATUS_LABELS, SOURCE_LABELS } from "../../lib/revenueFormat";
 
-// Statuses before employment began, and the one in which the candidate or company can record leaving.
-const BEFORE_EMPLOYMENT = ["selected", "hired", "joining_confirmed", "placement_verified"];
-const EMPLOYED = "currently_working";
+// Canonical employment (Requirement 9). A report moves to a pending state and waits for verification.
+const JOINABLE = ["offer_accepted", "pending_joining"];
+const PENDING = ["joined_pending_verification", "employment_end_pending_verification"];
+const employmentOf = (placement) => placement.employment?.status || "";
 
 const errorMessage = (err, fallback) => err?.response?.data?.error?.message || err?.response?.data?.message || fallback;
 
@@ -29,8 +30,8 @@ const VerifiedBadge = ({ placement }) =>
 const StatusLine = ({ placement }) => (
   <div className="space-y-1 text-sm">
     <div>
-      <span className="text-ink-500">Reported status: </span>
-      <strong className="text-ink-900">{PLACEMENT_STATUS_LABELS[placement.status] || placement.status}</strong>
+      <span className="text-ink-500">Employment status: </span>
+      <strong className="text-ink-900">{EMPLOYMENT_STATUS_LABELS[employmentOf(placement)] || "Not recorded yet"}</strong>
       {placement.employmentStatusSource ? (
         <span className="text-ink-500"> · {SOURCE_LABELS[placement.employmentStatusSource]}</span>
       ) : null}
@@ -58,12 +59,12 @@ const CandidateActions = ({ placement, onDone }) => {
       }
       if (dialog === "start") {
         return placementApi.updateEmploymentStatus(placement._id, {
-          status: EMPLOYED,
+          status: "joined_pending_verification",
           startDate: date ? new Date(date).toISOString() : undefined,
         });
       }
       return placementApi.updateEmploymentStatus(placement._id, {
-        status: "employment_ended",
+        status: "employment_end_pending_verification",
         endDate: date ? new Date(date).toISOString() : undefined,
         exitReason: note.trim() || undefined,
       });
@@ -78,20 +79,23 @@ const CandidateActions = ({ placement, onDone }) => {
     onError: (err) => toast.error(errorMessage(err, "We could not record that update.")),
   });
 
-  const status = placement.status;
+  const employment = employmentOf(placement);
+  if (PENDING.includes(employment)) {
+    return <p className="text-sm text-ink-600">Your update is recorded. It becomes final once the company or the platform verifies it.</p>;
+  }
   return (
     <div className="flex flex-wrap gap-2">
-      {BEFORE_EMPLOYMENT.includes(status) && status !== "joining_confirmed" && (
+      {JOINABLE.includes(employment) && (
         <Button size="sm" variant="secondary" onClick={() => setDialog("join")}>
           Confirm joining date
         </Button>
       )}
-      {BEFORE_EMPLOYMENT.includes(status) && (
+      {JOINABLE.includes(employment) && (
         <Button size="sm" variant="secondary" onClick={() => setDialog("start")}>
           I have started working here
         </Button>
       )}
-      {status === EMPLOYED && (
+      {employment === "active_verified" && (
         <Button size="sm" variant="danger" onClick={() => setDialog("leave")}>
           I have left this company
         </Button>
@@ -188,34 +192,87 @@ export const CandidatePlacements = () => {
 
 const CompanyActions = ({ placement, organizationId, onDone }) => {
   const toast = useToast();
-  const [confirm, setConfirm] = useState(null); // "employed" | "ended"
+  const [confirm, setConfirm] = useState(null); // "joined" | "ended" | "reject"
+  const [reason, setReason] = useState("");
   const update = useMutation({
     mutationFn: (body) => placementApi.updateEmploymentStatus(placement._id, body),
     onSuccess: () => {
-      toast.success("Employment information recorded.");
+      toast.success("Employment information recorded and waiting for verification.");
       setConfirm(null);
       onDone();
     },
     onError: (err) => toast.error(errorMessage(err, "We could not record that update.")),
   });
+  const verify = useMutation({
+    mutationFn: () => placementApi.verifyEmployment(placement._id, {}),
+    onSuccess: () => {
+      toast.success("Employment change verified.");
+      onDone();
+    },
+    onError: (err) => toast.error(errorMessage(err, "We could not verify this change.")),
+  });
+  const reject = useMutation({
+    mutationFn: () => placementApi.rejectEmployment(placement._id, { reason: reason.trim() }),
+    onSuccess: () => {
+      toast.success("Change rejected. The last verified status is kept.");
+      setConfirm(null);
+      setReason("");
+      onDone();
+    },
+    onError: (err) => toast.error(errorMessage(err, "We could not reject this change.")),
+  });
 
-  const status = placement.status;
+  const employment = employmentOf(placement);
+  const pending = PENDING.includes(employment);
   return (
     <div className="flex flex-wrap gap-2" data-org={organizationId}>
-      {BEFORE_EMPLOYMENT.includes(status) && (
-        <Button size="sm" variant="secondary" onClick={() => setConfirm("employed")}>
-          Confirm currently working
+      {JOINABLE.includes(employment) && (
+        <Button size="sm" variant="secondary" onClick={() => setConfirm("joined")}>
+          Record as working here
         </Button>
       )}
-      {status === EMPLOYED && (
+      {employment === "active_verified" && (
         <Button size="sm" variant="secondary" onClick={() => setConfirm("ended")}>
           Record employment ended
         </Button>
       )}
-      {confirm && (
+      {pending && (
+        <>
+          <Button size="sm" variant="secondary" onClick={() => verify.mutate()} isLoading={verify.isPending}>
+            Verify this change
+          </Button>
+          <Button size="sm" variant="danger" onClick={() => setConfirm("reject")}>
+            Reject this change
+          </Button>
+        </>
+      )}
+      {confirm === "reject" && (
         <ConfirmModal
           isOpen
-          title={confirm === "employed" ? "Confirm this hire is working here?" : "Record that employment has ended?"}
+          title="Reject this employment change?"
+          children={
+            <label className="block text-left text-xs font-semibold text-ink-600">
+              Reason (required)
+              <textarea
+                maxLength={2000}
+                rows={3}
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-ink-200 px-3 py-2 text-sm"
+              />
+            </label>
+          }
+          confirmLabel="Reject change"
+          tone="brand"
+          onClose={() => setConfirm(null)}
+          isLoading={reject.isPending}
+          onConfirm={() => reject.mutate()}
+        />
+      )}
+      {(confirm === "joined" || confirm === "ended") && (
+        <ConfirmModal
+          isOpen
+          title={confirm === "joined" ? "Record this hire as working here?" : "Record that employment has ended?"}
           children={
             <p className="text-left text-sm text-ink-700">
               This is recorded as a company report. The earlier entry stays in the history, and the platform still verifies placements separately.
@@ -226,7 +283,11 @@ const CompanyActions = ({ placement, organizationId, onDone }) => {
           onClose={() => setConfirm(null)}
           isLoading={update.isPending}
           onConfirm={() =>
-            update.mutate(confirm === "employed" ? { status: EMPLOYED } : { status: "employment_ended" })
+            update.mutate(
+              confirm === "joined"
+                ? { status: "joined_pending_verification" }
+                : { status: "employment_end_pending_verification" },
+            )
           }
         />
       )}
@@ -272,7 +333,8 @@ export const OrganizationPlacements = () => {
                   <td className="px-3 py-2 font-medium text-ink-900">{p.candidate?.name || "Candidate"}</td>
                   <td className="px-3 py-2">{p.job?.title || "Job removed"}</td>
                   <td className="px-3 py-2">
-                    {PLACEMENT_STATUS_LABELS[p.status] || p.status}
+                    {EMPLOYMENT_STATUS_LABELS[employmentOf(p)] || "Not recorded yet"}
+                    <div className="text-xs text-ink-500">Pipeline: {PLACEMENT_STATUS_LABELS[p.status] || p.status}</div>
                     {p.employmentStatusSource ? <div className="text-xs text-ink-500">{SOURCE_LABELS[p.employmentStatusSource]}</div> : null}
                   </td>
                   <td className="px-3 py-2">

@@ -37,10 +37,12 @@ const register = async ({ email, intent, organizationName }) => {
   };
 };
 
+// Default employment: offer accepted and verified (the state a hired candidate starts from).
 const newPlacement = (fields) =>
   Placement.create({
     application: new mongoose.Types.ObjectId(),
     job: new mongoose.Types.ObjectId(),
+    employment: { status: "offer_accepted", lastVerifiedStatus: "offer_accepted" },
     ...fields,
   });
 
@@ -101,14 +103,14 @@ test("a recruiter from an unrelated company cannot change another company's plac
     status: "hired",
   });
 
-  const noContext = await changeStatus(orgOwnerY, placement._id, { status: "currently_working" });
+  const noContext = await changeStatus(orgOwnerY, placement._id, { status: "joined_pending_verification" });
   assert.equal(noContext.status, 400);
   assert.equal(noContext.body.code, "ORGANIZATION_REQUIRED");
 
   const ownOrgHeader = await changeStatus(
     orgOwnerY,
     placement._id,
-    { status: "currently_working" },
+    { status: "joined_pending_verification" },
     orgOwnerY.orgId,
   );
   assert.equal(ownOrgHeader.status, 404, "placement of another organization is not found");
@@ -116,7 +118,7 @@ test("a recruiter from an unrelated company cannot change another company's plac
   const spoofedOrgHeader = await changeStatus(
     orgOwnerY,
     placement._id,
-    { status: "currently_working" },
+    { status: "joined_pending_verification" },
     orgOwnerX.orgId,
   );
   assert.equal(spoofedOrgHeader.status, 404, "a header naming org X does not grant membership");
@@ -131,7 +133,7 @@ test("a candidate cannot change a placement that belongs to someone else", async
     candidate: candidate.userId,
     status: "hired",
   });
-  const res = await changeStatus(otherCandidate, placement._id, { status: "currently_working" });
+  const res = await changeStatus(otherCandidate, placement._id, { status: "joined_pending_verification" });
   assert.equal(res.status, 404);
   assert.equal((await Placement.findById(placement._id)).status, "hired");
 });
@@ -152,11 +154,12 @@ test("the owning company updates status; the source is recorded and no profile i
   const res = await changeStatus(
     orgOwnerX,
     placement._id,
-    { status: "currently_working", startDate: "2026-10-01" },
+    { status: "joined_pending_verification", startDate: "2026-10-01" },
     orgOwnerX.orgId,
   );
   assert.equal(res.status, 200, JSON.stringify(res.body));
-  assert.equal(res.body.data.status, "currently_working");
+  assert.equal(res.body.data.employment.status, "joined_pending_verification", "reported, not verified");
+  assert.equal(res.body.data.status, "hired", "placement lifecycle is unchanged");
 
   const stored = await Placement.findById(placement._id);
   assert.equal(stored.employmentStatusSource, "organization_reported");
@@ -169,11 +172,11 @@ test("the owning company updates status; the source is recorded and no profile i
 
   const audit = await AuditLog.findOne({
     resourceId: placement._id,
-    action: "placement.status_currently_working",
+    action: "placement.employment_reported",
   });
   assert.ok(audit, "status change is audited");
-  assert.equal(audit.metadata.previousStatus, "hired");
-  assert.equal(audit.metadata.newStatus, "currently_working");
+  assert.equal(audit.previousState.employmentStatus, "offer_accepted");
+  assert.equal(audit.newState.employmentStatus, "joined_pending_verification");
 });
 
 test("a same-company recruiter with the application permission may update the placement", async () => {
@@ -182,7 +185,7 @@ test("a same-company recruiter with the application permission may update the pl
     candidate: candidate.userId,
     status: "hired",
   });
-  const res = await changeStatus(orgXMember, placement._id, { status: "currently_working" }, orgOwnerX.orgId);
+  const res = await changeStatus(orgXMember, placement._id, { status: "joined_pending_verification" }, orgOwnerX.orgId);
   assert.equal(res.status, 200, JSON.stringify(res.body));
 });
 
@@ -192,11 +195,12 @@ test("a candidate can self-report for their own placement, recorded as candidate
     candidate: candidate.userId,
     status: "joining_confirmed",
   });
-  const res = await changeStatus(candidate, placement._id, { status: "currently_working" });
+  const res = await changeStatus(candidate, placement._id, { status: "joined_pending_verification" });
   assert.equal(res.status, 200, JSON.stringify(res.body));
   const stored = await Placement.findById(placement._id);
   assert.equal(stored.employmentStatusSource, "candidate_reported");
   assert.equal(stored.verification.isVerified, false);
+  assert.equal(stored.employment.status, "joined_pending_verification");
 });
 
 test("illegal transitions are rejected", async () => {
@@ -204,8 +208,9 @@ test("illegal transitions are rejected", async () => {
     organization: orgOwnerX.orgId,
     candidate: candidate.userId,
     status: "selected",
+    employment: { status: "status_unconfirmed", lastVerifiedStatus: "" },
   });
-  const fromSelected = await changeStatus(orgOwnerX, hired._id, { status: "currently_working" }, orgOwnerX.orgId);
+  const fromSelected = await changeStatus(orgOwnerX, hired._id, { status: "joined_pending_verification" }, orgOwnerX.orgId);
   assert.equal(fromSelected.status, 409);
   assert.equal(fromSelected.body.code, "INVALID_TRANSITION");
 
@@ -214,7 +219,12 @@ test("illegal transitions are rejected", async () => {
     candidate: candidate.userId,
     status: "hired",
   });
-  const endWithoutStart = await changeStatus(orgOwnerX, notWorking._id, { status: "employment_ended" }, orgOwnerX.orgId);
+  const endWithoutStart = await changeStatus(
+    orgOwnerX,
+    notWorking._id,
+    { status: "employment_end_pending_verification" },
+    orgOwnerX.orgId,
+  );
   assert.equal(endWithoutStart.status, 409);
   assert.equal(endWithoutStart.body.code, "INVALID_TRANSITION");
 
@@ -223,26 +233,29 @@ test("illegal transitions are rejected", async () => {
   assert.equal(invalid.body.code, "VALIDATION_ERROR");
 });
 
-test("ending employment requires currently_working and records the end date and reason", async () => {
+test("an exit is reported as pending from an active verified job; the last verified status stays until verified", async () => {
   const placement = await newPlacement({
     organization: orgOwnerX.orgId,
     candidate: candidate.userId,
-    status: "currently_working",
+    status: "hired",
+    employment: { status: "active_verified", lastVerifiedStatus: "active_verified" },
   });
   const res = await changeStatus(
     orgOwnerX,
     placement._id,
-    { status: "employment_ended", endDate: "2026-10-31", exitReason: "Contract finished" },
+    { status: "employment_end_pending_verification", endDate: "2026-10-31", exitReason: "Contract finished" },
     orgOwnerX.orgId,
   );
   assert.equal(res.status, 200, JSON.stringify(res.body));
   const stored = await Placement.findById(placement._id);
-  assert.equal(stored.status, "employment_ended");
+  assert.equal(stored.employment.status, "employment_end_pending_verification");
+  assert.equal(stored.employment.lastVerifiedStatus, "active_verified", "not verified yet");
   assert.equal(stored.employmentPeriod.exitReason, "Contract finished");
   assert.equal(stored.employmentStatusSource, "organization_reported");
 
-  const again = await changeStatus(orgOwnerX, placement._id, { status: "employment_ended" }, orgOwnerX.orgId);
-  assert.equal(again.status, 409, "a finished placement cannot end twice");
+  const again = await changeStatus(orgOwnerX, placement._id, { status: "employment_end_pending_verification" }, orgOwnerX.orgId);
+  assert.equal(again.status, 409, "a second change cannot be reported while one is pending");
+  assert.equal(again.body.code, "CHANGE_ALREADY_PENDING");
 });
 
 test("unknown fields and statuses are rejected before any lookup", async () => {
@@ -254,7 +267,7 @@ test("unknown fields and statuses are rejected before any lookup", async () => {
   const extra = await changeStatus(
     orgOwnerX,
     placement._id,
-    { status: "currently_working", experience: [{ title: "Injected" }] },
+    { status: "joined_pending_verification", experience: [{ title: "Injected" }] },
     orgOwnerX.orgId,
   );
   assert.equal(extra.status, 422, JSON.stringify(extra.body));
@@ -267,7 +280,7 @@ test("organization-reported employment is not platform-verified; admin verificat
     candidate: candidate.userId,
     status: "hired",
   });
-  const reported = await changeStatus(orgOwnerX, placement._id, { status: "currently_working" }, orgOwnerX.orgId);
+  const reported = await changeStatus(orgOwnerX, placement._id, { status: "joined_pending_verification" }, orgOwnerX.orgId);
   assert.equal(reported.status, 200);
   let stored = await Placement.findById(placement._id);
   assert.equal(stored.verification.isVerified, false, "organization report is not verification");
@@ -289,7 +302,7 @@ test("organization-reported employment is not platform-verified; admin verificat
   stored = await Placement.findById(placement._id);
   assert.equal(stored.verification.isVerified, true);
   assert.ok(stored.verification.verifiedBy);
-  assert.equal(stored.status, "currently_working", "admin verification keeps the employment status");
+  assert.equal(stored.employment.status, "joined_pending_verification", "placement verification does not verify employment");
   assert.equal(stored.employmentStatusSource, "organization_reported", "source is not rewritten by verification");
 });
 
@@ -325,6 +338,118 @@ test("candidate joining confirmation does not regress an employment status", asy
   assert.equal(res.status, 200, JSON.stringify(res.body));
   const stored = await Placement.findById(placement._id);
   assert.equal(stored.status, "employment_ended");
+  assert.equal(stored.employment.status, "joined_pending_verification", "joining is a pending employment change");
   assert.equal(stored.joiningConfirmation.confirmedByCandidate, true, "candidate confirmation is still recorded");
   assert.equal(stored.verification.isVerified, false, "candidate confirmation is not platform verification");
+});
+
+const employmentAction = (token, placementId, action, body, orgId) => {
+  const req = request(app).post(`${API}/placements/${placementId}/employment/${action}`).set(auth(token));
+  if (orgId) req.set("X-Organization-Id", orgId);
+  return req.send(body);
+};
+
+const makePlatformAdmin = async (email) => {
+  await register({ email, intent: "candidate" });
+  await User.updateOne({ email }, { $set: { role: "admin" } });
+  const login = await request(app).post(`${API}/auth/login`).send({ email, password: PASSWORD });
+  return login.body.data.accessToken;
+};
+
+test("an employer verifies a candidate's joining; the reporter cannot verify their own change", async () => {
+  const placement = await newPlacement({
+    organization: orgOwnerX.orgId,
+    candidate: candidate.userId,
+    status: "hired",
+  });
+  const reported = await changeStatus(candidate, placement._id, { status: "joined_pending_verification" });
+  assert.equal(reported.status, 200, JSON.stringify(reported.body));
+
+  // The candidate may never verify, even for their own placement.
+  const byCandidate = await employmentAction(candidate.token, placement._id, "verify", {});
+  assert.equal(byCandidate.status, 404);
+
+  const verified = await employmentAction(orgOwnerX.token, placement._id, "verify", { note: "Joined on the 1st" }, orgOwnerX.orgId);
+  assert.equal(verified.status, 200, JSON.stringify(verified.body));
+  const stored = await Placement.findById(placement._id);
+  assert.equal(stored.employment.status, "active_verified");
+  assert.equal(stored.employment.lastVerifiedStatus, "active_verified");
+  assert.equal(String(stored.employment.verifiedBy), orgOwnerX.userId);
+  const events = stored.employmentHistory.map((e) => e.event);
+  assert.ok(events.includes("employment_reported"));
+  assert.ok(events.includes("employment_verified"), "verification is a separate history event");
+});
+
+test("a recruiter cannot verify a change they reported themselves", async () => {
+  const placement = await newPlacement({
+    organization: orgOwnerX.orgId,
+    candidate: candidate.userId,
+    status: "hired",
+  });
+  await changeStatus(orgXMember, placement._id, { status: "joined_pending_verification" }, orgOwnerX.orgId);
+  const self = await employmentAction(orgXMember.token, placement._id, "verify", {}, orgOwnerX.orgId);
+  assert.equal(self.status, 409);
+  assert.equal(self.body.code, "SELF_VERIFICATION_NOT_ALLOWED");
+  assert.equal((await Placement.findById(placement._id)).employment.status, "joined_pending_verification");
+});
+
+test("a recruiter from another company cannot verify, and nothing is verified", async () => {
+  const placement = await newPlacement({
+    organization: orgOwnerX.orgId,
+    candidate: candidate.userId,
+    status: "hired",
+  });
+  await changeStatus(candidate, placement._id, { status: "joined_pending_verification" });
+  const outsider = await employmentAction(orgOwnerY.token, placement._id, "verify", {}, orgOwnerY.orgId);
+  assert.equal(outsider.status, 404);
+  assert.equal((await Placement.findById(placement._id)).employment.status, "joined_pending_verification");
+});
+
+test("rejecting a pending exit returns to the last verified status, and the rejection is kept in history", async () => {
+  const placement = await newPlacement({
+    organization: orgOwnerX.orgId,
+    candidate: candidate.userId,
+    status: "hired",
+    employment: { status: "active_verified", lastVerifiedStatus: "active_verified" },
+  });
+  await changeStatus(candidate, placement._id, { status: "employment_end_pending_verification" });
+  const noReason = await employmentAction(orgOwnerX.token, placement._id, "reject", {}, orgOwnerX.orgId);
+  assert.equal(noReason.status, 422);
+
+  const rejected = await employmentAction(orgOwnerX.token, placement._id, "reject", { reason: "Still employed" }, orgOwnerX.orgId);
+  assert.equal(rejected.status, 200, JSON.stringify(rejected.body));
+  const stored = await Placement.findById(placement._id);
+  assert.equal(stored.employment.status, "active_verified");
+  assert.ok(stored.employmentHistory.some((e) => e.event === "employment_rejected" && e.note === "Still employed"));
+});
+
+test("an unconfirmed legacy record is resolved only by an administrator, with a note", async () => {
+  const placement = await newPlacement({
+    organization: orgOwnerX.orgId,
+    candidate: candidate.userId,
+    status: "hired",
+    employment: { status: "status_unconfirmed", lastVerifiedStatus: "" },
+  });
+  const adminToken = await makePlatformAdmin("pl-resolve-admin@example.test");
+
+  const byRecruiter = await request(app)
+    .post(`${API}/admin/placements/${placement._id}/employment/resolve`)
+    .set(auth(orgOwnerX.token))
+    .send({ status: "active_verified", note: "checked" });
+  assert.equal(byRecruiter.status, 404);
+
+  const noNote = await request(app)
+    .post(`${API}/admin/placements/${placement._id}/employment/resolve`)
+    .set(auth(adminToken))
+    .send({ status: "active_verified" });
+  assert.equal(noNote.status, 422);
+
+  const resolved = await request(app)
+    .post(`${API}/admin/placements/${placement._id}/employment/resolve`)
+    .set(auth(adminToken))
+    .send({ status: "active_verified", note: "Confirmed from offer letter and payslip" });
+  assert.equal(resolved.status, 200, JSON.stringify(resolved.body));
+  const stored = await Placement.findById(placement._id);
+  assert.equal(stored.employment.status, "active_verified");
+  assert.ok(stored.employmentHistory.some((e) => e.event === "employment_resolved"));
 });

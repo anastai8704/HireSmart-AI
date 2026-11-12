@@ -46,6 +46,19 @@ export const VERIFICATION_TONE = {
   not_applicable: "default",
 };
 
+// Canonical employment status (Requirement 9). Shown wherever employment is displayed.
+export const EMPLOYMENT_STATUS_LABELS = {
+  offer_accepted: "Offer accepted",
+  pending_joining: "Pending joining",
+  joined_pending_verification: "Joined, awaiting verification",
+  active_verified: "Active, verified",
+  employment_end_pending_verification: "Exit reported, awaiting verification",
+  employment_ended_verified: "Employment ended, verified",
+  status_unconfirmed: "Status unconfirmed (admin review)",
+};
+
+// Placement lifecycle (pipeline position). Kept separate from employment. Legacy employment values are listed so
+// older records still display correctly.
 export const PLACEMENT_STATUS_LABELS = {
   selected: "Selected",
   hired: "Hired",
@@ -59,6 +72,10 @@ export const EMPLOYMENT_EVENT_LABELS = {
   placement_created: "Placement created from hire",
   joining_confirmed: "Candidate confirmed joining",
   employment_reported: "Employment status reported",
+  employment_verified: "Employment verified",
+  employment_rejected: "Employment change rejected",
+  employment_resolved: "Unconfirmed record resolved by admin",
+  employment_migrated: "Migrated to the employment workflow",
   placement_verified: "Platform verified placement",
 };
 
