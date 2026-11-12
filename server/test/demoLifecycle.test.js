@@ -50,7 +50,9 @@ const childEnv = (extra = {}) => ({
 const failure = (res) => {
   const lines = String(res.out || "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   const reason = lines.find((l) => /Seed execution failed|Error:|refus|not allowed|ECONN|Missing/i.test(l)) || lines[lines.length - 1] || "no output";
-  return `exit ${res.code}: ${reason}`.slice(0, 400);
+  // The TAP reporter renders a message that contains ": " as a block scalar and drops it from the summary, so the
+  // separators here avoid colons and the reason stays on one readable line.
+  return `child exit ${res.code} - ${reason.replace(/:\s*/g, " - ")}`.slice(0, 400);
 };
 
 const runNode = async (args, env) => {
