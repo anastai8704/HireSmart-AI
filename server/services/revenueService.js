@@ -6,6 +6,7 @@ const User = require("../models/User");
 const {
   REVENUE_MATCH,
   REVENUE_STATUSES,
+  refundsInRange,
   summarizeRevenueTotals,
   transactionRow,
 } = require("../domain/revenueRules");
@@ -31,11 +32,7 @@ const totalsPipeline = (range) => [
       ],
       refunds: [
         {
-          $match: {
-            ...REVENUE_MATCH,
-            status: "refunded",
-            refundedAt: { $gte: range.start, $lt: range.end },
-          },
+          $match: refundsInRange(range),
         },
         {
           $group: {

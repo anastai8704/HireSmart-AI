@@ -17,7 +17,7 @@ const {
   istDayOf,
 } = require("../domain/analyticsDefinitions");
 const { inRange, dayOf } = require("./reportHelpers");
-const { REVENUE_MATCH, REVENUE_GATEWAYS, summarizeRevenueTotals } = require("../domain/revenueRules");
+const { REVENUE_MATCH, REVENUE_GATEWAYS, summarizeRevenueTotals, refundsInRange } = require("../domain/revenueRules");
 const User = require("../models/User");
 const Organization = require("../models/Organization");
 const Job = require("../models/Job");
@@ -322,16 +322,7 @@ const REPORTS = {
           { $group: { _id: dayOf("$createdAt"), amount: { $sum: "$amount" }, count: { $sum: 1 } } },
         ]),
         PaymentTransaction.aggregate([
-          {
-            $match: {
-              status: "refunded",
-              gateway: { $in: REVENUE_GATEWAYS },
-              $or: [
-                inRange("refundedAt", range),
-                { refundedAt: null, ...inRange("updatedAt", range) },
-              ],
-            },
-          },
+          { $match: refundsInRange(range) },
           {
             $group: {
               _id: dayOf({ $ifNull: ["$refundedAt", "$updatedAt"] }),

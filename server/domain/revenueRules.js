@@ -18,6 +18,18 @@ const REVENUE_MATCH = Object.freeze({
   gateway: { $in: REVENUE_GATEWAYS },
 });
 
+// Refunds processed in a range (Requirement 8). A refund belongs to the day it was processed (refundedAt).
+// Legacy refunded rows without refundedAt fall back to updatedAt. Shared by the admin overview and the revenue report
+// so both subtract the same refunds.
+const refundsInRange = (range) => ({
+  status: "refunded",
+  gateway: { $in: REVENUE_GATEWAYS },
+  $or: [
+    { refundedAt: { $gte: range.start, $lt: range.end } },
+    { refundedAt: null, updatedAt: { $gte: range.start, $lt: range.end } },
+  ],
+});
+
 // Mode of a record. Legacy records without a stored mode are razorpay test charges (live is refused).
 const revenueMode = (txn) => {
   if (!txn || txn.gateway !== "razorpay") return "simulation";
@@ -78,6 +90,7 @@ module.exports = {
   ATTEMPT_STATUSES,
   REVENUE_GATEWAYS,
   REVENUE_MATCH,
+  refundsInRange,
   revenueMode,
   isRevenueEligible,
   refundStatusOf,

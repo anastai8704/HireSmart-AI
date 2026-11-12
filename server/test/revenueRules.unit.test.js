@@ -83,3 +83,15 @@ test("the shared match admits only razorpay captured or refunded records", () =>
   assert.deepEqual(rules.REVENUE_MATCH.status.$in, ["captured", "refunded"]);
   assert.deepEqual(rules.REVENUE_MATCH.gateway.$in, ["razorpay"]);
 });
+
+const { refundsInRange } = require("../domain/revenueRules");
+
+test("refunds are attributed to the day they were processed; legacy rows fall back to updatedAt", () => {
+  const range = { start: new Date("2026-10-01T00:00:00Z"), end: new Date("2026-11-01T00:00:00Z") };
+  const match = refundsInRange(range);
+  assert.equal(match.status, "refunded");
+  assert.deepEqual(match.gateway, { $in: ["razorpay"] });
+  assert.equal(match.$or.length, 2);
+  assert.deepEqual(match.$or[0], { refundedAt: { $gte: range.start, $lt: range.end } });
+  assert.deepEqual(match.$or[1], { refundedAt: null, updatedAt: { $gte: range.start, $lt: range.end } });
+});

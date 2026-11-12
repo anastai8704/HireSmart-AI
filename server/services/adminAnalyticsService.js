@@ -8,7 +8,7 @@ const Interview = require("../models/Interview");
 const { Placement } = require("../models/Placement");
 const { Subscription } = require("../models/Subscription");
 const { PaymentTransaction } = require("../models/PaymentTransaction");
-const { REVENUE_MATCH } = require("../domain/revenueRules");
+const { REVENUE_MATCH, refundsInRange } = require("../domain/revenueRules");
 const { revenueSummary } = require("./revenueService");
 const {
   ANALYTICS_TIMEZONE,
@@ -163,8 +163,8 @@ async function computeAnalytics(range) {
             { $group: { _id: dayOf("$createdAt"), amount: { $sum: "$amount" } } },
           ],
           refundsDaily: [
-            { $match: { ...REVENUE_MATCH, status: "refunded", ...inRange("refundedAt", range) } },
-            { $group: { _id: dayOf("$refundedAt"), amount: { $sum: "$amount" } } },
+            { $match: refundsInRange(range) },
+            { $group: { _id: dayOf({ $ifNull: ["$refundedAt", "$updatedAt"] }), amount: { $sum: "$amount" } } },
           ],
           failedDaily: [
             { $match: { gateway: "razorpay", status: "failed", ...inRange("createdAt", range) } },
