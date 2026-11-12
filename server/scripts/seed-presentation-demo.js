@@ -1887,12 +1887,14 @@ const seedPresentationData = async () => {
         { user: cand._id },
         {
           $set: {
+            // Values must belong to CandidateProfile.employmentStatus. A pending offer or joining is not an
+            // employment fact yet, so it is "unspecified" (the canonical state lives on the placement).
             employmentStatus:
               ps.status === "currently_working" || ps.status === "placement_verified"
                 ? "employed"
                 : ps.status === "joining_confirmed" || ps.status === "offer_accepted"
-                  ? "placed"
-                  : "seeking",
+                  ? "unspecified"
+                  : "unemployed",
           },
         },
       );
