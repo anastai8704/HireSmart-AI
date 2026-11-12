@@ -14,6 +14,7 @@ const logger = require("../utils/logger");
 const pickDefined = require("../utils/pickDefined");
 const Policy = require("../domain/interviewPolicy");
 const Meeting = require("../services/interviewMeetingService");
+const { candidateInterviewView } = require("../domain/interviewViews");
 
 const orgOwner = async (organizationId) =>
   (await Membership.findOne({
@@ -94,24 +95,7 @@ const stateError = (decision) => {
   return new AppError(messages[decision.code] || "This interview cannot be started.", 409, decision.code);
 };
 
-/**
- * The candidate view of an interview. The meeting link appears only when the recruiter has started the interview,
- * and the recruiter's feedback and scorecards are never sent to the candidate.
- */
-const candidateView = (interview) => {
-  const o = typeof interview.toObject === "function" ? interview.toObject() : { ...interview };
-  const joinState = Policy.candidateJoinState({
-    status: o.status,
-    meetingUrl: o.meetingUrl,
-    scheduledStart: o.scheduledStart,
-  });
-  delete o.feedback;
-  delete o.googleEventId;
-  delete o.conferenceRequestId;
-  delete o.meetingError;
-  if (!joinState.canJoin) delete o.meetingUrl;
-  return { ...o, joinState };
-};
+const candidateView = (interview) => candidateInterviewView(interview);
 
 // Fields a recruiter may set when scheduling. Ownership and workflow fields are set by the server only.
 const INTERVIEW_WRITABLE_FIELDS = [
@@ -261,6 +245,7 @@ exports.list = asyncHandler(async (req, res) => {
   }
 
   if (req.query.status) filter.status = req.query.status;
+  if (req.query.jobId) filter.job = req.query.jobId;
   if (req.query.applicationId) filter.application = req.query.applicationId;
   if (req.query.type) filter.type = req.query.type;
 
