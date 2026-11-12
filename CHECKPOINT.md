@@ -118,3 +118,34 @@ The calendar.events scope is a sensitive scope and may need Google verification 
 Not verified live: Google Calendar/Meet (no credentials), Razorpay, email delivery.
 
 Remaining, in order: Requirements 7–9, 10, 12, 17, 2, then 13 and 18 (docs, tests, final QA). Run DB-backed tests once mongod is available.
+
+## Checkpoint 10: admin dashboard, Revenue & Plans, placements and employment (Requirements 7–9)
+
+Server commit `dbe4c6e`; client commit follows in the same push.
+
+| Item | Result |
+|---|---|
+| Server unit suite | 223/223 pass (includes 9 revenue rule tests) |
+| Server lint | 0 errors |
+| Client suite | 37 files, 233 tests pass |
+| Client lint | 0 errors (3 pre-existing warnings in AuthPages.jsx) |
+| Client production build | passes |
+| DB-backed `adminRevenuePlacements.test.js` | NOT RUN (no MongoDB: fastdl.mongodb.org unreachable from the sandbox) |
+| DB-backed `adminAnalytics.test.js` | NOT RUN (same reason); fixtures switched from sandbox to razorpay test records |
+| DB-backed `interviewApiFlow.test.js` | NOT RUN (same reason) |
+
+What changed:
+- Revenue: one rule (captured or refunded, razorpay only). Sandbox, failed, pending and demo grants are never revenue.
+  Refunds are counted by `refundedAt` (set by the refund webhook). Test and live are reported separately.
+  `GET /admin/revenue` powers the Revenue & Plans page. The analytics overview and `/admin/analytics/revenue` use the same service.
+  User invoices use the same records; sandbox captures are labelled and marked not eligible for revenue.
+- Seed: demo subscriptions wrote an invalid `subscriberType` and no `subscriberId`. Fixed.
+- Dashboard: new KPIs (test and live revenue, verified placements, upcoming interviews); chart drill-downs to filtered pages.
+- Placements: append-only `employmentHistory`; company → jobs → placements → candidate; audited candidate profile
+  (contact, address and gender withheld; resume file download stays on the candidate route).
+- Candidate "Employment" page (confirm joining, report started, report left) and company "Placements" page (confirm working, record ended).
+  Reported and verified state are shown separately everywhere.
+
+Not verified: DB-backed behaviour (above). Not included: admin download of candidate resume files; live Razorpay (no live billing in this release).
+
+Next: Requirement 10 (Asia/Kolkata everywhere), 12 (searchable dropdowns), 17 (plan badges), 2 (billing UI), 13 and 18 (docs, QA).

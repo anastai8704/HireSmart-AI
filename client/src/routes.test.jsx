@@ -84,3 +84,22 @@ describe("navigation links resolve to declared routes", () => {
     }
   });
 });
+
+describe("admin revenue and placement routes (Requirements 8–9)", () => {
+  it.each([
+    "/app/admin/revenue",
+    "/app/admin/placements",
+    "/app/admin/placements/:placementId",
+    "/app/candidate/placements",
+    "/app/o/:organizationId/placements",
+  ])("declares %s", (pattern) => {
+    expect(routePatterns).toContain(pattern);
+  });
+
+  it("the Revenue & Plans and Placements nav links point at declared routes", () => {
+    for (const link of ["/app/admin/revenue", "/app/admin/placements", "/app/candidate/placements"]) {
+      expect(shell).toContain(`"${link}"`);
+      expect(routePatterns.some((p) => toRegex(p).test(link))).toBe(true);
+    }
+  });
+});

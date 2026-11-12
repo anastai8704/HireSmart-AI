@@ -239,6 +239,15 @@ export const adminApi = {
     api.get(`/admin/moderation/companies/${orgId}/jobs${query(params)}`),
   bulkApproveJobs: (orgId) => api.post(`/admin/moderation/companies/${orgId}/approve-all`),
   placements: (params) => api.get(`/admin/placements${query(params)}`),
+  // Revenue & Plans (Requirement 8): summary and paged records from the same rules as the dashboard.
+  revenue: (params) => api.get(`/admin/revenue${query(params)}`),
+  // Company → jobs → placement → candidate (Requirement 9).
+  placementCompanies: () => api.get("/admin/placements/companies"),
+  placementCompanyJobs: (orgId) => api.get(`/admin/placements/companies/${encodeURIComponent(orgId)}/jobs`),
+  placementDetail: (placementId) => api.get(`/admin/placements/${encodeURIComponent(placementId)}`),
+  // Sensitive: the server records every call in the audit log.
+  placementCandidateProfile: (placementId) =>
+    api.get(`/admin/placements/${encodeURIComponent(placementId)}/candidate-profile`),
   verifyPlacement: (placementId, body) =>
     api.post(`/admin/placements/${placementId}/verify`, body),
   audit: (params) => api.get(`/admin/audit-logs${query(params)}`),

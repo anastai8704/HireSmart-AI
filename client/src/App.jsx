@@ -63,7 +63,12 @@ const Notifications = pick(() => import("./pages/SystemPages"), "NotificationsPa
   AdminAI = pick(() => import("./pages/admin/AdminPages"), "AdminAIUsage"),
   AdminSecurity = pick(() => import("./pages/admin/AdminPages"), "AdminSecurity"),
   AdminModeration = pick(() => import("./pages/admin/AdminPages"), "AdminModeration"),
-  AdminSubscriptions = pick(() => import("./pages/admin/AdminSubscriptions"), "AdminSubscriptions");
+  AdminSubscriptions = pick(() => import("./pages/admin/AdminSubscriptions"), "AdminSubscriptions"),
+  CandidatePlacements = pick(() => import("./pages/placements/PlacementsPages"), "CandidatePlacements"),
+  OrganizationPlacements = pick(() => import("./pages/placements/PlacementsPages"), "OrganizationPlacements"),
+  AdminRevenue = pick(() => import("./pages/admin/AdminRevenue"), "AdminRevenue"),
+  AdminPlacements = pick(() => import("./pages/admin/AdminPlacements"), "AdminPlacements"),
+  AdminPlacementDetail = pick(() => import("./pages/admin/AdminPlacements"), "AdminPlacementDetail");
 const Forbidden = lazy(() => import("./pages/Forbidden")),
   NotFound = lazy(() => import("./pages/NotFound"));
 const LegacyWorkspaceRedirect = () => {
@@ -135,6 +140,7 @@ const App = () => (
                 <Route path="/app/candidate/saved" element={<SavedJobs />} />
                 <Route path="/app/candidate/alerts" element={<CAlerts />} />
                 <Route path="/app/candidate/interviews" element={<CInterviews />} />
+                <Route path="/app/candidate/placements" element={<CandidatePlacements />} />
                 <Route path="/app/candidate/interviews/:interviewId" element={<InterviewPrep />} />
                 <Route path="/app/candidate/copilot" element={<CareerCopilot />} />
                 <Route path="/app/candidate/plans" element={<CBilling />} />
@@ -170,6 +176,7 @@ const App = () => (
                 <Route path="/app/o/:organizationId/candidates" element={<CandidateSearch />} />
                 <Route path="/app/o/:organizationId/compare" element={<Compare />} />
                 <Route path="/app/o/:organizationId/interviews" element={<Interviews />} />
+                <Route path="/app/o/:organizationId/placements" element={<OrganizationPlacements />} />
                 <Route
                   path="/app/o/:organizationId/interviews/schedule"
                   element={<InterviewScheduler />}
@@ -194,7 +201,10 @@ const App = () => (
                 <Route path="/app/admin/organizations/:organizationId" element={<AdminOrgs />} />
                 <Route path="/app/admin/verification" element={<AdminVerification />} />
                 <Route path="/app/admin/verification/:caseId" element={<AdminVerification />} />
+                <Route path="/app/admin/revenue" element={<AdminRevenue />} />
                 <Route path="/app/admin/subscriptions" element={<AdminSubscriptions />} />
+                <Route path="/app/admin/placements" element={<AdminPlacements />} />
+                <Route path="/app/admin/placements/:placementId" element={<AdminPlacementDetail />} />
                 <Route path="/app/admin/ai-usage" element={<AdminAI />} />
                 <Route path="/app/admin/security" element={<AdminSecurity />} />
               </Route>

@@ -345,3 +345,25 @@ nodeTest("employment: candidate reports leaving, admin verifies; earlier records
   assert.equal(detail.body.data.placement.employmentFacts.reported.source, "candidate_reported");
   assert.equal(detail.body.data.placement.employmentFacts.verified.isVerified, true);
 });
+
+nodeTest("dashboard accuracy: verified placements and upcoming interviews match the records they count", async () => {
+  const Interview = require("../models/Interview");
+  const overviewKpis = async () =>
+    (await request(app).get("/api/v1/admin/analytics/overview?range=30d").set(auth(ctx.admin.token))).body.data.kpis;
+
+  const verifiedRecords = await Placement.countDocuments({ "verification.isVerified": true });
+  const before = await overviewKpis();
+  assert.equal(before.verifiedPlacements, verifiedRecords, "verified placements equal the verified placement records");
+
+  const upcomingBefore = before.upcomingInterviews;
+  const future = new Date(Date.now() + 2 * DAY_MS);
+  const past = new Date(Date.now() - 2 * DAY_MS);
+  const base = { organization: new mongoose.Types.ObjectId(ctx.orgId), application: oid(), candidate: new mongoose.Types.ObjectId(ctx.candidateId), createdAt: new Date(), updatedAt: new Date() };
+  await Interview.collection.insertMany([
+    { ...base, _id: oid(), status: "confirmed", scheduledStart: future, scheduledEnd: new Date(future.getTime() + 3600e3), title: "Round 1" },
+    { ...base, _id: oid(), status: "confirmed", scheduledStart: past, scheduledEnd: new Date(past.getTime() + 3600e3), title: "Past round" },
+    { ...base, _id: oid(), status: "cancelled", scheduledStart: future, scheduledEnd: new Date(future.getTime() + 3600e3), title: "Cancelled round" },
+  ]);
+  const after = await overviewKpis();
+  assert.equal(after.upcomingInterviews, upcomingBefore + 1, "only the future, not cancelled, confirmed interview is counted");
+});

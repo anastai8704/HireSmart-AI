@@ -65,6 +65,8 @@ const KPI_SECTIONS = [
       { key: "offersIssued", label: "Offers issued", fmt: fmtInt },
       { key: "candidatesHired", label: "Candidates marked hired", fmt: fmtInt },
       { key: "confirmedEmployment", label: "Confirmed employment", fmt: fmtInt, sub: () => "Platform-verified only" },
+      { key: "verifiedPlacements", label: "Verified placements", fmt: fmtInt, sub: () => "Platform-verified, current total", to: "/app/admin/placements" },
+      { key: "upcomingInterviews", label: "Upcoming interviews", fmt: fmtInt, sub: () => "Scheduled from now" },
       { key: "hiringConversion", label: "Hiring conversion", fmt: fmtPct, sub: () => "Hired ÷ eligible applications" },
     ],
   },
@@ -73,10 +75,12 @@ const KPI_SECTIONS = [
     cards: [
       { key: "activePaidSubscriptions", label: "Active paid subscriptions", fmt: fmtInt, to: "/app/admin/subscriptions" },
       { key: "subscriptionConversion", label: "Subscription conversion", fmt: fmtPct, sub: () => "Paid organizations ÷ companies", to: "/app/admin/subscriptions" },
-      { key: "successfulPayments", label: "Successful payments", fmt: fmtInt, to: "/app/admin/subscriptions" },
-      { key: "revenue", label: "Net revenue (INR)", fmt: fmtInr, sub: () => "Captured less refunds", to: "/app/admin/subscriptions" },
-      { key: "refunds", label: "Refunds", fmt: fmtInt, to: "/app/admin/subscriptions" },
-      { key: "failedPayments", label: "Failed payments", fmt: fmtInt, to: "/app/admin/subscriptions" },
+      { key: "successfulPayments", label: "Successful payments", fmt: fmtInt, to: "/app/admin/revenue" },
+      { key: "testRevenue", label: "Net revenue, test mode", fmt: fmtInr, sub: () => "Razorpay test payments", to: "/app/admin/revenue" },
+      { key: "liveRevenue", label: "Net revenue, live", fmt: fmtInr, sub: () => "Not offered in this release", to: "/app/admin/revenue" },
+      { key: "revenue", label: "Net revenue, all modes (INR)", fmt: fmtInr, sub: () => "Captured less refunds", to: "/app/admin/revenue" },
+      { key: "refunds", label: "Refunds", fmt: fmtInt, to: "/app/admin/revenue" },
+      { key: "failedPayments", label: "Failed payments", fmt: fmtInt, to: "/app/admin/revenue" },
     ],
   },
 ];
@@ -101,11 +105,18 @@ const KpiCard = ({ card, kpis, definitions }) => {
   );
 };
 
-const ChartCard = ({ title, rows, valueKey = "value", labelKey = "label", color = "#4f46e5", height = 220, layout = "horizontal", emptyText = "No activity in this range." }) => {
+const ChartCard = ({ title, rows, valueKey = "value", labelKey = "label", color = "#4f46e5", height = 220, layout = "horizontal", emptyText = "No activity in this range.", to, toLabel = "Open records" }) => {
   const total = rows.reduce((acc, r) => acc + (Number(r[valueKey]) || 0), 0);
   return (
     <section className="rounded-xl border border-ink-100 bg-white p-4" aria-label={title}>
-      <h3 className="text-sm font-bold text-ink-900">{title}</h3>
+      <div className="flex items-start justify-between gap-2">
+        <h3 className="text-sm font-bold text-ink-900">{title}</h3>
+        {to && (
+          <Link to={to} className="shrink-0 text-xs font-semibold text-brand-700 hover:underline">
+            {toLabel} →
+          </Link>
+        )}
+      </div>
       {total === 0 ? (
         <EmptyState title="No data" description={emptyText} />
       ) : (
@@ -339,15 +350,15 @@ export const AdminAnalyticsPanel = ({ analytics, range, onRangeChange, customErr
       ))}
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <ChartCard title="Candidate registrations over time" rows={(series.candidateRegistrations || []).map((p) => ({ date: shortDate(p.date), count: p.count }))} labelKey="date" valueKey="count" />
-        <ChartCard title="Job posting trends" rows={(series.jobPostings || []).map((p) => ({ date: shortDate(p.date), count: p.count }))} labelKey="date" valueKey="count" color="#0ea5e9" />
+        <ChartCard title="Candidate registrations over time" to="/app/admin/users" rows={(series.candidateRegistrations || []).map((p) => ({ date: shortDate(p.date), count: p.count }))} labelKey="date" valueKey="count" />
+        <ChartCard title="Job posting trends" to="/app/admin/moderation" rows={(series.jobPostings || []).map((p) => ({ date: shortDate(p.date), count: p.count }))} labelKey="date" valueKey="count" color="#0ea5e9" />
         <ChartCard title="Application funnel (candidates reaching each stage)" rows={(breakdowns.funnel || []).map((s) => ({ label: s.stage, count: s.count }))} labelKey="label" valueKey="count" layout="vertical" color="#7c3aed" />
         <ChartCard title="Recruitment stage distribution (current)" rows={(breakdowns.stageDistribution || []).map((s) => ({ label: s.label, count: s.count }))} labelKey="label" valueKey="count" layout="vertical" color="#0891b2" />
-        <ChartCard title="Company verification status (current)" rows={(breakdowns.companyVerification || []).map((s) => ({ label: s.label, count: s.count }))} labelKey="label" valueKey="count" color="#d97706" />
-        <ChartCard title="Job approval status (current)" rows={(breakdowns.jobApproval || []).map((s) => ({ label: s.label, count: s.count }))} labelKey="label" valueKey="count" color="#65a30d" />
-        <ChartCard title="Subscription growth (new paid plans)" rows={(series.paidSubscriptionsStarted || []).map((p) => ({ date: shortDate(p.date), count: p.count }))} labelKey="date" valueKey="count" color="#4f46e5" />
+        <ChartCard title="Company verification status (current)" to="/app/admin/verification" rows={(breakdowns.companyVerification || []).map((s) => ({ label: s.label, count: s.count }))} labelKey="label" valueKey="count" color="#d97706" />
+        <ChartCard title="Job approval status (current)" to="/app/admin/moderation" rows={(breakdowns.jobApproval || []).map((s) => ({ label: s.label, count: s.count }))} labelKey="label" valueKey="count" color="#65a30d" />
+        <ChartCard title="Subscription growth (new paid plans)" to="/app/admin/subscriptions" rows={(series.paidSubscriptionsStarted || []).map((p) => ({ date: shortDate(p.date), count: p.count }))} labelKey="date" valueKey="count" color="#4f46e5" />
         <RevenueChart gross={series.grossCapturedRevenue || []} refunds={series.refundsRevenue || []} />
-        <ChartCard title="Failed payment trend" rows={(series.failedPayments || []).map((p) => ({ date: shortDate(p.date), count: p.count }))} labelKey="date" valueKey="count" color="#dc2626" />
+        <ChartCard title="Failed payment trend" to="/app/admin/revenue?status=failed" toLabel="View failed payments" rows={(series.failedPayments || []).map((p) => ({ date: shortDate(p.date), count: p.count }))} labelKey="date" valueKey="count" color="#dc2626" />
         <HiringOutcomesPie rows={breakdowns.hiringOutcomes || []} />
       </div>
     </section>
