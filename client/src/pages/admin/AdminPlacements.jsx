@@ -16,6 +16,7 @@ import {
   PLACEMENT_STATUS_LABELS,
   SOURCE_LABELS,
 } from "../../lib/revenueFormat";
+import { SearchableSelect } from "../../components/ui/SearchableSelect";
 
 const STATUS_FILTER = ["", "hired", "joining_confirmed", "placement_verified", "currently_working", "employment_ended"];
 
@@ -131,21 +132,21 @@ export const AdminPlacements = () => {
                 <div className="flex flex-wrap gap-3">
                   <label className="flex flex-col text-xs font-semibold text-ink-600">
                     Employment or placement status
-                    <select aria-label="Placement status" className="mt-1 rounded-lg border border-ink-200 px-3 py-2 text-sm" value={status} onChange={(e) => setStatus(e.target.value)}>
+                    <SearchableSelect aria-label="Placement status" className="mt-1 rounded-lg border border-ink-200 px-3 py-2 text-sm" value={status} onChange={(e) => setStatus(e.target.value)}>
                       {STATUS_FILTER.map((s) => (
                         <option key={s || "all"} value={s}>
                           {s ? PLACEMENT_STATUS_LABELS[s] : "All statuses"}
                         </option>
                       ))}
-                    </select>
+                    </SearchableSelect>
                   </label>
                   <label className="flex flex-col text-xs font-semibold text-ink-600">
                     Verification
-                    <select aria-label="Verification" className="mt-1 rounded-lg border border-ink-200 px-3 py-2 text-sm" value={verified} onChange={(e) => setVerified(e.target.value)}>
+                    <SearchableSelect aria-label="Verification" className="mt-1 rounded-lg border border-ink-200 px-3 py-2 text-sm" value={verified} onChange={(e) => setVerified(e.target.value)}>
                       <option value="">All</option>
                       <option value="true">Platform verified</option>
                       <option value="false">Not verified</option>
-                    </select>
+                    </SearchableSelect>
                   </label>
                 </div>
 

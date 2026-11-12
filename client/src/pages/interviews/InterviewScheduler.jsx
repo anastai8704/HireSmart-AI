@@ -3,7 +3,8 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CalendarPlus, Download, FileText, Info } from "lucide-react";
 import Button from "../../components/ui/Button";
-import Input, { Select } from "../../components/ui/Input";
+import Input from "../../components/ui/Input";
+import { SearchableSelect } from "../../components/ui/SearchableSelect";
 import Badge from "../../components/ui/Badge";
 import { EmptyState, ErrorState, LoadingState, SkeletonList } from "../../components/ui/States";
 import { ErrorCallout, PageHeader, StatusPill } from "../../components/Product";
@@ -466,7 +467,7 @@ const InterviewScheduler = () => {
                   error={errors.title}
                   onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
                 />
-                <Select
+                <SearchableSelect
                   label="Interview type"
                   value={form.type}
                   onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
@@ -502,7 +503,7 @@ const InterviewScheduler = () => {
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
-                <Select
+                <SearchableSelect
                   label="Timezone"
                   value={form.timezone}
                   error={errors.timezone}

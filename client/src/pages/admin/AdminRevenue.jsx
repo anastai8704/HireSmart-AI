@@ -19,6 +19,7 @@ import {
   VERIFICATION_LABELS,
   VERIFICATION_TONE,
 } from "../../lib/revenueFormat";
+import { SearchableSelect } from "../../components/ui/SearchableSelect";
 
 const MODE_OPTIONS = [
   { value: "all", label: "All modes" },
@@ -113,7 +114,7 @@ export const AdminRevenue = () => {
         <div className="flex flex-wrap items-end gap-3">
           <label className="flex flex-col text-xs font-semibold text-ink-600">
             Period
-            <select
+            <SearchableSelect
               aria-label="Date range"
               className="mt-1 rounded-lg border border-ink-200 px-3 py-2 text-sm text-ink-900"
               value={range.preset}
@@ -127,7 +128,7 @@ export const AdminRevenue = () => {
                   {p.label}
                 </option>
               ))}
-            </select>
+            </SearchableSelect>
           </label>
           {range.preset === "custom" && (
             <>
@@ -194,33 +195,33 @@ export const AdminRevenue = () => {
       <section aria-label="Filters" className="grid gap-3 rounded-xl border border-ink-100 bg-white p-4 sm:grid-cols-2 lg:grid-cols-5">
         <label className="flex flex-col text-xs font-semibold text-ink-600">
           Mode
-          <select aria-label="Mode" className="mt-1 rounded-lg border border-ink-200 px-3 py-2 text-sm" value={filters.mode} onChange={(e) => changeFilter("mode", e.target.value)}>
+          <SearchableSelect aria-label="Mode" className="mt-1 rounded-lg border border-ink-200 px-3 py-2 text-sm" value={filters.mode} onChange={(e) => changeFilter("mode", e.target.value)}>
             {MODE_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
               </option>
             ))}
-          </select>
+          </SearchableSelect>
         </label>
         <label className="flex flex-col text-xs font-semibold text-ink-600">
           Payment status
-          <select aria-label="Payment status" className="mt-1 rounded-lg border border-ink-200 px-3 py-2 text-sm" value={filters.status} onChange={(e) => changeFilter("status", e.target.value)}>
+          <SearchableSelect aria-label="Payment status" className="mt-1 rounded-lg border border-ink-200 px-3 py-2 text-sm" value={filters.status} onChange={(e) => changeFilter("status", e.target.value)}>
             {STATUS_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
               </option>
             ))}
-          </select>
+          </SearchableSelect>
         </label>
         <label className="flex flex-col text-xs font-semibold text-ink-600">
           Refund
-          <select aria-label="Refund" className="mt-1 rounded-lg border border-ink-200 px-3 py-2 text-sm" value={filters.refund} onChange={(e) => changeFilter("refund", e.target.value)}>
+          <SearchableSelect aria-label="Refund" className="mt-1 rounded-lg border border-ink-200 px-3 py-2 text-sm" value={filters.refund} onChange={(e) => changeFilter("refund", e.target.value)}>
             {REFUND_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
               </option>
             ))}
-          </select>
+          </SearchableSelect>
         </label>
         <label className="flex flex-col text-xs font-semibold text-ink-600 sm:col-span-2 lg:col-span-2">
           Search

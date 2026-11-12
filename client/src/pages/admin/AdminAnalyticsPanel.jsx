@@ -20,6 +20,7 @@ import { EmptyState } from "../../components/ui/States";
 import Button from "../../components/ui/Button";
 import Input from "../../components/ui/Input";
 import { RANGE_PRESETS } from "../../lib/analyticsRange";
+import { SearchableSelect } from "../../components/ui/SearchableSelect";
 
 const fmtInt = (n) => (n === null || n === undefined ? "—" : Number(n).toLocaleString("en-IN"));
 const fmtInr = (n) =>
@@ -267,7 +268,7 @@ export const AdminAnalyticsPanel = ({ analytics, range, onRangeChange, customErr
         <div className="flex flex-wrap items-end gap-2 rounded-xl border border-ink-100 bg-white p-4">
           <label className="flex flex-col gap-1 text-sm font-medium text-ink-800">
             Report
-            <select
+            <SearchableSelect
               className="rounded-lg border border-ink-200 px-3 py-2 text-sm"
               value={exportType}
               onChange={(e) => setExportType(e.target.value)}
@@ -277,7 +278,7 @@ export const AdminAnalyticsPanel = ({ analytics, range, onRangeChange, customErr
                   {r.label}
                 </option>
               ))}
-            </select>
+            </SearchableSelect>
           </label>
           <Button
             size="sm"

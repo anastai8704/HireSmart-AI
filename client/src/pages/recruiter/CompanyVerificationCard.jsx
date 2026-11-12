@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Button from "../../components/ui/Button";
-import Input, { Select } from "../../components/ui/Input";
+import Input from "../../components/ui/Input";
+import { SearchableSelect } from "../../components/ui/SearchableSelect";
 import Badge from "../../components/ui/Badge";
 import { useAuth } from "../../context/useAuth";
 import { useToast } from "../../components/ui/useToast";
@@ -188,7 +189,7 @@ export const CompanyVerificationCard = ({ orgId }) => {
             required
           />
           <Input label="Website" placeholder="https://" value={draft.website} onChange={set("website")} />
-          <Select
+          <SearchableSelect
             label="Business type"
             value={draft.businessType}
             onChange={set("businessType")}
@@ -279,7 +280,7 @@ export const CompanyVerificationCard = ({ orgId }) => {
         )}
         <div className="mt-3 flex flex-wrap items-end gap-3">
           <div className="min-w-56">
-            <Select
+            <SearchableSelect
               label="Document type"
               value={documentType}
               onChange={(e) => setDocumentType(e.target.value)}

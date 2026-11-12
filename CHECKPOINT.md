@@ -181,3 +181,25 @@ Known limitations:
 - Placement and employment timestamps were not audited field by field in this pass. They use the shared formatters where displayed.
 
 Still open (not started in this checkpoint): Requirement 7 control-center redesign, Requirement 12 searchable dropdowns, Requirement 17 plan badges, Requirement 2 billing UI redesign, and Requirements 13 and 18 (docs, DB-backed tests, final QA).
+
+## Checkpoint 12: searchable dropdowns (Requirement 12)
+
+Working clone re-created from `origin/arena/a534346b-hiresmart-ai` after a sandbox reset (`/home/user/reapply-review/impl`).
+
+| Item | Result |
+|---|---|
+| Client suite | 39 files, 272 tests pass |
+| Client lint | 0 errors (3 pre-existing warnings) |
+| Client production build | passes |
+
+What changed:
+- `components/ui/SearchableSelect.jsx`: WAI-ARIA combobox with listbox. Search on by default (`searchable={false}` for fixed lists).
+  Keyboard: ArrowUp/Down, Home/End (non-search), Enter/Space, Escape (stops propagation so dialogs stay open), Tab closes, Backspace removes the last chip.
+  Single and multi select, clear button, loading, empty, disabled, error and hint states, native validity for `required`.
+  Mobile: 44px rows, 16px input text, popup capped at 60vh. Option normalisation lives in `lib/selectOptions.js`.
+- Same API as the native `Select` it replaces (`options`, `placeholder` as a selectable "" option, `<option>` children, event-style `onChange`), so callers did not change behaviour.
+- Migrated (Admin, Recruiter, Candidate): all `Select` uses in CandidatePrivacyPanel, RecruiterScheduleActions, AdminPages, AdminModeration, AdminVerificationReview, InterviewScheduler, RecruiterInterviewDashboard, CompanyVerificationCard, RecruiterPages; raw selects in AdminAnalyticsPanel, AdminPlacements, AdminRevenue, CandidatePages.
+- Not migrated, by decision: public pages (LandingPage, PublicPages, outside the three roles) and the dark sidebar workspace switcher in AppShell (a native select is already accessible and mobile-friendly with a few workspaces).
+- Tests: `SearchableSelect.test.jsx` (22 tests: keyboard, search, single/multi, clear, loading, empty, disabled, Escape vs dialog, form submit and validation). Existing revenue and team tests updated to open and pick options like a user.
+
+Next: Requirement 17 (plan badges), then Requirement 2 (billing UI).

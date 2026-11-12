@@ -24,7 +24,8 @@ import {
   WandSparkles,
 } from "lucide-react";
 import Button from "../../components/ui/Button";
-import Input, { Select, Textarea } from "../../components/ui/Input";
+import Input, { Textarea } from "../../components/ui/Input";
+import { SearchableSelect } from "../../components/ui/SearchableSelect";
 import Badge from "../../components/ui/Badge";
 import Modal from "../../components/ui/Modal";
 import Kpi from "../../components/ui/Kpi";
@@ -612,7 +613,7 @@ export const JobsPage = ({ assigned = false }) => {
             onChange={(e) => setJobSearch(e.target.value)}
             className="sm:max-w-xs"
           />
-          <Select
+          <SearchableSelect
             aria-label="Filter by status"
             placeholder="All statuses"
             value={jobStatus}
@@ -955,7 +956,7 @@ export const JobEditor = () => {
               required
               {...register("experience", { required: true })}
             />
-            <Select
+            <SearchableSelect
               label="Workplace"
               {...register("workplaceMode")}
               options={[
@@ -1194,7 +1195,7 @@ export const ApplicantsPage = () => {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <Select
+        <SearchableSelect
           aria-label="Filter by stage"
           placeholder="All stages"
           value={status}
@@ -1215,7 +1216,7 @@ export const ApplicantsPage = () => {
           value={tag}
           onChange={(e) => setTag(e.target.value)}
         />
-        <Select
+        <SearchableSelect
           aria-label="Sort applicants"
           value={sort}
           onChange={(e) => setSort(e.target.value)}
@@ -2413,7 +2414,7 @@ export const InterviewDetail = () => {
                           className="flex-1"
                         />
                         <div className="pt-0.5">
-                          <Select
+                          <SearchableSelect
                             aria-label={`Score for ${rating.criterion || `criterion ${index + 1}`}`}
                             label="Score"
                             value={String(rating.score)}
@@ -2466,7 +2467,7 @@ export const InterviewDetail = () => {
                   </Button>
                 </div>
 
-                <Select
+                <SearchableSelect
                   className="mt-5"
                   label="Overall recommendation"
                   value={recommendation}
@@ -3033,7 +3034,7 @@ export const TeamPage = () => {
             value={form.email}
             onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
           />
-          <Select
+          <SearchableSelect
             aria-label="Role"
             label="Role"
             value={form.role}
@@ -3131,9 +3132,9 @@ export const TeamPage = () => {
                 </p>
               </div>
               {canChangeRole(m) && m.status === "active" ? (
-                <Select
+                <SearchableSelect
                   aria-label={`Role for ${m.user?.name || "member"}`}
-                  className="h-9 w-44"
+                  className="w-44"
                   value={m.role}
                   disabled={changeRole.isPending}
                   options={assignableRoles.map((r) => ({ value: r, label: r.replace("_", " ") }))}
@@ -3249,7 +3250,7 @@ const CompanyProfileCard = () => {
           onChange={set("website")}
         />
         <Input label="Industry" value={form.industry} onChange={set("industry")} />
-        <Select
+        <SearchableSelect
           label="Company size"
           value={form.size}
           onChange={set("size")}

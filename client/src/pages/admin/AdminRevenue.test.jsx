@@ -1,12 +1,20 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const revenueMock = vi.hoisted(() => vi.fn());
 vi.mock("../../lib/api", () => ({ adminApi: { revenue: revenueMock } }));
 
 import AdminRevenue from "./AdminRevenue";
+
+// Searchable dropdowns open on click and choose on option click (Requirement 12).
+const pickOption = async (user, comboName, optionName) => {
+  await user.click(screen.getByRole("combobox", { name: comboName }));
+  await user.click(within(screen.getByRole("listbox")).getByRole("option", { name: optionName }));
+};
+
 
 const summary = {
   total: { grossCaptured: 1600, refunds: 200, netRevenue: 1400, successfulPayments: 3, refundedPayments: 1 },
@@ -89,28 +97,32 @@ describe("Admin Revenue & Plans", () => {
   });
 
   it("sends the mode filter to the server and resets to page one", async () => {
+    const user = userEvent.setup();
     revenueMock.mockResolvedValue({ data: { summary, transactions: [row()] }, meta: { page: 1, pages: 1, total: 1 } });
     renderPage();
     await screen.findByTestId("revenue-row");
 
-    fireEvent.change(screen.getByRole("combobox", { name: "Mode" }), { target: { value: "live" } });
+    await pickOption(user, "Mode", "Live");
     await waitFor(() =>
       expect(revenueMock).toHaveBeenLastCalledWith(expect.objectContaining({ mode: "live", range: "30d", page: 1 })),
     );
   });
 
   it("offers no sandbox option, so sandbox captures cannot be filtered into view", async () => {
+    const user = userEvent.setup();
     revenueMock.mockResolvedValue({ data: { summary, transactions: [] }, meta: { page: 1, pages: 1, total: 0 } });
     renderPage();
     const mode = await screen.findByRole("combobox", { name: "Mode" });
-    const values = within(mode).getAllByRole("option").map((o) => o.value);
+    await user.click(mode);
+    const values = within(screen.getByRole("listbox")).getAllByRole("option").map((o) => o.dataset.value);
     expect(values).toEqual(["all", "test", "live"]);
   });
 
   it("refuses an incomplete custom date range without calling the server", async () => {
+    const user = userEvent.setup();
     revenueMock.mockResolvedValue({ data: { summary, transactions: [] }, meta: { page: 1, pages: 1, total: 0 } });
     renderPage();
-    fireEvent.change(await screen.findByRole("combobox", { name: "Date range" }), { target: { value: "custom" } });
+    await pickOption(user, "Date range", "Custom range");
     expect(await screen.findByRole("alert")).toHaveTextContent(/start and an end date/i);
     const callsAfterPresetChange = revenueMock.mock.calls.length;
     expect(revenueMock.mock.calls.length).toBe(callsAfterPresetChange);
@@ -120,7 +132,7 @@ describe("Admin Revenue & Plans", () => {
     revenueMock.mockResolvedValue({ data: { summary, transactions: [] }, meta: { page: 1, pages: 1, total: 0 } });
     renderPage("/app/admin/revenue?status=failed");
     await waitFor(() => expect(revenueMock).toHaveBeenCalledWith(expect.objectContaining({ status: "failed" })));
-    expect(screen.getByRole("combobox", { name: "Payment status" })).toHaveValue("failed");
+    expect(screen.getByRole("combobox", { name: "Payment status" })).toHaveValue("Failed");
   });
 
   it("ignores unknown filter values in the URL", async () => {

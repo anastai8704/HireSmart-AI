@@ -26,7 +26,8 @@ import {
   Area,
 } from "recharts";
 import Button from "../../components/ui/Button";
-import Input, { Select, Textarea } from "../../components/ui/Input";
+import Input, { Textarea } from "../../components/ui/Input";
+import { SearchableSelect } from "../../components/ui/SearchableSelect";
 import Badge from "../../components/ui/Badge";
 import { AdminAnalyticsPanel } from "./AdminAnalyticsPanel";
 import { istToday, validateCustomRange } from "../../lib/analyticsRange";
@@ -222,7 +223,7 @@ export const AdminHome = () => {
         />
         {companyWise.length > 0 && (
           <div className="flex items-center gap-3">
-            <Select
+            <SearchableSelect
               aria-label="Filter company deep dive"
               value={selectedOrgId}
               onChange={(e) => setSelectedOrgId(e.target.value)}
@@ -597,14 +598,14 @@ export const AdminOrganizations = () => {
           onChange={(e) => setSearch(e.target.value)}
           className="lg:max-w-xs"
         />
-        <Select
+        <SearchableSelect
           aria-label="Filter by verification"
           value={verificationStatus}
           onChange={(e) => setVerificationStatus(e.target.value)}
           options={VERIFICATION_STATUS_OPTIONS}
           className="lg:max-w-44"
         />
-        <Select
+        <SearchableSelect
           aria-label="Filter by risk score"
           value={riskLevel}
           onChange={(e) => setRiskLevel(e.target.value)}
@@ -1084,7 +1085,7 @@ export const AdminUsers = () => {
           onChange={(e) => setSearch(e.target.value)}
           className="lg:max-w-xs"
         />
-        <Select
+        <SearchableSelect
           aria-label="Filter by role"
           value={role}
           onChange={(e) => {
@@ -1099,7 +1100,7 @@ export const AdminUsers = () => {
           ]}
           className="lg:max-w-40"
         />
-        <Select
+        <SearchableSelect
           aria-label="Filter by status"
           value={status}
           onChange={(e) => {

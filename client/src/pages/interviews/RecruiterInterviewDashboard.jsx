@@ -4,7 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { CalendarPlus, Clock, Video } from "lucide-react";
 import Button from "../../components/ui/Button";
 import Badge from "../../components/ui/Badge";
-import Input, { Select } from "../../components/ui/Input";
+import Input from "../../components/ui/Input";
+import { SearchableSelect } from "../../components/ui/SearchableSelect";
 import { EmptyState, ErrorState, SkeletonList } from "../../components/ui/States";
 import { PageHeader, StatusPill } from "../../components/Product";
 import MeetingStatus from "../../components/interviews/MeetingStatus";
@@ -122,7 +123,7 @@ const RecruiterInterviewDashboard = () => {
       />
 
       <div className="grid gap-3 sm:grid-cols-[1fr_1fr]">
-        <Select
+        <SearchableSelect
           label="Job"
           value={jobId}
           onChange={(e) => setJobId(e.target.value)}

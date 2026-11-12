@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -200,7 +200,9 @@ describe("Team Management Page (RBAC & Invitations)", () => {
 
     const ishaRoleSelect = screen.getByLabelText("Role for Isha Verma");
     expect(ishaRoleSelect).toBeInTheDocument();
-    await user.selectOptions(ishaRoleSelect, "hiring_manager");
+    // Searchable dropdown: open it and pick the option, as a user would.
+    await user.click(ishaRoleSelect);
+    await user.click(within(screen.getByRole("listbox")).getByRole("option", { name: "hiring manager" }));
 
     expect(updateMemberFn).toHaveBeenCalledWith("org1", "m3", { role: "hiring_manager" });
   });

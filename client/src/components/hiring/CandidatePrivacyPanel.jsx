@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import Button from "../ui/Button";
-import Input, { Select } from "../ui/Input";
+import Input from "../ui/Input";
+import { SearchableSelect } from "../ui/SearchableSelect";
 import { useToast } from "../ui/useToast";
 import { candidateApi } from "../../lib/api";
 
@@ -54,14 +55,14 @@ export const CandidatePrivacyPanel = ({ profile }) => {
           them unless a separate check is recorded.
         </p>
       </div>
-      <Select label="Employment status" value={form.employmentStatus} onChange={set("employmentStatus")}>
+      <SearchableSelect label="Employment status" value={form.employmentStatus} onChange={set("employmentStatus")}>
         <option value="unspecified">Prefer not to say</option>
         <option value="employed">Employed</option>
         <option value="unemployed">Not currently employed</option>
         <option value="student">Student</option>
         <option value="freelancer">Freelancer</option>
         <option value="other">Other</option>
-      </Select>
+      </SearchableSelect>
       <fieldset className="space-y-3">
         <legend className="text-sm font-semibold">Current employment (optional)</legend>
         <label className="flex items-center gap-2 text-sm">

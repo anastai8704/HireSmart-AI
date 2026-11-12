@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Button from "../../components/ui/Button";
-import Input, { Select, Textarea } from "../../components/ui/Input";
+import Input, { Textarea } from "../../components/ui/Input";
+import { SearchableSelect } from "../../components/ui/SearchableSelect";
 import Badge from "../../components/ui/Badge";
 import { useToast } from "../../components/ui/useToast";
 import { downloadBlob, verificationApi } from "../../lib/api";
@@ -54,7 +55,7 @@ const AdminVerificationQueue = () => {
     <section>
       <div className="flex flex-wrap items-end gap-3">
         <div className="min-w-48">
-          <Select label="Status" value={status} onChange={(e) => setStatus(e.target.value)} options={STATUS_FILTERS.map(([value, label]) => ({ value, label }))} />
+          <SearchableSelect label="Status" value={status} onChange={(e) => setStatus(e.target.value)} options={STATUS_FILTERS.map(([value, label]) => ({ value, label }))} />
         </div>
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={elevated} onChange={(e) => setElevated(e.target.checked)} />Elevated risk only</label>
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={duplicates} onChange={(e) => setDuplicates(e.target.checked)} />Possible duplicates</label>
@@ -211,8 +212,8 @@ const CaseDetail = ({ caseId }) => {
         ) : <p className="mt-2 text-sm text-ink-500">No checks recorded yet.</p>}
         {isOpen ? (
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <Select label="Check" value={checkType} onChange={(e) => setCheckType(e.target.value)} options={Object.entries(CHECK_TYPE_LABELS).filter(([v]) => v !== "business_email").map(([value, label]) => ({ value, label }))} />
-            <Select label="Result" value={checkResult} onChange={(e) => setCheckResult(e.target.value)} options={["match", "mismatch", "concern", "unavailable"].map((v) => ({ value: v, label: v }))} />
+            <SearchableSelect label="Check" value={checkType} onChange={(e) => setCheckType(e.target.value)} options={Object.entries(CHECK_TYPE_LABELS).filter(([v]) => v !== "business_email").map(([value, label]) => ({ value, label }))} />
+            <SearchableSelect label="Result" value={checkResult} onChange={(e) => setCheckResult(e.target.value)} options={["match", "mismatch", "concern", "unavailable"].map((v) => ({ value: v, label: v }))} />
             <div className="sm:col-span-2">
               <Textarea label="What you checked (required)" value={note} onChange={(e) => setNote(e.target.value)} />
             </div>

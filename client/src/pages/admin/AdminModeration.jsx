@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Button from "../../components/ui/Button";
-import Input, { Select, Textarea } from "../../components/ui/Input";
+import Input, { Textarea } from "../../components/ui/Input";
+import { SearchableSelect } from "../../components/ui/SearchableSelect";
 import Badge from "../../components/ui/Badge";
 import Modal from "../../components/ui/Modal";
 import { EmptyState, ErrorState, SkeletonList } from "../../components/ui/States";
@@ -357,14 +358,14 @@ export const AdminModeration = () => {
           onChange={(e) => setSearch(e.target.value)}
           className="lg:max-w-xs"
         />
-        <Select
+        <SearchableSelect
           aria-label="Filter by verification"
           value={verificationStatus}
           onChange={(e) => setVerificationStatus(e.target.value)}
           options={VERIFICATION_STATUS_OPTIONS}
           className="lg:max-w-44"
         />
-        <Select
+        <SearchableSelect
           aria-label="Filter by risk score"
           value={riskLevel}
           onChange={(e) => setRiskLevel(e.target.value)}
@@ -510,8 +511,8 @@ export const AdminModeration = () => {
 
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
               <Input aria-label="Search jobs by title" placeholder="Job title..." value={jobSearch} onChange={(e) => setJobSearch(e.target.value)} />
-              <Select aria-label="Filter by job status" value={jobStatus} onChange={(e) => setJobStatus(e.target.value)} options={JOB_STATUS_OPTIONS} />
-              <Select
+              <SearchableSelect aria-label="Filter by job status" value={jobStatus} onChange={(e) => setJobStatus(e.target.value)} options={JOB_STATUS_OPTIONS} />
+              <SearchableSelect
                 aria-label="Filter by recruiter"
                 value={recruiterId}
                 onChange={(e) => setRecruiterId(e.target.value)}

@@ -3,7 +3,8 @@ import { Link } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { CalendarClock, CheckCheck, Ban } from "lucide-react";
 import Button from "../ui/Button";
-import Input, { Select, Textarea } from "../ui/Input";
+import Input, { Textarea } from "../ui/Input";
+import { SearchableSelect } from "../ui/SearchableSelect";
 import Modal from "../ui/Modal";
 import ConfirmModal from "../ui/ConfirmModal";
 import { useToast } from "../ui/useToast";
@@ -78,7 +79,7 @@ const RescheduleForm = ({ orgId, interview, onDone }) => {
           onChange={(e) => setForm((f) => ({ ...f, end: e.target.value }))}
         />
       </div>
-      <Select
+      <SearchableSelect
         label="Timezone"
         value={form.timezone}
         error={errors.timezone}

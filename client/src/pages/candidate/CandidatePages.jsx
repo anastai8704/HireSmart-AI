@@ -73,6 +73,7 @@ import {
 } from "../../lib/utils";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { safeHttpUrl } from "../../lib/safeUrl";
+import { SearchableSelect } from "../../components/ui/SearchableSelect";
 
 const getVersions = (response) => response?.meta?.versions || [];
 const useResumes = () => useQuery({ queryKey: ["resumes"], queryFn: resumeApi.list });
@@ -1395,7 +1396,7 @@ export const CandidateJobs = ({ recommendations = false }) => {
             </div>
 
             {/* Workplace Mode */}
-            <select
+            <SearchableSelect
               aria-label="Workplace mode"
               value={workplaceMode}
               onChange={(e) => setWorkplaceMode(e.target.value)}
@@ -1405,10 +1406,10 @@ export const CandidateJobs = ({ recommendations = false }) => {
               <option value="remote">Remote</option>
               <option value="hybrid">Hybrid</option>
               <option value="onsite">On-site</option>
-            </select>
+            </SearchableSelect>
 
             {/* Job Type */}
-            <select
+            <SearchableSelect
               aria-label="Employment type"
               value={jobType}
               onChange={(e) => setJobType(e.target.value)}
@@ -1420,10 +1421,10 @@ export const CandidateJobs = ({ recommendations = false }) => {
               <option value="Internship">Internship</option>
               <option value="Contract">Contract</option>
               <option value="Remote">Remote</option>
-            </select>
+            </SearchableSelect>
 
             {/* Minimum Salary */}
-            <select
+            <SearchableSelect
               aria-label="Minimum salary"
               value={minSalary}
               onChange={(e) => setMinSalary(e.target.value)}
@@ -1435,10 +1436,10 @@ export const CandidateJobs = ({ recommendations = false }) => {
               <option value="1500000">₹15,00,000+</option>
               <option value="2000000">₹20,00,000+</option>
               <option value="3000000">₹30,00,000+</option>
-            </select>
+            </SearchableSelect>
 
             {/* Experience */}
-            <select
+            <SearchableSelect
               aria-label="Max experience required"
               value={experience}
               onChange={(e) => setExperience(e.target.value)}
@@ -1449,10 +1450,10 @@ export const CandidateJobs = ({ recommendations = false }) => {
               <option value="3">Up to 3 years</option>
               <option value="5">Up to 5 years</option>
               <option value="8">Up to 8 years</option>
-            </select>
+            </SearchableSelect>
 
             {/* Date Posted */}
-            <select
+            <SearchableSelect
               aria-label="Date posted"
               value={postedWithin}
               onChange={(e) => setPostedWithin(e.target.value)}
@@ -1462,10 +1463,10 @@ export const CandidateJobs = ({ recommendations = false }) => {
               <option value="d">Past 24 hours</option>
               <option value="w">Past week</option>
               <option value="m">Past month</option>
-            </select>
+            </SearchableSelect>
 
             {/* Sort by */}
-            <select
+            <SearchableSelect
               aria-label="Sort order"
               value={sort}
               onChange={(e) => setSort(e.target.value)}
@@ -1474,7 +1475,7 @@ export const CandidateJobs = ({ recommendations = false }) => {
               <option value="date">Sort: Newest</option>
               <option value="salary">Sort: Highest Salary</option>
               <option value="relevance">Sort: Relevance</option>
-            </select>
+            </SearchableSelect>
 
             {hasActiveFilters && (
               <Button variant="ghost" size="sm" onClick={clearFilters} className="ml-auto text-xs text-ink-500">
@@ -1732,7 +1733,7 @@ export const CandidateJobDetail = () => {
                     <label className="block text-xs font-bold uppercase tracking-wider text-ink-500" htmlFor="resume-version">
                       Select resume version
                     </label>
-                    <select
+                    <SearchableSelect
                       id="resume-version"
                       className="mt-1.5 h-10 w-full rounded-xl border border-ink-200 bg-white px-3 text-sm font-medium text-ink-900"
                       value={selectedVersionId}
@@ -1743,7 +1744,7 @@ export const CandidateJobDetail = () => {
                           Version {v.version} · {v.originalName}
                         </option>
                       ))}
-                    </select>
+                    </SearchableSelect>
                   </div>
 
                   <Button fullWidth onClick={() => setApplyOpen(true)}>
