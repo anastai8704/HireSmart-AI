@@ -26,7 +26,7 @@ export const PlanBadge = ({ compact = false, className, billingHref }) => {
       data-tone={current.tone}
       aria-label={`Plan: ${text}`}
       className={cn(
-        "inline-flex max-w-full items-center gap-1.5 rounded-full border font-semibold",
+        "inline-flex max-w-full items-center gap-1.5 rounded-full border font-semibold uppercase tracking-wide",
         compact ? "px-2 py-0.5 text-[11px]" : "px-2.5 py-1 text-xs",
         TONES[current.tone] || TONES.neutral,
         className,

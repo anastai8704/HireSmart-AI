@@ -18,6 +18,7 @@ const candidateOnly = requireAccountRole("candidate");
 const recruiterOnly = requireAccountRole("recruiter");
 const upload = require("../middleware/uploadResumeV1");
 const uploadAvatar = require("../middleware/uploadAvatarV1");
+const adminOps = require("../controllers/v1AdminOperationsController");
 const auth = require("../controllers/v1AuthController");
 const org = require("../controllers/v1OrganizationController");
 const verification = require("../controllers/v1CompanyVerificationController");
@@ -1032,6 +1033,7 @@ router.post(
   ),
   placement.resolveEmployment,
 );
+router.get("/admin/operations/recent", authenticate, adminOps.recentOperations);
 router.get("/admin/placements/:placementId", authenticate, placement.adminPlacementDetail);
 router.get("/admin/placements/:placementId/candidate-profile", authenticate, placement.adminCandidateProfileForPlacement);
 router.post("/admin/placements/:placementId/verify", authenticate, placement.adminVerifyPlacement);

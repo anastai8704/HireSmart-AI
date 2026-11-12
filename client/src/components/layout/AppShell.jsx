@@ -28,12 +28,13 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../context/useAuth";
 import { notificationApi } from "../../lib/api";
-import { cn, formatRelativeTime, notificationTarget } from "../../lib/utils";
+import { cn, formatDate, formatRelativeTime, notificationTarget } from "../../lib/utils";
 import Avatar from "../ui/Avatar";
 import Button from "../ui/Button";
 import Modal from "../ui/Modal";
 import { Logo, LogoMark } from "../brand/Logo";
 import { PlanBadge } from "../billing/PlanBadge";
+import { SearchableSelect } from "../ui/SearchableSelect";
 
 const candidateGroups = [
   [
@@ -239,19 +240,22 @@ const AppShell = () => {
               <PlanBadge compact />
             </div>
             <div className="relative">
-              <select
+              <SearchableSelect
                 id="organization-switcher"
+                aria-label="Switch workspace"
                 value={auth.organizationId || ""}
                 onChange={switchOrg}
-                className="h-11 w-full appearance-none rounded-xl border border-white/10 bg-white/5 px-3 pr-8 text-sm font-medium text-white transition-colors hover:bg-white/10"
-              >
-                {auth.role === "candidate" && <option value="">Candidate workspace</option>}
-                {auth.organizations.map((item) => (
-                  <option key={item.id} value={item.id} className="bg-ink-900">
-                    {item.name} · {item.role.replace("_", " ")}
-                  </option>
-                ))}
-              </select>
+                options={[
+                  ...(auth.role === "candidate" ? [{ value: "", label: "Candidate workspace" }] : []),
+                  ...auth.organizations.map((item) => ({
+                    value: item.id,
+                    label: `${item.name} · ${item.role.replace("_", " ")}`,
+                  })),
+                ]}
+                searchPlaceholder="Find a workspace"
+                emptyText="No workspace matches"
+                className="h-11 border-white/10 bg-white/5 text-white hover:bg-white/10"
+              />
               <ChevronDown className="pointer-events-none absolute right-3 top-3.5 h-4 w-4 text-ink-400" />
             </div>
           </div>
@@ -331,6 +335,33 @@ const AppShell = () => {
             </span>
           </div>
           <div className="flex items-center gap-2">
+            {isAdmin && (
+              <>
+                <form
+                  role="search"
+                  aria-label="Platform search"
+                  className="hidden md:block"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const term = new FormData(e.currentTarget).get("q")?.toString().trim() || "";
+                    if (term.length >= 2) navigate(`/app/admin/search?q=${encodeURIComponent(term)}`);
+                  }}
+                >
+                  <label className="sr-only" htmlFor="admin-global-search">Search companies and users</label>
+                  <input
+                    id="admin-global-search"
+                    name="q"
+                    type="search"
+                    maxLength={100}
+                    placeholder="Search companies, users…"
+                    className="w-56 rounded-xl border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-200"
+                  />
+                </form>
+                <span className="hidden whitespace-nowrap text-xs font-medium text-ink-500 xl:inline" data-testid="admin-header-date">
+                  {formatDate(new Date(), "Asia/Kolkata")}
+                </span>
+              </>
+            )}
             <div className="relative">
               <button
                 type="button"

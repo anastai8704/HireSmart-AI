@@ -68,7 +68,8 @@ const Notifications = pick(() => import("./pages/SystemPages"), "NotificationsPa
   OrganizationPlacements = pick(() => import("./pages/placements/PlacementsPages"), "OrganizationPlacements"),
   AdminRevenue = pick(() => import("./pages/admin/AdminRevenue"), "AdminRevenue"),
   AdminPlacements = pick(() => import("./pages/admin/AdminPlacements"), "AdminPlacements"),
-  AdminPlacementDetail = pick(() => import("./pages/admin/AdminPlacements"), "AdminPlacementDetail");
+  AdminPlacementDetail = pick(() => import("./pages/admin/AdminPlacements"), "AdminPlacementDetail"),
+  AdminSearch = pick(() => import("./pages/admin/AdminSearch"), "AdminSearch");
 const Forbidden = lazy(() => import("./pages/Forbidden")),
   NotFound = lazy(() => import("./pages/NotFound"));
 const LegacyWorkspaceRedirect = () => {
@@ -202,6 +203,7 @@ const App = () => (
                 <Route path="/app/admin/verification" element={<AdminVerification />} />
                 <Route path="/app/admin/verification/:caseId" element={<AdminVerification />} />
                 <Route path="/app/admin/revenue" element={<AdminRevenue />} />
+                <Route path="/app/admin/search" element={<AdminSearch />} />
                 <Route path="/app/admin/subscriptions" element={<AdminSubscriptions />} />
                 <Route path="/app/admin/placements" element={<AdminPlacements />} />
                 <Route path="/app/admin/placements/:placementId" element={<AdminPlacementDetail />} />

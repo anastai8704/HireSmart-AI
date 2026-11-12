@@ -30,6 +30,7 @@ import { SearchableSelect } from "../../components/ui/SearchableSelect";
 import Badge from "../../components/ui/Badge";
 import { AdminAnalyticsPanel } from "./AdminAnalyticsPanel";
 import { PlatformHealthPanel } from "../../components/admin/PlatformHealthPanel";
+import { RecentOperationsPanel } from "../../components/admin/RecentOperationsPanel";
 import { CandidateResumesModal } from "../../components/admin/CandidateResumesModal";
 import { buildQueues } from "../../lib/controlCenter";
 import { healthFrom } from "../../lib/platformHealth";
@@ -397,6 +398,11 @@ export const AdminHome = () => {
               ))}
             </div>
           )}
+        </div>
+
+        <div className="rounded-2xl border border-ink-100 bg-white p-6 shadow-sm">
+          <h3 className="mb-4 text-base font-bold text-ink-900">Recent operations</h3>
+          <RecentOperationsPanel />
         </div>
 
         {/* Recent Activity */}

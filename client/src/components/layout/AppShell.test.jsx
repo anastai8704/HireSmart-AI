@@ -65,7 +65,8 @@ describe("AppShell smoke", () => {
     renderShell("/app/o/org1");
     expect(screen.getByText("Hiring Assistant")).toBeInTheDocument();
     expect(screen.getByText("Hiring")).toBeInTheDocument();
-    expect(screen.getByText("Meridian · owner")).toBeInTheDocument();
+    const switcher = screen.getByRole("combobox", { name: "Switch workspace" });
+    expect(switcher).toHaveValue("Meridian · owner");
   });
   it("renders admin grouped nav", () => {
     state.role = "admin";
