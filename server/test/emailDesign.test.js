@@ -89,7 +89,7 @@ test("label and date helpers", () => {
   const dt = fmtDateTime(new Date(Date.UTC(2026, 8, 8, 12, 0)), "Asia/Kolkata");
   assert.ok(dt.includes("Asia/Kolkata"));
   assert.ok(dt.includes("2026"));
-  assert.ok(dt.includes("08 Sep") === false, "fmtDateTime is a DD MMM YYYY date with a time");
+  assert.ok(dt.startsWith("08 Sep 2026, "), "fmtDateTime is a DD MMM YYYY date followed by the time");
 });
 
 /* ------------------------------ direct emails ---------------------------- */
