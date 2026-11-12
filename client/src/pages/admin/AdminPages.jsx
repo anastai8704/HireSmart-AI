@@ -30,6 +30,7 @@ import { SearchableSelect } from "../../components/ui/SearchableSelect";
 import Badge from "../../components/ui/Badge";
 import { AdminAnalyticsPanel } from "./AdminAnalyticsPanel";
 import { PlatformHealthPanel } from "../../components/admin/PlatformHealthPanel";
+import { CandidateResumesModal } from "../../components/admin/CandidateResumesModal";
 import { buildQueues } from "../../lib/controlCenter";
 import { healthFrom } from "../../lib/platformHealth";
 import { istToday, validateCustomRange } from "../../lib/analyticsRange";
@@ -1001,6 +1002,7 @@ export const AdminUsers = () => {
     [status, setStatus] = useState(""),
     [cursor, setCursor] = useState(null),
     [target, setTarget] = useState(null),
+    [resumeTarget, setResumeTarget] = useState(null),
     [reason, setReason] = useState(""),
     debounced = useDebouncedValue(search, 300);
 
@@ -1113,6 +1115,11 @@ export const AdminUsers = () => {
               <td className="px-5 py-4">{u.emailVerified ? "Yes" : "No"}</td>
               <td className="px-5 py-4 text-xs text-ink-500">{formatDate(u.createdAt)}</td>
               <td className="px-5 py-4 text-right">
+                {u.role === "candidate" && (
+                  <Button size="sm" variant="ghost" onClick={() => setResumeTarget(u)} className="mr-2">
+                    Resumes
+                  </Button>
+                )}
                 {u.role !== "admin" && (
                   <Button
                     size="sm"
@@ -1126,6 +1133,10 @@ export const AdminUsers = () => {
             </tr>
           ))}
         </DataTable>
+      )}
+
+      {resumeTarget && (
+        <CandidateResumesModal candidate={resumeTarget} onClose={() => setResumeTarget(null)} />
       )}
 
       {target && (

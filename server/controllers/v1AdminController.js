@@ -1,4 +1,7 @@
+const mongoose = require("mongoose");
 const User = require("../models/User");
+const { ResumeVersion } = require("../models/Resume");
+const storageService = require("../services/storageService");
 const Organization = require("../models/Organization");
 const Job = require("../models/Job");
 const { Application } = require("../models/Application");
@@ -313,6 +316,71 @@ exports.overviewAnalytics = asyncHandler(async (req, res) => {
       recentActivity,
     },
   });
+});
+
+// Admin read-only access to a candidate's resume files (Requirement 9). Platform admins only; every list and
+// download is audited before anything is returned, so a failed audit write blocks the access.
+const loadCandidateForAdmin = async (candidateId) => {
+  if (!mongoose.isValidObjectId(candidateId)) throw new AppError("Candidate not found", 404, "RESOURCE_NOT_FOUND");
+  const candidate = await User.findOne({ _id: candidateId, role: "candidate" }).select("_id name").lean();
+  if (!candidate) throw new AppError("Candidate not found", 404, "RESOURCE_NOT_FOUND");
+  return candidate;
+};
+
+const adminResumeDto = (v) => ({
+  id: v._id,
+  resumeId: v.resume,
+  version: v.version,
+  originalName: v.originalName,
+  mimeType: v.mimeType,
+  size: v.size,
+  processingStatus: v.processingStatus,
+  createdAt: v.createdAt,
+});
+
+exports.candidateResumes = asyncHandler(async (req, res) => {
+  requireAdmin(req);
+  const candidate = await loadCandidateForAdmin(req.params.candidateId);
+  const versions = await ResumeVersion.find({
+    candidate: candidate._id,
+    processingStatus: { $ne: "deleted" },
+  })
+    .sort({ createdAt: -1 })
+    .limit(50)
+    .lean();
+  await audit({
+    req,
+    action: "admin.candidate_resumes_viewed",
+    resourceType: "user",
+    resourceId: candidate._id,
+    metadata: { versionCount: versions.length },
+  });
+  res.json({ data: versions.map(adminResumeDto) });
+});
+
+exports.candidateResumeDownload = asyncHandler(async (req, res, next) => {
+  requireAdmin(req);
+  const candidate = await loadCandidateForAdmin(req.params.candidateId);
+  if (!mongoose.isValidObjectId(req.params.versionId)) {
+    throw new AppError("Resume version not found", 404, "RESOURCE_NOT_FOUND");
+  }
+  const version = await ResumeVersion.findOne({ _id: req.params.versionId, candidate: candidate._id }).select("+storageKey");
+  if (!version || version.processingStatus === "deleted") {
+    throw new AppError("Resume version not found", 404, "RESOURCE_NOT_FOUND");
+  }
+  await audit({
+    req,
+    action: "admin.candidate_resume_downloaded",
+    resourceType: "resume",
+    resourceId: version._id,
+    metadata: { candidateId: String(candidate._id), resumeId: String(version.resume), version: version.version },
+  });
+  const stream = await storageService.getFileStream(version.storageKey, version.storageProvider);
+  res.setHeader("Content-Type", version.mimeType);
+  res.setHeader("Content-Disposition", `attachment; filename*=UTF-8''${encodeURIComponent(version.originalName)}`);
+  res.setHeader("Cache-Control", "private, no-store");
+  stream.on("error", next);
+  stream.pipe(res);
 });
 
 const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

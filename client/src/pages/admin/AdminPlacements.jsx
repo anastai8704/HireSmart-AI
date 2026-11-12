@@ -8,6 +8,7 @@ import Button from "../../components/ui/Button";
 import { EmptyState, ErrorState, LoadingState } from "../../components/ui/States";
 import { PageHeader } from "../../components/Product";
 import useToast from "../../components/ui/useToast";
+import { verificationBlockFor } from "../../lib/placementVerification";
 import { adminApi } from "../../lib/api";
 import {
   EMPLOYMENT_EVENT_LABELS,
@@ -321,6 +322,7 @@ export const AdminPlacementDetail = () => {
 
   const { placement: p = {}, application: app } = detail.data?.data || {};
   const isVerified = Boolean(p.verification?.isVerified);
+  const verifyBlock = verificationBlockFor(p);
 
   return (
     <div className="page-wrap space-y-6">
@@ -398,9 +400,10 @@ export const AdminPlacementDetail = () => {
                 onChange={(e) => setRemarks(e.target.value)}
               />
             </label>
-            <Button onClick={() => verify.mutate()} disabled={verify.isPending || isVerified}>
+            <Button onClick={() => verify.mutate()} disabled={verify.isPending || Boolean(verifyBlock)}>
               {isVerified ? "Already verified" : "Verify placement"}
             </Button>
+            {verifyBlock && <p className="text-xs text-ink-500">{verifyBlock}</p>}
           </section>
 
           <section aria-label="Employment history" className="rounded-xl border border-ink-100 bg-white p-5">

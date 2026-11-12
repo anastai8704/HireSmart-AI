@@ -8,6 +8,8 @@ const { notifyCompanyLeads } = require("../services/billingNotifications");
 const { audit } = require("../services/auditService");
 const asyncHandler = require("../middleware/asyncHandler");
 const AppError = require("../utils/AppError");
+const { parseOptionalDate, assertEmploymentRange } = require("../domain/employmentDates");
+const { verificationBlockFor } = require("../domain/placementVerification");
 const CandidateProfile = require("../models/CandidateProfile");
 const pipeline = require("../domain/candidatePipeline");
 const { parse, applyCursor, meta } = require("../utils/pagination");
@@ -205,6 +207,9 @@ exports.adminVerifyPlacement = asyncHandler(async (req, res) => {
     throw new AppError("Placement record not found", 404, "RESOURCE_NOT_FOUND");
   }
 
+  const blocked = verificationBlockFor(placement);
+  if (blocked) throw new AppError(blocked.message, 409, blocked.code);
+
   // Verification is a separate fact from employment status. Keep an organization-reported
   // employment status (currently_working / employment_ended) intact; only pre-employment
   // placements move to placement_verified.
@@ -288,6 +293,11 @@ exports.updateEmploymentStatus = asyncHandler(async (req, res) => {
     throw new AppError("Placement record not found", 404, "RESOURCE_NOT_FOUND");
   }
 
+  // Dates are checked before anything changes: an invalid date or a range that ends before it starts is rejected.
+  const suppliedStart = parseOptionalDate(startDate, "startDate");
+  const suppliedEnd = parseOptionalDate(endDate, "endDate");
+  assertEmploymentRange(suppliedStart || placement.employmentPeriod?.startDate || null, suppliedEnd);
+
   const previousStatus = placement.status;
   if (status === "currently_working") {
     if (!CURRENTLY_WORKING_FROM.includes(previousStatus)) {
@@ -298,7 +308,7 @@ exports.updateEmploymentStatus = asyncHandler(async (req, res) => {
       );
     }
     placement.status = "currently_working";
-    placement.employmentPeriod.startDate = startDate ? new Date(startDate) : new Date();
+    placement.employmentPeriod.startDate = suppliedStart || new Date();
   } else {
     if (previousStatus !== "currently_working") {
       throw new AppError(
@@ -308,7 +318,7 @@ exports.updateEmploymentStatus = asyncHandler(async (req, res) => {
       );
     }
     placement.status = "employment_ended";
-    placement.employmentPeriod.endDate = endDate ? new Date(endDate) : new Date();
+    placement.employmentPeriod.endDate = suppliedEnd || new Date();
     placement.employmentPeriod.exitReason = String(exitReason || "").slice(0, 2000);
   }
 

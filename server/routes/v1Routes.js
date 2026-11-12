@@ -936,6 +936,12 @@ router.get(
 // test/securityRoutes.unit.test.js), so no admin endpoint depends on remembering a per-route check.
 router.use("/admin", authenticate, requirePlatformAdmin);
 router.get("/admin/users", authenticate, admin.users);
+router.get("/admin/candidates/:candidateId/resumes", authenticate, admin.candidateResumes);
+router.get(
+  "/admin/candidates/:candidateId/resumes/versions/:versionId/download",
+  authenticate,
+  admin.candidateResumeDownload,
+);
 router.get("/admin/organizations", authenticate, admin.organizations);
 router.get("/admin/analytics/overview", authenticate, admin.overviewAnalytics);
 router.get("/admin/reports/:reportType", authenticate, reports.adminReport);

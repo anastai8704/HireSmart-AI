@@ -114,6 +114,7 @@ const adminGroups = [
       ["/app/admin/verification", "Verification", ShieldCheck],
       ["/app/admin/revenue", "Revenue & Plans", DollarSign],
       ["/app/admin/placements", "Placements", BriefcaseBusiness],
+      ["/app/admin/subscriptions", "Subscriptions", CreditCard],
     ],
   ],
   [

@@ -268,3 +268,23 @@ Limitations:
 - The overview endpoint is DB-backed and is not covered by an executed integration test yet (no MongoDB in this sandbox). Covered by unit and component tests only.
 
 Next: open limitations, then Requirement 13 and 18 with the final QA phase.
+
+## Checkpoint: open limitations (Requirements 9 and 1–18 follow-ups)
+
+| Item | Result |
+|---|---|
+| Client suite | 47 files, 334 tests pass |
+| Client lint | 0 errors (3 pre-existing warnings) |
+| Client production build | passes |
+| Server unit suite | 253 pass, 0 fail |
+| Server lint | clean |
+
+Closed in this checkpoint:
+- Revenue reports (`reportService.js`) were checked against the rules. Gross uses the capture day, refunds use `refundedAt`, and only Razorpay `captured` and `refunded` records count. Simulation, grants and failed attempts are excluded. No change needed.
+- Admin candidate resume visibility (Req 9): `GET /admin/candidates/:id/resumes` and `.../versions/:versionId/download`, platform admins only. Each list and download is audited before anything is returned, so a failed audit blocks the access. UI: "Resumes" on candidate rows in Admin Users, with a warning that access is audited. Tests: `CandidateResumesModal.test.jsx`.
+- Employment-status payloads are validated server-side (`domain/employmentDates.js`). An invalid date is 422 `INVALID_DATE` (it used to be stored as Invalid Date). An end before the start is 422 `INVALID_DATE_RANGE`. Unit tests included.
+- Placement verification (`domain/placementVerification.js`): only after the joining is confirmed (`joining_confirmed`, `currently_working`, `employment_ended`). `selected` and `hired` are refused with 409 `NOT_VERIFIABLE_YET`, and a second verification is refused with 409 `ALREADY_VERIFIED`. The admin button mirrors the rule and explains why it is disabled.
+- AppShell admin nav: added the Subscriptions entry (the page and route already existed).
+- `PlacementsPages.test.jsx` exists with 5 behaviour tests, all passing.
+
+Still open: DB-backed server tests (`adminRevenuePlacements`, `adminAnalytics`, the new admin endpoints and the placement verification rules) need a running MongoDB and have not been executed yet. See the final phase.

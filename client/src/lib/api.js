@@ -227,6 +227,13 @@ export const adminApi = {
   reportCsv: (type, params) =>
     api.get(`/admin/reports/${encodeURIComponent(type)}${query({ ...params, format: "csv" })}`, { responseType: "blob" }),
   revenueAnalytics: () => api.get("/admin/analytics/revenue"),
+  // Read-only candidate resume access. The server audits every list and download.
+  candidateResumes: (candidateId) => api.get(`/admin/candidates/${encodeURIComponent(candidateId)}/resumes`),
+  candidateResumeDownload: (candidateId, versionId) =>
+    api.get(
+      `/admin/candidates/${encodeURIComponent(candidateId)}/resumes/versions/${encodeURIComponent(versionId)}/download`,
+      { responseType: "blob" },
+    ),
   orgVerificationDetails: (orgId) => api.get(`/admin/organizations/${orgId}/verification`),
   verifyOrg: (orgId, notes) => api.post(`/admin/organizations/${orgId}/verify`, { notes }),
   rejectOrg: (orgId, reason) => api.post(`/admin/organizations/${orgId}/reject`, { reason }),
