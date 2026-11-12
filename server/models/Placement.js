@@ -77,6 +77,29 @@ const placementSchema = new mongoose.Schema(
       enum: ["", "candidate_reported", "organization_reported", "platform_reported"],
       default: "",
     },
+    // Append-only history of placement and employment events. Entries are added, never edited or removed.
+    // Reported (candidate or company) and verified (platform administrator) facts are separate events.
+    employmentHistory: {
+      type: [
+        {
+          _id: false,
+          event: {
+            type: String,
+            enum: ["placement_created", "joining_confirmed", "employment_reported", "placement_verified"],
+            required: true,
+          },
+          fromStatus: { type: String, default: "" },
+          toStatus: { type: String, default: "" },
+          source: { type: String, default: "" },
+          actor: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+          at: { type: Date, required: true, default: Date.now },
+          startDate: { type: Date, default: null },
+          endDate: { type: Date, default: null },
+          note: { type: String, trim: true, maxlength: 2000, default: "" },
+        },
+      ],
+      default: [],
+    },
     employmentStatusUpdatedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
     employmentStatusUpdatedAt: { type: Date, default: null },
   },

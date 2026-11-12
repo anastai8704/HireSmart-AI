@@ -42,6 +42,7 @@ const users = require("../controllers/v1UserController");
 const invites = require("../controllers/v1InviteController");
 const placement = require("../controllers/v1PlacementController");
 const subscription = require("../controllers/v1SubscriptionController");
+const adminRevenue = require("../controllers/v1AdminRevenueController");
 const { checkAiPlanLimit } = require("../middleware/subscriptionCheck");
 
 const router = express.Router();
@@ -938,7 +939,8 @@ router.get("/admin/users", authenticate, admin.users);
 router.get("/admin/organizations", authenticate, admin.organizations);
 router.get("/admin/analytics/overview", authenticate, admin.overviewAnalytics);
 router.get("/admin/reports/:reportType", authenticate, reports.adminReport);
-router.get("/admin/analytics/revenue", authenticate, subscription.adminRevenueAnalytics);
+router.get("/admin/analytics/revenue", authenticate, adminRevenue.adminRevenueAnalytics);
+router.get("/admin/revenue", authenticate, adminRevenue.adminRevenuePage);
 router.get("/admin/organizations/:organizationId/verification", authenticate, org.adminGetOrgDetails);
 router.post("/admin/organizations/:organizationId/verify", authenticate, org.adminVerifyOrg);
 router.post("/admin/organizations/:organizationId/reject", authenticate, org.adminRejectOrg);
@@ -997,6 +999,10 @@ router.post(
 );
 router.get("/admin/verification/documents/:documentId", authenticate, verification.adminDownloadDocument);
 router.get("/admin/placements", authenticate, placement.listAdminPlacements);
+router.get("/admin/placements/companies", authenticate, placement.adminPlacementCompanies);
+router.get("/admin/placements/companies/:organizationId/jobs", authenticate, placement.adminPlacementCompanyJobs);
+router.get("/admin/placements/:placementId", authenticate, placement.adminPlacementDetail);
+router.get("/admin/placements/:placementId/candidate-profile", authenticate, placement.adminCandidateProfileForPlacement);
 router.post("/admin/placements/:placementId/verify", authenticate, placement.adminVerifyPlacement);
 
 // Company verification for recruiters (Phase 2). Validation is strict: unknown fields are rejected.

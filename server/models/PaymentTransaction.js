@@ -68,6 +68,19 @@ const paymentTransactionSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    // Billing mode of the record. "simulation" is a sandbox fabrication and is never revenue.
+    // "test" is a Razorpay test-mode charge; "live" is reserved (live keys are refused in this release).
+    mode: {
+      type: String,
+      enum: ["test", "live", "simulation"],
+      default: "simulation",
+      index: true,
+    },
+    // When a refund was processed (set by the refund webhook). Refund reporting uses this, not updatedAt.
+    refundedAt: {
+      type: Date,
+      default: null,
+    },
     invoiceNumber: {
       type: String,
       default: "",
@@ -106,6 +119,14 @@ paymentTransactionSchema.index(
   { providerSubscriptionId: 1, status: 1 },
   { partialFilterExpression: { providerSubscriptionId: { $gt: "" } } },
 );
+
+// Derive the mode from the gateway when a record is created, so no caller can mark a sandbox charge as live.
+paymentTransactionSchema.pre("validate", function deriveMode(next) {
+  if (this.isNew || !this.mode) {
+    this.mode = this.gateway === "razorpay" ? "test" : "simulation";
+  }
+  next();
+});
 
 paymentTransactionSchema.plugin(protectRecords);
 

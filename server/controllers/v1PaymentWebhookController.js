@@ -87,7 +87,7 @@ const handleRefundProcessed = async (refund) => {
   // Claim the transition so a concurrent duplicate cannot revoke twice.
   const claim = await PaymentTransaction.updateOne(
     { _id: txn._id, status: "captured" },
-    { $set: { status: "refunded", "metadata.refundId": String(refund.id) } },
+    { $set: { status: "refunded", refundedAt: new Date(), "metadata.refundId": String(refund.id) } },
   );
   if (claim.modifiedCount !== 1) return { outcome: "already_refunded" };
 

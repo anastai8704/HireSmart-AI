@@ -796,6 +796,7 @@ exports.transition = asyncHandler(async (req, res) => {
             candidate: app.candidate._id,
             job: app.job._id,
             status: "hired",
+            employmentHistory: [{ event: "placement_created", toStatus: "hired", source: "platform_reported", actor: req.user._id, at: new Date() }],
             offerDetails: {
               designation: offer.designation || app.job?.title || "",
               ctc: offer.ctc ?? null,

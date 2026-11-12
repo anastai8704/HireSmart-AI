@@ -50,8 +50,11 @@ const register = async (email, intent, organizationName) => {
 };
 
 let txSeq = 0;
+// Fixtures are Razorpay test-mode records. Sandbox (simulation) records are never revenue (see domain/revenueRules.js).
 const payment = (status, amount, { createdAt, updatedAt } = {}) => {
   txSeq += 1;
+  const created = createdAt || new Date();
+  const updated = updatedAt || created;
   return PaymentTransaction.collection.insertOne({
     transactionNumber: `TXN-TEST-${txSeq}`,
     subscriberType: "candidate",
@@ -60,10 +63,13 @@ const payment = (status, amount, { createdAt, updatedAt } = {}) => {
     amount,
     currency: "INR",
     status,
-    gateway: "simulation",
+    gateway: "razorpay",
+    mode: "test",
     gatewayOrderId: `order-test-${txSeq}`,
-    createdAt: createdAt || new Date(),
-    updatedAt: updatedAt || createdAt || new Date(),
+    gatewayPaymentId: `pay_test_${txSeq}`,
+    refundedAt: status === "refunded" ? updated : null,
+    createdAt: created,
+    updatedAt: updated,
   });
 };
 

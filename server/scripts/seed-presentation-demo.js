@@ -1767,10 +1767,10 @@ const seedPresentationData = async () => {
       const planDef = SUBSCRIPTION_PLANS.recruiter[item.tier];
 
       await Subscription.findOneAndUpdate(
-        { organization: org._id, subscriberType: "recruiter" },
+        { subscriberType: "organization", subscriberId: org._id },
         {
-          organization: org._id,
-          subscriberType: "recruiter",
+          subscriberType: "organization",
+          subscriberId: org._id,
           planTier: item.tier,
           source: "demo_seed",
           isDemo: true,
@@ -1789,10 +1789,10 @@ const seedPresentationData = async () => {
     if (anas) {
       const planDef = SUBSCRIPTION_PLANS.candidate.candidate_plus;
       await Subscription.findOneAndUpdate(
-        { candidate: anas._id, subscriberType: "candidate" },
+        { subscriberType: "candidate", subscriberId: anas._id },
         {
-          candidate: anas._id,
           subscriberType: "candidate",
+          subscriberId: anas._id,
           planTier: "candidate_plus",
           source: "demo_seed",
           isDemo: true,

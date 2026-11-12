@@ -8,10 +8,11 @@ const Interview = require("../models/Interview");
 const { Placement } = require("../models/Placement");
 const { Subscription } = require("../models/Subscription");
 const { PaymentTransaction } = require("../models/PaymentTransaction");
+const { REVENUE_MATCH } = require("../domain/revenueRules");
+const { revenueSummary } = require("./revenueService");
 const {
   ANALYTICS_TIMEZONE,
   ratePercent,
-  summarizeRevenue,
   METRIC_DEFINITIONS,
 } = require("../domain/analyticsDefinitions");
 
@@ -79,8 +80,11 @@ async function computeAnalytics(range) {
     confirmedEmployment,
     paidActiveRows,
     paidSubDaily,
+    revenue,
     paymentFacet,
     suspendedAccounts,
+    upcomingInterviews,
+    verifiedPlacementsTotal,
   ] = await Promise.all([
     User.aggregate([{ $match: { role: { $in: ["candidate", "recruiter"] } } }, { $group: { _id: "$role", count: { $sum: 1 } } }]),
     dailyCount(User, { role: "candidate" }, "createdAt"),
@@ -150,39 +154,31 @@ async function computeAnalytics(range) {
       { $group: { _id: "$subscriberType", count: { $sum: 1 } } },
     ]),
     dailyCount(Subscription, { priceInr: { $gt: 0 } }, "createdAt"),
+    revenueSummary(range),
     PaymentTransaction.aggregate([
       {
         $facet: {
-          // Captured payments created in the range (refunded ones were captured first).
-          capturedInRange: [
-            { $match: { status: { $in: ["captured", "refunded"] }, ...inRange("createdAt", range) } },
-            { $group: { _id: null, amount: { $sum: "$amount" }, count: { $sum: 1 } } },
-          ],
-          // Refunds processed in the range (last status update; see metric definition).
-          refundsInRange: [
-            { $match: { status: "refunded", ...inRange("updatedAt", range) } },
-            { $group: { _id: null, amount: { $sum: "$amount" }, count: { $sum: 1 } } },
-          ],
-          failedInRange: [
-            { $match: { status: "failed", ...inRange("createdAt", range) } },
-            { $group: { _id: null, count: { $sum: 1 } } },
-          ],
           capturedDaily: [
-            { $match: { status: { $in: ["captured", "refunded"] }, ...inRange("createdAt", range) } },
+            { $match: { ...REVENUE_MATCH, ...inRange("createdAt", range) } },
             { $group: { _id: dayOf("$createdAt"), amount: { $sum: "$amount" } } },
           ],
           refundsDaily: [
-            { $match: { status: "refunded", ...inRange("updatedAt", range) } },
-            { $group: { _id: dayOf("$updatedAt"), amount: { $sum: "$amount" } } },
+            { $match: { ...REVENUE_MATCH, status: "refunded", ...inRange("refundedAt", range) } },
+            { $group: { _id: dayOf("$refundedAt"), amount: { $sum: "$amount" } } },
           ],
           failedDaily: [
-            { $match: { status: "failed", ...inRange("createdAt", range) } },
+            { $match: { gateway: "razorpay", status: "failed", ...inRange("createdAt", range) } },
             { $group: { _id: dayOf("$createdAt"), count: { $sum: 1 } } },
           ],
         },
       },
     ]),
     User.countDocuments({ accountStatus: "suspended" }),
+    Interview.countDocuments({
+      status: { $in: ["invited", "confirmed", "rescheduled", "reschedule_requested"] },
+      scheduledStart: { $gte: new Date() },
+    }),
+    Placement.countDocuments({ "verification.isVerified": true }),
   ]);
 
   const countBy = (rows, keyFn) => {
@@ -223,16 +219,9 @@ async function computeAnalytics(range) {
   const stageDistribution = countBy(currentStageRows, (r) => r._id || "unknown");
   const outcomes = countBy(outcomeRows, (r) => r._id || "unknown");
 
-  const revenueFacet = (paymentFacet[0] || {});
-  const captured = (revenueFacet.capturedInRange || [])[0] || { amount: 0, count: 0 };
-  const refunds = (revenueFacet.refundsInRange || [])[0] || { amount: 0, count: 0 };
-  const failed = (revenueFacet.failedInRange || [])[0] || { count: 0 };
-  const revenue = summarizeRevenue({
-    grossCapturedAmount: captured.amount,
-    refundsAmount: refunds.amount,
-    successfulCount: captured.count,
-    failedCount: failed.count,
-  });
+  const revenueFacet = paymentFacet[0] || {};
+  const refundCount = revenue.total.refundedPayments;
+  const failedCount = revenue.failedPayments;
 
   const activePaidOrgs = (paidActiveRows.find((r) => r._id === "organization") || {}).count || 0;
   const activePaidCandidates = (paidActiveRows.find((r) => r._id === "candidate") || {}).count || 0;
@@ -256,10 +245,14 @@ async function computeAnalytics(range) {
     confirmedEmployment: confirmedEmployment,
     activePaidSubscriptions: activePaidTotal,
     subscriptionConversion: ratePercent(activePaidOrgs, companiesTotal),
-    successfulPayments: revenue.successfulPayments,
-    revenue: revenue.netRevenue,
-    refunds: refunds.count,
-    failedPayments: revenue.failedPayments,
+    successfulPayments: revenue.total.successfulPayments,
+    revenue: revenue.total.netRevenue,
+    testRevenue: revenue.test.netRevenue,
+    liveRevenue: revenue.live.netRevenue,
+    refunds: refundCount,
+    failedPayments: failedCount,
+    upcomingInterviews,
+    verifiedPlacements: verifiedPlacementsTotal,
     suspendedAccounts,
     fraudReviewQueue: fraudQueue,
     hiringConversion: ratePercent(hiredInCohort, cohortTotals.eligible),

@@ -1,5 +1,5 @@
-const { summarizeRevenue } = require("../domain/analyticsDefinitions");
 const { Subscription } = require("../models/Subscription");
+const { REVENUE_STATUSES, refundStatusOf, revenueMode, isRevenueEligible } = require("../domain/revenueRules");
 const { PaymentTransaction } = require("../models/PaymentTransaction");
 const { ALL_PLANS, CANDIDATE_PLANS, RECRUITER_PLANS } = require("../config/subscriptionPlans");
 const {
@@ -481,113 +481,21 @@ exports.getInvoices = asyncHandler(async (req, res) => {
   const { subscriberType, subscriberId } = subscriber;
 
   const page = parse(req.query);
-  const filter = applyCursor({ subscriberType, subscriberId, status: "captured" }, page.after);
+  // Same transaction records the admin Revenue & Plans page reads (domain/revenueRules.js). Sandbox captures are
+  // shown but labelled mode "simulation" and eligibleForRevenue false, so they can never be mistaken for real payments.
+  const base = { subscriberType, subscriberId, status: { $in: REVENUE_STATUSES } };
+  const filter = applyCursor(base, page.after);
 
   const items = await PaymentTransaction.find(filter).sort({ _id: -1 }).limit(page.limit);
 
   res.json({
-    data: items.map(publicTransaction),
-    meta: meta(
-      items,
-      page.limit,
-      await PaymentTransaction.countDocuments({ subscriberType, subscriberId, status: "captured" }),
-    ),
+    data: items.map((txn) => ({
+      ...publicTransaction(txn),
+      refundStatus: refundStatusOf(txn),
+      mode: revenueMode(txn),
+      eligibleForRevenue: isRevenueEligible(txn),
+    })),
+    meta: meta(items, page.limit, await PaymentTransaction.countDocuments(base)),
   });
 });
 
-/**
- * Platform Admin: Revenue, MRR, Profit & Billing Analytics
- */
-exports.adminRevenueAnalytics = asyncHandler(async (req, res) => {
-  if (req.auth.platformRole !== "platform_admin") {
-    throw new AppError("Resource not found", 404, "RESOURCE_NOT_FOUND");
-  }
-
-  const [
-    capturedTxns,
-    activePaidSubs,
-    failedTxnsCount,
-    refundedTxns,
-    monthlyRevenueAgg,
-    planDistAgg,
-    recentTransactions,
-  ] = await Promise.all([
-    PaymentTransaction.aggregate([
-      { $match: { status: "captured" } },
-      { $group: { _id: null, totalGross: { $sum: "$amount" }, count: { $sum: 1 } } },
-    ]),
-    Subscription.find({ status: "active", priceInr: { $gt: 0 } }),
-    PaymentTransaction.countDocuments({ status: "failed" }),
-    PaymentTransaction.aggregate([
-      { $match: { status: "refunded" } },
-      { $group: { _id: null, totalGross: { $sum: "$amount" }, count: { $sum: 1 } } },
-    ]),
-    PaymentTransaction.aggregate([
-      { $match: { status: "captured" } },
-      {
-        $group: {
-          _id: { $dateToString: { format: "%Y-%m", date: "$createdAt" } },
-          revenue: { $sum: "$amount" },
-          transactionsCount: { $sum: 1 },
-        },
-      },
-      { $sort: { _id: 1 } },
-    ]),
-    Subscription.aggregate([
-      { $match: { status: "active" } },
-      { $group: { _id: "$planTier", count: { $sum: 1 }, revenue: { $sum: "$priceInr" } } },
-      { $sort: { count: -1 } },
-    ]),
-    PaymentTransaction.find({})
-      .sort({ createdAt: -1 })
-      .limit(20)
-      .lean(),
-  ]);
-
-  // Cash-basis revenue from captured/refunded records. Refunds reduce revenue. No fee or hosting
-  // estimates are included; those are not stored facts (see docs/ANALYTICS.md).
-  const totalGross = (capturedTxns[0]?.totalGross || 0) + (refundedTxns[0]?.totalGross || 0);
-  const totalCapturedCount = capturedTxns[0]?.count || 0;
-  const revenueSummary = summarizeRevenue({
-    grossCapturedAmount: totalGross,
-    refundsAmount: refundedTxns[0]?.totalGross || 0,
-    successfulCount: totalCapturedCount + (refundedTxns[0]?.count || 0),
-    failedCount: failedTxnsCount,
-  });
-
-  const mrr = activePaidSubs.reduce((acc, sub) => acc + (sub.priceInr || 0), 0);
-
-  // Active Paid Candidate vs Recruiter breakdown
-  const activePaidCandidates = activePaidSubs.filter((s) => s.subscriberType === "candidate").length;
-  const activePaidRecruiters = activePaidSubs.filter((s) => s.subscriberType === "organization").length;
-
-  // Estimated Net Profit (Gross - 2% Payment Gateway Fee - ₹1500 Hosting estimation)
-  res.json({
-    data: {
-      metrics: {
-        totalGrossRevenue: totalGross,
-        monthlyRecurringRevenue: mrr,
-        totalRefunds: revenueSummary.refunds,
-        netRevenue: revenueSummary.netRevenue,
-        totalCapturedTransactions: totalCapturedCount,
-        failedPaymentsCount: failedTxnsCount,
-        activePaidSubscribers: activePaidSubs.length,
-        activePaidCandidates,
-        activePaidRecruiters,
-      },
-      monthlyTrends: monthlyRevenueAgg.map((m) => ({
-        yearMonth: m._id,
-        revenue: m.revenue,
-        transactions: m.transactionsCount,
-      })),
-      planDistribution: planDistAgg.map((p) => ({
-        tier: p._id,
-        name: ALL_PLANS[p._id]?.name || p._id,
-        role: ALL_PLANS[p._id]?.role || "other",
-        count: p.count,
-        revenue: p.revenue,
-      })),
-      recentTransactions,
-    },
-  });
-});
