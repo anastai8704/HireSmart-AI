@@ -94,7 +94,8 @@ describe("landing page search", () => {
     renderLanding();
     await user.type(screen.getByLabelText("What job are you looking for?"), "python developer");
     await user.type(screen.getByLabelText("Where?"), "Mumbai");
-    await user.selectOptions(screen.getByLabelText("Work mode"), "remote");
+    await user.click(screen.getByRole("combobox", { name: "Work mode" }));
+    await user.click(screen.getByRole("option", { name: /remote/i }));
     await user.click(screen.getByRole("button", { name: /search jobs/i }));
     await waitFor(() =>
       expect(locationSpy).toBe("/jobs?query=python+developer&location=Mumbai&workplaceMode=remote"),

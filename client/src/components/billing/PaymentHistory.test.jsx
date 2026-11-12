@@ -64,7 +64,7 @@ describe("PaymentHistory", () => {
     await screen.findByText("No payments yet");
 
     await user.click(screen.getByRole("combobox", { name: "Status" }));
-    await user.selectOptions(screen.getByRole("combobox", { name: "Status" }), "failed");
+    await user.click(screen.getByRole("option", { name: /failed/i }));
     await user.type(screen.getByLabelText("From (IST)"), "2026-11-01");
     await user.click(screen.getByRole("button", { name: "Apply" }));
 

@@ -4,6 +4,7 @@
 import { useId } from "react";
 
 import { cn } from "../../lib/utils";
+import { SearchableSelect } from "./SearchableSelect";
 
 /** Shared shell: label on top, control in the middle, message underneath. */
 const Field = ({ id, label, error, hint, required, children, className }) => (
@@ -135,65 +136,8 @@ export const Textarea = ({
   );
 };
 
-export const Select = ({
-  label,
-  error,
-  hint,
-  options = [],
-  placeholder,
-  className,
-  containerClassName,
-  id: providedId,
-  required,
-  children,
-  ...props
-}) => {
-  const generatedId = useId();
-  const id = providedId || generatedId;
-
-  return (
-    <Field
-      id={id}
-      label={label}
-      error={error}
-      hint={hint}
-      required={required}
-      className={containerClassName}
-    >
-      <select
-        id={id}
-        className={cn(
-          baseControl,
-          "h-10 cursor-pointer appearance-none bg-[length:16px] bg-[right:0.75rem_center] bg-no-repeat pr-9",
-          error ? "border-danger-500" : "border-ink-200",
-          className,
-        )}
-        style={{
-          backgroundImage:
-            "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2364748b' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e\")",
-        }}
-        aria-invalid={Boolean(error)}
-        aria-describedby={error ? `${id}-error` : hint ? `${id}-hint` : undefined}
-        required={required}
-        {...props}
-      >
-        {placeholder && <option value="">{placeholder}</option>}
-
-        {options.map((option) => {
-          const value = typeof option === "string" ? option : option.value;
-          const optionLabel = typeof option === "string" ? option : option.label;
-
-          return (
-            <option key={value} value={value}>
-              {optionLabel}
-            </option>
-          );
-        })}
-
-        {children}
-      </select>
-    </Field>
-  );
-};
+// Select is the shared accessible combobox (Requirement 12). It keeps the native select call shape
+// (`options`, `placeholder`, `<option>` children, `(e) => set(e.target.value)`), so existing callers are unchanged.
+export const Select = (props) => <SearchableSelect {...props} />;
 
 export default Input;

@@ -11,6 +11,8 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: './src/test/setup.js',
     fileParallelism: false,
+    // Browser specs run under Playwright (npm run e2e), not under Vitest.
+    exclude: ['**/node_modules/**', '**/dist/**', 'e2e/**'],
   },
 
   server: {

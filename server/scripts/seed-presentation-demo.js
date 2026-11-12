@@ -1820,6 +1820,9 @@ const seedPresentationData = async () => {
         candEmail: "tanastai5018@gmail.com",
         jobKey: "bytescale-technologies|Junior MERN Stack Engineer",
         status: "joining_confirmed",
+        // Canonical employment (Requirement 9) for the offer accepted but not yet started. Set only when the record
+        // has no canonical status yet, so re-seeding never resets employment that was reported or verified.
+        employmentStatus: "offer_accepted",
         offeredSalary: 650000,
         joiningDate: inDays(14),
       },
@@ -1867,6 +1870,9 @@ const seedPresentationData = async () => {
         notes: `Placed through HireSmart-AI automated match and recruitment pipeline.`,
       };
 
+      if (ps.employmentStatus && !placement?.employment?.status) {
+        placementData.employment = { status: ps.employmentStatus, lastVerifiedStatus: ps.employmentStatus };
+      }
       if (!placement) {
         placement = await Placement.create(placementData);
         console.log(`  + Placement Created: ${cand.name} at ${job.company} [${placement.status}]`);
@@ -1894,23 +1900,33 @@ const seedPresentationData = async () => {
 
     // 9. Interviews & Meeting Schedules
     console.log("\n[8/8] Seeding Interviews & Meeting Schedules...");
-    const interviewSpecs = [
-      {
-        candidate: anas._id,
-        organization: apexOrg._id,
-        job: jobMap["apex-innovations|Software Engineer Intern (MERN)"]?._id,
-        title: "Technical Round: React Hooks & Node REST Architecture",
-        round: "technical",
-        scheduledAt: inDays(2, 15, 0),
-        durationMinutes: 45,
-        locationType: "google_meet",
-        meetingUrl: "https://meet.google.com/hsm-apex-mca",
-        status: "scheduled",
-        interviewers: [primaryRecruiter._id],
-        candidateNotes: "Please be ready to review your HireSmart-AI and HomeServeX projects.",
-      },
-    ];
-
+    const apexRecruiter = primaryRecruiter;
+    const apexInternJob = jobMap["apex-innovations|Software Engineer Intern (MERN)"];
+    const apexInternApp = apexInternJob ? applicationMap[`${anas.email}|${apexInternJob._id}`] : null;
+    const interviewStart = inDays(2, 15, 0);
+    // Field names follow models/Interview.js. The link is a manual link (Requirement 4): it is not a Google Meet.
+    const interviewSpecs = apexInternJob && apexInternApp
+      ? [
+          {
+            candidate: anas._id,
+            organization: apexOrg._id,
+            job: apexInternJob._id,
+            application: apexInternApp._id,
+            title: "Technical Round: React Hooks & Node REST Architecture",
+            round: 1,
+            type: "technical",
+            status: "invited",
+            scheduledStart: interviewStart,
+            scheduledEnd: new Date(interviewStart.getTime() + 45 * 60 * 1000),
+            timezone: "Asia/Kolkata",
+            meetingProvider: "manual",
+            meetingUrl: "https://meet.example.com/hsm-apex-demo-room",
+            participants: [apexRecruiter._id],
+            createdBy: apexRecruiter._id,
+            instructions: "Please be ready to review your HireSmart-AI and HomeServeX projects.",
+          },
+        ]
+      : [];
     for (const spec of interviewSpecs) {
       if (!spec.job) continue;
       let interview = await Interview.findOne({ candidate: spec.candidate, job: spec.job, round: spec.round });
