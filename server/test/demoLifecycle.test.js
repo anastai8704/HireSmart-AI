@@ -17,7 +17,7 @@ const { getEffectiveSubscription } = require("../middleware/subscriptionCheck");
 const User = require("../models/User");
 const Organization = require("../models/Organization");
 const { Membership } = require("../models/Membership");
-const Subscription = require("../models/Subscription");
+const { Subscription } = require("../models/Subscription");
 const { PaymentTransaction } = require("../models/PaymentTransaction");
 
 const execFileAsync = promisify(execFile);
@@ -30,6 +30,11 @@ const RECRUITER = "2025mca150@gmail.com";
 const CANDIDATE = "tanastai5018@gmail.com";
 const ctx = { demoUri: "", createdBackups: [] };
 
+// Each DB test makes sure the default connection points at the disposable demo database.
+const ensureDemoDb = async () => {
+  if (mongoose.connection.readyState !== 1) await connectDB(ctx.demoUri);
+};
+
 const childEnv = (extra = {}) => ({
   ...process.env,
   NODE_ENV: "test",
@@ -38,6 +43,12 @@ const childEnv = (extra = {}) => ({
   DEMO_RESET_DATABASE: "",
   ...extra,
 });
+
+// One line that says why a child process failed (the test runner summary keeps only the first line).
+const failure = (res) => {
+  const lines = String(res.out || "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  return `exit ${res.code}: ${lines.slice(-4).join(" | ").slice(0, 700)}`;
+};
 
 const runNode = async (args, env) => {
   try {
@@ -80,8 +91,9 @@ nodeTest("refuses to run without DEMO_PASSWORD (min 12 characters) and writes no
 });
 
 nodeTest("first seed creates the three demo accounts with hashed passwords and no plaintext", async () => {
+  await ensureDemoDb();
   const res = await seed();
-  assert.equal(res.code, 0, res.out.slice(-1500));
+  assert.equal(res.code, 0, failure(res));
   await connectDB(ctx.demoUri);
   for (const email of [ADMIN, RECRUITER, CANDIDATE]) {
     const user = await User.findOne({ email }).select("+password").lean();
@@ -96,6 +108,7 @@ nodeTest("first seed creates the three demo accounts with hashed passwords and n
 });
 
 nodeTest("entitlements: Admin keeps platform access, recruiter company is Enterprise, candidate is Career Plus", async () => {
+  await ensureDemoDb();
   const admin = await User.findOne({ email: ADMIN }).lean();
   assert.equal(admin.role, "admin", "platform admin role");
 
@@ -114,6 +127,7 @@ nodeTest("entitlements: Admin keeps platform access, recruiter company is Enterp
 });
 
 nodeTest("demo grants are labelled, expire in the future, and never create payment records", async () => {
+  await ensureDemoDb();
   const subs = await Subscription.find({ isDemo: true }).lean();
   assert.ok(subs.length >= 2, "demo subscriptions exist");
   for (const s of subs) {
@@ -125,6 +139,7 @@ nodeTest("demo grants are labelled, expire in the future, and never create payme
 });
 
 nodeTest("repeated seeding keeps existing passwords, accounts and subscriptions unchanged", async () => {
+  await ensureDemoDb();
   await connectDB(ctx.demoUri);
   const before = {
     users: await User.countDocuments({}),
@@ -137,7 +152,7 @@ nodeTest("repeated seeding keeps existing passwords, accounts and subscriptions 
   await User.collection.updateOne({ email: CANDIDATE }, { $set: { password: changed } });
 
   const res = await seed();
-  assert.equal(res.code, 0, res.out.slice(-1500));
+  assert.equal(res.code, 0, failure(res));
   await connectDB(ctx.demoUri);
   const after = await User.findOne({ email: CANDIDATE }).select("+password").lean();
   assert.equal(after.password, changed, "an existing password is not replaced by the seed");
@@ -149,6 +164,7 @@ nodeTest("repeated seeding keeps existing passwords, accounts and subscriptions 
 });
 
 nodeTest("reset refuses without --confirm-reset, in production, and for a database name mismatch; data is untouched", async () => {
+  await ensureDemoDb();
   await connectDB(ctx.demoUri);
   const usersBefore = await User.countDocuments({});
   const reset = path.join("scripts", "demo-reset.js");
@@ -170,6 +186,7 @@ nodeTest("reset refuses without --confirm-reset, in production, and for a databa
 });
 
 nodeTest("confirmed reset writes a verified backup first, then reseeds the disposable database", async () => {
+  await ensureDemoDb();
   await connectDB(ctx.demoUri);
   await User.collection.updateOne({ email: CANDIDATE }, { $set: { headline: "Marker before reset" } });
   const beforeCounts = {
@@ -178,7 +195,7 @@ nodeTest("confirmed reset writes a verified backup first, then reseeds the dispo
   };
 
   const res = await runNode([path.join("scripts", "demo-reset.js"), "--confirm-reset"], childEnv({ DEMO_RESET_DATABASE: DEMO_DB }));
-  assert.equal(res.code, 0, res.out.slice(-2000));
+  assert.equal(res.code, 0, failure(res));
 
   const dirs = fs.readdirSync(BACKUP_ROOT).filter((n) => n.startsWith(`${DEMO_DB}-`)).map((n) => path.join(BACKUP_ROOT, n));
   assert.ok(dirs.length >= 1, "a backup directory was created");
@@ -200,10 +217,11 @@ nodeTest("confirmed reset writes a verified backup first, then reseeds the dispo
 });
 
 nodeTest("migration dry run reads the disposable database and writes a report without changing data", async () => {
+  await ensureDemoDb();
   await connectDB(ctx.demoUri);
   const before = JSON.stringify(await mongoose.connection.db.collection("placements").find({}).toArray());
   const res = await runNode([path.join("scripts", "migrate-employment-status.js")], childEnv());
-  assert.equal(res.code, 0, res.out.slice(-1500));
+  assert.equal(res.code, 0, failure(res));
   assert.match(res.out, /Dry run only/);
   assert.equal(JSON.stringify(await mongoose.connection.db.collection("placements").find({}).toArray()), before);
 });
