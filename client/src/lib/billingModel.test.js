@@ -181,3 +181,57 @@ describe("history labels and query", () => {
     });
   });
 });
+
+describe("planCardActionFor: a recurring subscription in force holds the single slot", () => {
+  const plans = [
+    { tier: "recruiter_starter", name: "Starter", priceInr: 999 },
+    { tier: "recruiter_growth", name: "Growth", priceInr: 2499 },
+  ];
+  const activeRecurring = {
+    planTier: "recruiter_starter",
+    status: "active",
+    providerSubscriptionId: "sub_1",
+    currentPeriodEnd: "2026-12-01T00:00:00.000Z",
+  };
+  const state = { paidInForce: true, canUpgrade: true, periodEnd: "2026-12-01T00:00:00.000Z" };
+  const entitlement = { tier: "recruiter_starter", paid: true, status: "active" };
+
+  it("locks other plans, with the date they become available, instead of offering a checkout that is refused", () => {
+    const growth = planCardActionFor({
+      plan: plans[1],
+      entitlement,
+      subscription: activeRecurring,
+      state,
+      currentPrice: 999,
+      cyclesAvailable: true,
+    });
+    expect(growth.kind).toBe("locked");
+    expect(growth.disabled).toBe(true);
+    expect(growth.note).toMatch(/Growth after/);
+  });
+
+  it("keeps the current plan as current", () => {
+    const starter = planCardActionFor({
+      plan: plans[0],
+      entitlement,
+      subscription: activeRecurring,
+      state,
+      currentPrice: 999,
+      cyclesAvailable: true,
+    });
+    expect(starter.kind).toBe("current");
+  });
+
+  it("does not lock plans for a Free account with no recurring subscription", () => {
+    const growth = planCardActionFor({
+      plan: plans[1],
+      entitlement: { tier: "recruiter_free", paid: false, status: "active" },
+      subscription: { planTier: "recruiter_free", status: "active" },
+      state: { paidInForce: false, canUpgrade: true },
+      currentPrice: 0,
+      cyclesAvailable: true,
+    });
+    expect(growth.kind).toBe("upgrade");
+    expect(growth.disabled).toBe(false);
+  });
+});

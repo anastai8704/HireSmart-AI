@@ -88,6 +88,7 @@ export const PlanComparison = ({ plans, entitlement, subscription, model, billin
                 >
                   {action.label}
                 </Button>
+                {action.note && <p className="mt-2 text-xs text-ink-500">{action.note}</p>}
               </div>
             </article>
           );

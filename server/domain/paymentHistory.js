@@ -43,4 +43,22 @@ const createdAtFilter = (window) => {
   return { createdAt: range };
 };
 
-module.exports = { HISTORY_FILTERS, historyStatusesFor, historyWindow, createdAtFilter };
+// Fields a subscriber can search by: their own references (internal, invoice, gateway payment and order, subscription).
+const SEARCH_FIELDS = Object.freeze(["transactionNumber", "invoiceNumber", "gatewayPaymentId", "gatewayOrderId", "providerSubscriptionId"]);
+const MAX_SEARCH_LENGTH = 64;
+
+const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * Mongo filter for a free-text reference search. Literal, case-insensitive substring match: user input is escaped, so
+ * it cannot form a pattern. Returns {} when no search term is given, and null when the term is too long.
+ */
+const searchFilter = (q) => {
+  const term = String(q ?? "").trim();
+  if (!term) return {};
+  if (term.length > MAX_SEARCH_LENGTH) return null;
+  const pattern = new RegExp(escapeRegex(term), "i");
+  return { $or: SEARCH_FIELDS.map((field) => ({ [field]: pattern })) };
+};
+
+module.exports = { HISTORY_FILTERS, historyStatusesFor, historyWindow, createdAtFilter, searchFilter, SEARCH_FIELDS };

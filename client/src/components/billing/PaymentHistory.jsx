@@ -1,4 +1,4 @@
-// Payment history with status and IST date filters and cursor pagination (Requirement 2).
+// Payment history with search, status and IST date filters and cursor pagination (Requirement 2).
 // Rows come from the server; mode labels separate Test Mode and Live Mode from sandbox records.
 import { useState } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
@@ -27,7 +27,7 @@ const planLabel = (tier, plans) => {
 };
 
 export const PaymentHistory = ({ queryKeyBase, organizationId, plans, title = "Payment history" }) => {
-  const [filters, setFilters] = useState({ status: "all", from: "", to: "" });
+  const [filters, setFilters] = useState({ status: "all", from: "", to: "", q: "" });
   const [draft, setDraft] = useState(filters);
   const [dateError, setDateError] = useState("");
 
@@ -54,7 +54,7 @@ export const PaymentHistory = ({ queryKeyBase, organizationId, plans, title = "P
   };
 
   const clear = () => {
-    const empty = { status: "all", from: "", to: "" };
+    const empty = { status: "all", from: "", to: "", q: "" };
     setDraft(empty);
     setDateError("");
     setFilters(empty);
@@ -71,7 +71,15 @@ export const PaymentHistory = ({ queryKeyBase, organizationId, plans, title = "P
         <p className="mt-1 text-xs text-ink-500">
           Dates are in Indian Standard Time (IST). Sandbox records are shown for reference and are never counted as revenue.
         </p>
-        <form onSubmit={applyFilters} className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end" aria-label="Filter payments">
+        <form onSubmit={applyFilters} className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-[1.4fr_1fr_1fr_1fr_auto] xl:items-end" aria-label="Filter payments">
+          <Input
+            label="Search payment ID or reference"
+            type="search"
+            placeholder="pay_… or TXN-…"
+            maxLength={64}
+            value={draft.q}
+            onChange={(e) => setDraft({ ...draft, q: e.target.value })}
+          />
           <Select
             label="Status"
             value={draft.status}
@@ -121,7 +129,7 @@ export const PaymentHistory = ({ queryKeyBase, organizationId, plans, title = "P
               <caption className="sr-only">Payments, newest first</caption>
               <thead className="bg-ink-50/70 text-xs font-semibold text-ink-500">
                 <tr>
-                  <th scope="col" className="px-6 py-3">Reference</th>
+                  <th scope="col" className="px-6 py-3">Payment ID</th>
                   <th scope="col" className="px-6 py-3">Date (IST)</th>
                   <th scope="col" className="px-6 py-3">Plan</th>
                   <th scope="col" className="px-6 py-3">Amount</th>
@@ -132,7 +140,12 @@ export const PaymentHistory = ({ queryKeyBase, organizationId, plans, title = "P
               <tbody className="divide-y divide-ink-100 text-ink-800">
                 {rows.map((inv) => (
                   <tr key={inv._id} className="hover:bg-ink-50/50">
-                    <td className="px-6 py-4 font-mono text-xs font-bold text-ink-900">{inv.invoiceNumber || inv.transactionNumber || "-"}</td>
+                    <td className="px-6 py-4">
+                      <p className="font-mono text-xs font-bold text-ink-900" data-testid="payment-id">
+                        {inv.gatewayPaymentId || "Not yet issued"}
+                      </p>
+                      <p className="mt-1 font-mono text-[11px] text-ink-400">{inv.invoiceNumber || inv.transactionNumber || "-"}</p>
+                    </td>
                     <td className="px-6 py-4 text-xs text-ink-500">{formatDate(inv.createdAt, "Asia/Kolkata")}</td>
                     <td className="px-6 py-4">{planLabel(inv.planTier, plans)}</td>
                     <td className="px-6 py-4 font-bold text-ink-900">₹{Number(inv.amount || 0).toLocaleString("en-IN")}</td>

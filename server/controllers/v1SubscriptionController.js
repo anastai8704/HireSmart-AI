@@ -36,7 +36,7 @@ const AppError = require("../utils/AppError");
 const crypto = require("node:crypto");
 const mongoose = require("mongoose");
 const { parse, applyCursor, meta } = require("../utils/pagination");
-const { historyStatusesFor, historyWindow, createdAtFilter } = require("../domain/paymentHistory");
+const { historyStatusesFor, historyWindow, createdAtFilter, searchFilter } = require("../domain/paymentHistory");
 
 const ORGANIZATION_PERMISSION = "organization.manage";
 
@@ -263,23 +263,26 @@ exports.checkout = asyncHandler(async (req, res) => {
   });
 });
 
-/** A subscriber may hold one recurring subscription at a time. Plan changes are a cancel and a new purchase. */
+/**
+ * A subscriber holds one recurring subscription at a time. Plan changes are a new purchase after the current period ends.
+ * A renewal that is cancelled at period end still holds the slot until that period has ended: a second provider
+ * subscription would otherwise run alongside the first, and the first one's cancellation notice could then cut off
+ * the new plan.
+ */
 const assertNoRecurringSubscription = async (subscriber) => {
   const existing = await Subscription.findOne({
     subscriberType: subscriber.subscriberType,
     subscriberId: subscriber.subscriberId,
   }).lean();
-  if (
-    existing?.providerSubscriptionId &&
-    ["active", "past_due"].includes(existing.status) &&
-    !existing.cancelAtPeriodEnd
-  ) {
-    throw new AppError(
-      "This account already has an active recurring subscription. Cancel it before choosing another plan.",
-      409,
-      "ALREADY_SUBSCRIBED",
-    );
-  }
+  if (!existing?.providerSubscriptionId || !["active", "past_due"].includes(existing.status)) return;
+  const periodEnded =
+    existing.cancelAtPeriodEnd && existing.currentPeriodEnd && new Date(existing.currentPeriodEnd) <= new Date();
+  if (periodEnded) return;
+  throw new AppError(
+    "This account already has a recurring subscription in force. A different plan can be bought once the current period ends.",
+    409,
+    "ALREADY_SUBSCRIBED",
+  );
 };
 
 const PENDING_MESSAGE = "We received your payment and are confirming it. Your plan activates automatically once it is confirmed.";
@@ -374,7 +377,10 @@ exports.verifySubscription = asyncHandler(async (req, res) => {
     throw new AppError("Payment has already been processed", 409, "PAYMENT_ALREADY_PROCESSED");
   }
   if (!verifyRazorpaySubscriptionSignature({ subscriptionId, paymentId, signature })) {
-    await failTransaction(req, txn, "invalid_signature");
+    // A bad browser signature proves nothing about the payment. Nothing is granted, and the order stays open so
+    // the provider's webhook can still confirm it. Marking it failed here would split one real charge into a
+    // "failed" row and a later "captured" row that the webhook would record as a renewal.
+    await deferForReconciliation(req, txn, "invalid_signature", paymentId);
     throw invalidVerification();
   }
 
@@ -509,9 +515,13 @@ exports.getInvoices = asyncHandler(async (req, res) => {
   if (!window) {
     throw new AppError("from and to must be YYYY-MM-DD days, with from on or before to", 422, "INVALID_FILTER");
   }
+  const search = searchFilter(req.query.q);
+  if (search === null) {
+    throw new AppError("q must be 64 characters or fewer", 422, "INVALID_FILTER");
+  }
   // Same transaction records the admin Revenue & Plans page reads (domain/revenueRules.js). Sandbox captures are
   // shown but labelled mode "simulation" and eligibleForRevenue false, so they can never be mistaken for real payments.
-  const base = { subscriberType, subscriberId, status: { $in: statuses }, ...createdAtFilter(window) };
+  const base = { subscriberType, subscriberId, status: { $in: statuses }, ...createdAtFilter(window), ...search };
   const filter = applyCursor(base, page.after);
 
   const items = await PaymentTransaction.find(filter).sort({ _id: -1 }).limit(page.limit);

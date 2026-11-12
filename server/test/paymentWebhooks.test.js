@@ -235,7 +235,7 @@ test("yearly is refused while no yearly price is configured", async () => {
   assert.equal(res.body.code, "YEARLY_PRICE_NOT_CONFIGURED", JSON.stringify(res.body));
 });
 
-test("a Checkout signature that does not match fails the transaction and grants nothing", async () => {
+test("a Checkout signature that does not match grants nothing and leaves the order open for reconciliation", async () => {
   const res = await verifySub(ctx.asha, {
     subscriptionId: ctx.firstSubId,
     paymentId: "pay_forged",
@@ -244,7 +244,7 @@ test("a Checkout signature that does not match fails the transaction and grants 
   assert.equal(res.status, 400, JSON.stringify(res.body));
   assert.equal(res.body.code, "PAYMENT_VERIFICATION_FAILED");
   const txn = await PaymentTransaction.findOne({ providerSubscriptionId: ctx.firstSubId }).lean();
-  assert.equal(txn.status, "failed");
+  assert.equal(txn.status, "initiated", "a bad browser signature is not an authoritative failure");
   assert.equal(await currentTier(ctx.asha), "candidate_free");
 });
 
@@ -425,6 +425,13 @@ test("webhook: the provider's cancellation notice is recorded without revoking a
   assert.equal(sub.cancelAtPeriodEnd, true);
 });
 
+test("a renewal cancelled at period end still holds the subscription slot until the period ends", async () => {
+  const res = await checkout(ctx.asha, { planTier: "candidate_plus" });
+  assert.equal(res.status, 409, JSON.stringify(res.body));
+  assert.equal(res.body.code, "ALREADY_SUBSCRIBED");
+  assert.equal(await PaymentTransaction.countDocuments({ subscriberId: ctx.asha.userId, status: "initiated" }), 0, "no second order created");
+});
+
 test("checkout cancellation: an abandoned subscription checkout is cancelled and cannot be verified", async () => {
   const other = await register("ravi@payflow.example", "candidate");
   const started = await checkout(other);
@@ -486,4 +493,30 @@ test("yearly: once a yearly price is configured, checkout uses a yearly provider
   } finally {
     ALL_PLANS.candidate_plus.yearlyPriceInr = original;
   }
+});
+
+test("a bad browser signature followed by the provider's charge records the first purchase, not a renewal", async () => {
+  const late = await register("late-verify@payflow.example", "candidate");
+  const created = await checkout(late);
+  assert.equal(created.status, 200, JSON.stringify(created.body));
+  const subId = created.body.data.subscription.subscriptionId;
+  const orderTxnId = created.body.data.transaction._id;
+
+  const forged = await verifySub(late, { subscriptionId: subId, paymentId: "pay_bad_sig", signature: "1".repeat(64) });
+  assert.equal(forged.status, 400, JSON.stringify(forged.body));
+  assert.equal(forged.body.code, "PAYMENT_VERIFICATION_FAILED");
+
+  const payId = "pay_late_webhook";
+  addPayment(payId, subId);
+  activateSub(subId, 30);
+  const res = await sendWebhook(subEvent("subscription.charged", subId, fake.payments[payId]));
+  assert.equal(res.status, 200, JSON.stringify(res.body));
+  assert.equal(res.body.data.outcome, "activated", "the first charge completes the original order");
+
+  const orderTxn = await PaymentTransaction.findById(orderTxnId).lean();
+  assert.equal(orderTxn.status, "captured");
+  assert.equal(orderTxn.gatewayPaymentId, payId);
+  assert.equal(await PaymentTransaction.countDocuments({ providerSubscriptionId: subId }), 1, "no second row");
+  assert.equal(await PaymentTransaction.countDocuments({ status: "failed", providerSubscriptionId: subId }), 0);
+  assert.equal(await currentTier(late), "candidate_plus");
 });

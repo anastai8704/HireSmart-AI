@@ -36,3 +36,36 @@ test("reversed, malformed or impossible days are rejected", () => {
 test("no dates means no date filter", () => {
   assert.deepEqual(createdAtFilter(historyWindow({})), {});
 });
+
+test("search: an empty term adds no condition", () => {
+  const { searchFilter } = require("../domain/paymentHistory");
+  assert.deepEqual(searchFilter(""), {});
+  assert.deepEqual(searchFilter("   "), {});
+  assert.deepEqual(searchFilter(undefined), {});
+});
+
+test("search: matches the subscriber's references, case-insensitively, as a literal substring", () => {
+  const { searchFilter, SEARCH_FIELDS } = require("../domain/paymentHistory");
+  const f = searchFilter("pay_ABC");
+  assert.equal(f.$or.length, SEARCH_FIELDS.length);
+  assert.ok(SEARCH_FIELDS.includes("gatewayPaymentId"));
+  const rx = f.$or[0].transactionNumber;
+  assert.ok(rx.test("TXN-1-pay_abc-2"));
+  assert.ok(!rx.test("TXN-1-xyz"));
+});
+
+test("search: regex metacharacters are literal and cannot widen the match", () => {
+  const { searchFilter } = require("../domain/paymentHistory");
+  const rx = searchFilter(".*").$or[1].invoiceNumber;
+  assert.ok(rx.test("a.*b"));
+  assert.ok(!rx.test("anything"));
+  const parens = searchFilter("(a|b)").$or[1].invoiceNumber;
+  assert.ok(parens.test("x(a|b)y"));
+  assert.ok(!parens.test("a"));
+});
+
+test("search: terms longer than 64 characters are refused", () => {
+  const { searchFilter } = require("../domain/paymentHistory");
+  assert.equal(searchFilter("x".repeat(65)), null);
+  assert.notEqual(searchFilter("x".repeat(64)), null);
+});

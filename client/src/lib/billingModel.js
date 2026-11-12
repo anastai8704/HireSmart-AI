@@ -120,6 +120,19 @@ export const planCardActionFor = ({ plan, entitlement, subscription, state, curr
   if (isLapsed) {
     return { kind: "renew", label: `Renew ${plan.name}`, disabled: !state.canUpgrade || !cyclesAvailable };
   }
+  // A recurring subscription in force holds the single subscription slot (the server refuses a second checkout until
+  // the period ends). Other plans are shown, locked, with the date they become available.
+  const recurringInForce =
+    state.paidInForce && Boolean(subscription?.providerSubscriptionId) && ["active", "past_due"].includes(subscription?.status);
+  if (recurringInForce) {
+    const when = state.periodEnd ? formatDate(state.periodEnd) : "the end of the current period";
+    return {
+      kind: "locked",
+      label: "Available after current period",
+      disabled: true,
+      note: `You can choose ${plan.name} after ${when}. Your current plan stays active until then.`,
+    };
+  }
   if (!state.canUpgrade) return { kind: "pending", label: "Payment pending", disabled: true };
   const upgrade = plan.priceInr > currentPrice;
   return {
@@ -149,11 +162,13 @@ export const HISTORY_STATUS_OPTIONS = [
 ];
 
 /** Query params for the invoices endpoint. Empty filters are omitted so the server applies its defaults. */
-export const historyParams = ({ status = "all", from = "", to = "", after = "" }) => {
+export const historyParams = ({ status = "all", from = "", to = "", q = "", after = "" }) => {
   const params = {};
   if (status && status !== "all") params.status = status;
   if (from) params.from = from;
   if (to) params.to = to;
+  const term = String(q || "").trim();
+  if (term) params.q = term;
   if (after) params.after = after;
   return params;
 };

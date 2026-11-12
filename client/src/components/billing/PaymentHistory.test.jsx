@@ -106,4 +106,30 @@ describe("PaymentHistory", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(/Server unavailable|Something went wrong/);
     expect(screen.queryByText("No payments yet")).not.toBeInTheDocument();
   });
+
+  it("sends the search term to the server and shows the gateway payment id", async () => {
+    invoicesFn.mockResolvedValue({
+      data: [row("a", { gatewayPaymentId: "pay_TEST123", invoiceNumber: "INV-7" })],
+      meta: { hasMore: false, nextCursor: null, count: 1 },
+    });
+    renderHistory();
+    const table = await screen.findByRole("table");
+    expect(within(table).getByTestId("payment-id")).toHaveTextContent("pay_TEST123");
+    const user = userEvent.setup();
+    await user.type(screen.getByRole("searchbox", { name: /search payment id/i }), "pay_TEST");
+    await user.click(screen.getByRole("button", { name: "Apply" }));
+    await waitFor(() =>
+      expect(invoicesFn).toHaveBeenLastCalledWith(expect.objectContaining({ q: "pay_TEST" }), "org1"),
+    );
+  });
+
+  it("shows 'Not yet issued' when no gateway payment id exists", async () => {
+    invoicesFn.mockResolvedValue({
+      data: [row("b", { status: "failed", mode: "simulation" })],
+      meta: { hasMore: false, nextCursor: null, count: 1 },
+    });
+    renderHistory();
+    const table = await screen.findByRole("table");
+    expect(within(table).getByTestId("payment-id")).toHaveTextContent("Not yet issued");
+  });
 });
