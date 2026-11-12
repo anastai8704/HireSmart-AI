@@ -5,7 +5,6 @@ import {
   AlertTriangle,
   Building2,
   Clock3,
-  Database,
   DollarSign,
   FileCheck2,
   Layers,
@@ -30,6 +29,9 @@ import Input, { Textarea } from "../../components/ui/Input";
 import { SearchableSelect } from "../../components/ui/SearchableSelect";
 import Badge from "../../components/ui/Badge";
 import { AdminAnalyticsPanel } from "./AdminAnalyticsPanel";
+import { PlatformHealthPanel } from "../../components/admin/PlatformHealthPanel";
+import { buildQueues } from "../../lib/controlCenter";
+import { healthFrom } from "../../lib/platformHealth";
 import { istToday, validateCustomRange } from "../../lib/analyticsRange";
 import Modal from "../../components/ui/Modal";
 import ConfirmModal from "../../components/ui/ConfirmModal";
@@ -98,20 +100,6 @@ const DataTable = ({ headers, children, empty, emptyLabel = "No items match your
   </div>
 );
 
-const HEALTH_SERVICES = [
-  {
-    key: "mongodb",
-    name: "Database",
-    icon: Database,
-    description: "Stores platform accounts, companies, jobs and application data.",
-  },
-  {
-    key: "jobStore",
-    name: "Background Jobs",
-    icon: Layers,
-    description: "Processes resume parsing, recommendations, alerts, and verification tasks.",
-  },
-];
 
 /* =========================================================================
    1. ADMIN HOME (Aggregated Overview Analytics & Placement Tracking)
@@ -125,14 +113,6 @@ export const AdminHome = () => {
   const rangeParams =
     range.preset === "custom" ? { range: "custom", from: range.from, to: range.to } : { range: range.preset };
 
-  const usersQuery = useQuery({
-    queryKey: ["admin-users", {}],
-    queryFn: () => adminApi.users({ limit: 100 }),
-  });
-  const orgsQuery = useQuery({
-    queryKey: ["admin-organizations", {}],
-    queryFn: () => adminApi.organizations({ limit: 100 }),
-  });
   const pendingQuery = useQuery({
     queryKey: ["moderation-jobs", "pending"],
     queryFn: () => adminApi.moderation({ status: "pending", limit: 100 }),
@@ -141,21 +121,21 @@ export const AdminHome = () => {
     queryKey: ["admin-ai-usage"],
     queryFn: adminApi.aiUsage,
   });
-  const auditQuery = useQuery({
-    queryKey: ["admin-audit", {}],
-    queryFn: () => adminApi.audit({ limit: 10 }),
-  });
-
   const overviewQuery = useQuery({
     queryKey: ["admin-overview-analytics", selectedOrgId, rangeParams],
     enabled: !customError,
     queryFn: () =>
-      adminApi.overviewAnalytics
-        ? adminApi.overviewAnalytics({
-            ...rangeParams,
-            ...(selectedOrgId ? { organizationId: selectedOrgId } : {}),
-          })
-        : Promise.resolve({ data: null }),
+      adminApi.overviewAnalytics({
+        ...rangeParams,
+        ...(selectedOrgId ? { organizationId: selectedOrgId } : {}),
+      }),
+  });
+  // Readiness is checked on its own schedule so a slow database never blocks the rest of the page.
+  const healthQuery = useQuery({
+    queryKey: ["admin-health"],
+    queryFn: () => adminApi.ready(),
+    refetchInterval: 60 * 1000,
+    retry: false,
   });
 
   const exportReport = async (type) => {
@@ -165,32 +145,21 @@ export const AdminHome = () => {
     downloadBlob(res.data, `hiresmart-${type}-${from}-to-${to}.csv`);
   };
 
-  const isLoading =
-    usersQuery.isLoading ||
-    orgsQuery.isLoading ||
-    pendingQuery.isLoading ||
-    aiQuery.isLoading ||
-    overviewQuery.isLoading;
-
-  if (isLoading) return <LoadingState message="Loading platform overview & analytics…" />;
+  const isLoading = overviewQuery.isLoading || pendingQuery.isLoading || aiQuery.isLoading;
+  if (isLoading) return <LoadingState message="Loading control center…" />;
 
   const stats = overviewQuery.data?.data || null;
-  const usersList = usersQuery.data?.data || [];
   const pendingJobs = pendingQuery.data?.data || [];
   const aiRows = aiQuery.data?.data || [];
-  const auditLogs = auditQuery.data?.data || [];
+  const queues = buildQueues(stats);
+  const health = healthFrom({ data: healthQuery.data?.data, error: healthQuery.error });
 
-  const totalUsersCount = stats?.users?.total ?? usersList.length;
-  const pendingApprovalsCount = stats?.jobs?.pending ?? pendingJobs.length;
-  const totalAiRuns =
-    stats?.ai?.totalRuns ?? aiRows.reduce((sum, r) => sum + (r.runs || 0), 0);
-  const verifiedPlacementsCount = stats?.placements?.verifiedPlacements ?? 0;
-
+  const totalAiRuns = aiRows.reduce((sum, r) => sum + (r.runs || 0), 0);
   const monthlyTrends = stats?.monthlyTrends || [];
   const companyWise = stats?.companyWiseStats || [];
   const deepDive = stats?.deepDive || null;
 
-  const activityItems = (stats?.recentActivity || auditLogs).slice(0, 8).map((a) => ({
+  const activityItems = (stats?.recentActivity || []).slice(0, 8).map((a) => ({
     title: humanizeAction(a.action || a.type),
     meta: `${a.actor?.name || a.user?.name || "System"} · ${a.resourceType || "platform"}${
       a.organization?.name ? ` · ${a.organization.name}` : ""
@@ -210,7 +179,7 @@ export const AdminHome = () => {
     { label: "Interview", value: stats?.applications?.interview || 0, tone: "brand" },
     { label: "Hired", value: stats?.applications?.hired || 0, tone: "success" },
     { label: "Joining Confirmed", value: stats?.placements?.joiningConfirmed || 0, tone: "success" },
-    { label: "Verified Placement", value: verifiedPlacementsCount, tone: "success" },
+    { label: "Verified Placement", value: stats?.placements?.verifiedPlacements || 0, tone: "success" },
   ];
 
   return (
@@ -218,8 +187,8 @@ export const AdminHome = () => {
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <PageHeader
           eyebrow="Platform Overview"
-          title="HireSmart-AI Control Center"
-          description="Platform governance, hiring analytics, company verification, and placement lifecycle tracking."
+          title="Control Center"
+          description="What needs attention now, platform health, and analytics for the range you choose. Every figure is read from the database."
         />
         {companyWise.length > 0 && (
           <div className="flex items-center gap-3">
@@ -237,38 +206,6 @@ export const AdminHome = () => {
         )}
       </div>
 
-      {/* Main KPI Overview Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Kpi
-          label="Total Users"
-          value={totalUsersCount}
-          detail={`${stats?.users?.candidates ?? 0} candidates · ${stats?.users?.recruiters ?? 0} recruiters`}
-          tone="brand"
-          icon={Users}
-        />
-        <Kpi
-          label="Pending Approvals"
-          value={pendingApprovalsCount}
-          detail="Job postings awaiting review"
-          tone="warning"
-          icon={Clock3}
-        />
-        <Kpi
-          label="AI Operations"
-          value={totalAiRuns}
-          detail="Model matching & resume runs"
-          tone="ink"
-          icon={Sparkles}
-        />
-        <Kpi
-          label="Verified Placements"
-          value={verifiedPlacementsCount}
-          detail={`${stats?.placements?.joiningConfirmed ?? 0} joinings confirmed`}
-          tone="success"
-          icon={FileCheck2}
-        />
-      </div>
-
       {overviewQuery.isError && (
         <ErrorState
           title="Analytics could not be loaded"
@@ -276,7 +213,87 @@ export const AdminHome = () => {
           onRetry={() => overviewQuery.refetch()}
         />
       )}
-      <AdminAnalyticsPanel analytics={stats} range={range} onRangeChange={setRange} customError={customError} onExportReport={exportReport} />
+
+      <PlatformHealthPanel
+        health={health}
+        checkedAt={healthQuery.dataUpdatedAt || null}
+        refreshing={healthQuery.isFetching}
+        onRetry={() => healthQuery.refetch()}
+      />
+
+      {/* Operational queues: live counts that drill down to the page where the work is done */}
+      <section aria-labelledby="queues-heading">
+        <div className="mb-4">
+          <h2 id="queues-heading" className="text-sm font-bold uppercase tracking-wider text-ink-500">
+            Needs attention
+          </h2>
+          <p className="text-xs text-ink-500">Open a queue to work it. “—” means the count is not available.</p>
+        </div>
+        <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {queues.map((q) => (
+            <li key={q.key}>
+              <Link
+                to={q.to}
+                data-testid={`queue-${q.key}`}
+                className={`flex h-full items-center justify-between gap-3 rounded-2xl border bg-white p-5 shadow-sm transition hover:border-brand-300 hover:shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
+                  q.tone === "warning" ? "border-warning-200" : "border-ink-100"
+                }`}
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-ink-900">{q.label}</p>
+                  <p className="mt-0.5 truncate text-xs text-ink-500">{q.hint}</p>
+                </div>
+                <span
+                  className={`shrink-0 text-2xl font-extrabold tabular-nums ${
+                    q.tone === "warning" ? "text-warning-700" : "text-ink-900"
+                  }`}
+                >
+                  {q.count === null ? "—" : q.count.toLocaleString("en-IN")}
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      {/* Platform totals (all time, not affected by the range) */}
+      <section aria-labelledby="totals-heading">
+        <h2 id="totals-heading" className="mb-4 text-sm font-bold uppercase tracking-wider text-ink-500">
+          Platform totals · all time
+        </h2>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Kpi
+            label="Total users"
+            value={stats?.users?.total ?? 0}
+            detail={`${stats?.users?.candidates ?? 0} candidates · ${stats?.users?.recruiters ?? 0} recruiters`}
+            tone="brand"
+            icon={Users}
+          />
+          <Kpi
+            label="AI runs"
+            value={totalAiRuns}
+            detail="Model matching and resume runs"
+            tone="ink"
+            icon={Sparkles}
+          />
+          <Kpi
+            label="Verified placements"
+            value={stats?.placements?.verifiedPlacements ?? 0}
+            detail={`${stats?.placements?.joiningConfirmed ?? 0} joinings confirmed`}
+            tone="success"
+            icon={FileCheck2}
+          />
+        </div>
+      </section>
+
+      {/* Analytics for the selected range, with its own range control and export */}
+      <AdminAnalyticsPanel
+        analytics={stats}
+        range={range}
+        onRangeChange={setRange}
+        customError={customError}
+        onExportReport={exportReport}
+      />
 
       {/* Deep Dive Banner if Company Selected */}
       {deepDive && (
@@ -295,28 +312,22 @@ export const AdminHome = () => {
               </p>
             </div>
             <div className="flex items-center gap-4 text-sm font-semibold text-ink-800">
-              <span className="rounded-xl bg-white px-3.5 py-1.5 shadow-xs">
-                Shortlisted: {deepDive.shortlistCount}
-              </span>
-              <span className="rounded-xl bg-white px-3.5 py-1.5 shadow-xs">
-                Hired: {deepDive.hiredCount}
-              </span>
-              <span className="rounded-xl bg-white px-3.5 py-1.5 shadow-xs">
-                Placements: {deepDive.placementCount}
-              </span>
+              <span className="rounded-xl bg-white px-3.5 py-1.5 shadow-xs">Shortlisted: {deepDive.shortlistCount}</span>
+              <span className="rounded-xl bg-white px-3.5 py-1.5 shadow-xs">Hired: {deepDive.hiredCount}</span>
+              <span className="rounded-xl bg-white px-3.5 py-1.5 shadow-xs">Placements: {deepDive.placementCount}</span>
             </div>
           </div>
         </div>
       )}
 
-      {/* Visual Charts: 12-Month Trends & Funnel */}
+      {/* Long-run trend and pipeline (all time, last 12 months) */}
       {monthlyTrends.length > 0 && (
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="rounded-2xl border border-ink-100 bg-white p-6 shadow-sm lg:col-span-2">
             <div className="mb-6 flex items-center justify-between">
               <div>
                 <h3 className="text-base font-bold text-ink-900">12-Month Hiring Trends</h3>
-                <p className="text-xs text-ink-500">Applications, candidate hires, and verified placements</p>
+                <p className="text-xs text-ink-500">Applications, hires and verified placements, by month (IST)</p>
               </div>
               <Badge tone="brand">Platform Aggregations</Badge>
             </div>
@@ -338,32 +349,9 @@ export const AdminHome = () => {
                   <YAxis stroke="#8993a4" fontSize={11} />
                   <Tooltip contentStyle={{ borderRadius: "12px", border: "1px solid #dfe1e6" }} />
                   <Legend />
-                  <Area
-                    type="monotone"
-                    dataKey="applications"
-                    name="Applications"
-                    stroke="#0052cc"
-                    fillOpacity={1}
-                    fill="url(#appGradient)"
-                    strokeWidth={2}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="hires"
-                    name="Hires"
-                    stroke="#00875a"
-                    fillOpacity={1}
-                    fill="url(#hireGradient)"
-                    strokeWidth={2}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="verifiedPlacements"
-                    name="Verified Placements"
-                    stroke="#ffab00"
-                    strokeWidth={2}
-                    dot={{ r: 3 }}
-                  />
+                  <Area type="monotone" dataKey="applications" name="Applications" stroke="#0052cc" fillOpacity={1} fill="url(#appGradient)" strokeWidth={2} />
+                  <Area type="monotone" dataKey="hires" name="Hires" stroke="#00875a" fillOpacity={1} fill="url(#hireGradient)" strokeWidth={2} />
+                  <Line type="monotone" dataKey="verifiedPlacements" name="Verified Placements" stroke="#ffab00" strokeWidth={2} dot={{ r: 3 }} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -372,28 +360,27 @@ export const AdminHome = () => {
           <div className="rounded-2xl border border-ink-100 bg-white p-6 shadow-sm">
             <div className="mb-4">
               <h3 className="text-base font-bold text-ink-900">Platform Hiring Pipeline</h3>
-              <p className="text-xs text-ink-500">Live candidate conversion funnel</p>
+              <p className="text-xs text-ink-500">Candidate conversion, all time</p>
             </div>
             <PipelineFunnel stages={funnelStages} />
           </div>
         </div>
       )}
 
-      {/* Two Columns: Pending Actions & Platform Health / Recent Activity */}
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Pending Actions */}
+        {/* Pending job approvals (the first items of the queue) */}
         <div className="rounded-2xl border border-ink-100 bg-white p-6 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
             <div>
-              <h3 className="text-base font-bold text-ink-900">Pending Actions</h3>
-              <p className="text-xs text-ink-500">Approvals requiring administrator intervention</p>
+              <h3 className="text-base font-bold text-ink-900">Job approvals waiting</h3>
+              <p className="text-xs text-ink-500">Oldest first from the moderation queue</p>
             </div>
             <Button as={Link} to="/app/admin/moderation" size="sm" variant="ghost">
-              Review ({pendingJobs.length})
+              Review all ({pendingJobs.length})
             </Button>
           </div>
           {pendingJobs.length === 0 ? (
-            <p className="py-6 text-center text-sm text-ink-400">All submissions are up to date.</p>
+            <p className="py-6 text-center text-sm text-ink-400">No job postings are waiting for approval.</p>
           ) : (
             <div className="divide-y divide-ink-100">
               {pendingJobs.slice(0, 4).map((j) => (
@@ -411,34 +398,12 @@ export const AdminHome = () => {
           )}
         </div>
 
-        {/* Platform Health */}
-        <div className="rounded-2xl border border-ink-100 bg-white p-6 shadow-sm">
-          <div className="mb-4">
-            <h3 className="text-base font-bold text-ink-900">Platform Health</h3>
-            <p className="text-xs text-ink-500">Core operational telemetry</p>
-          </div>
-          <div className="space-y-3">
-            {HEALTH_SERVICES.map((s) => (
-              <div key={s.key} className="flex items-center justify-between rounded-xl bg-ink-50/70 p-3.5">
-                <div className="flex items-center gap-3">
-                  <s.icon className="h-5 w-5 text-brand-600" />
-                  <div>
-                    <p className="text-sm font-semibold text-ink-900">{s.name}</p>
-                    <p className="text-xs text-ink-500">{s.description}</p>
-                  </div>
-                </div>
-                <Badge tone="success">Operational</Badge>
-              </div>
-            ))}
-          </div>
-        </div>
-
         {/* Recent Activity */}
-        <div className="rounded-2xl border border-ink-100 bg-white p-6 shadow-sm lg:col-span-2">
+        <div className="rounded-2xl border border-ink-100 bg-white p-6 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
             <div>
               <h3 className="text-base font-bold text-ink-900">Recent Activity</h3>
-              <p className="text-xs text-ink-500">Audit trail of administrative and security events</p>
+              <p className="text-xs text-ink-500">Latest audit events across the platform</p>
             </div>
             <Button as={Link} to="/app/admin/security" size="sm" variant="ghost">
               Security & Audit

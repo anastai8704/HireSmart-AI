@@ -3,6 +3,7 @@ const Organization = require("../models/Organization");
 const Job = require("../models/Job");
 const { Application } = require("../models/Application");
 const { Placement } = require("../models/Placement");
+const { Subscription } = require("../models/Subscription");
 const AuditLog = require("../models/AuditLog");
 const SecurityEvent = require("../models/SecurityEvent");
 const AuthSession = require("../models/AuthSession");
@@ -246,6 +247,14 @@ exports.overviewAnalytics = asyncHandler(async (req, res) => {
     }
   }
 
+  // 7b. Operational queues that need an administrator now (live counts, not range-based).
+  // Joinings confirmed by the parties but not yet verified by the platform.
+  // Renewals whose payment failed and that are waiting on the provider or the subscriber.
+  const [placementsAwaitingVerification, subscriptionsPastDue] = await Promise.all([
+    Placement.countDocuments({ status: "joining_confirmed", "verification.isVerified": { $ne: true } }),
+    Subscription.countDocuments({ status: "past_due" }),
+  ]);
+
   // 8. Recent Audit Activity
   const recentActivity = await AuditLog.find({})
     .populate("actor", "name email role")
@@ -296,6 +305,7 @@ exports.overviewAnalytics = asyncHandler(async (req, res) => {
         currentlyWorking: currentlyWorkingCount,
         employmentEnded: employmentEndedCount,
       },
+      queues: { placementsAwaitingVerification, subscriptionsPastDue },
       companyWiseStats: companyAgg,
       deepDive,
       monthlyTrends,

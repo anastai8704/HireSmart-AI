@@ -246,3 +246,25 @@ Limitations, documented not hidden:
 - Admin subscription fixtures were updated to the server's real response shape (entitlement and billing state included).
 
 Next: Requirement 7 (control-center redesign).
+
+## Checkpoint 7: admin control center (Requirement 7)
+
+| Item | Result |
+|---|---|
+| Client suite | 46 files, 330 tests pass (new: control-center queues, health states, queue drill-down) |
+| Client lint | 0 errors (3 pre-existing warnings) |
+| Client production build | passes |
+| Server unit suite | 245 pass, 0 fail |
+
+What changed:
+- Platform health is now real. The hardcoded "Operational" badges are gone. `components/admin/PlatformHealthPanel.jsx` reads `/health/ready` (database, job store, queued runs, runs stuck over 15 minutes). A failing or unreachable check is shown as down or unavailable, never as operational. The API client now keeps the response body on errors (`problem.data`), so a 503's per-service checks are visible.
+- Operational queues with live counts and drill-down (`lib/controlCenter.js`): job approvals, company verification (pending plus under review), fraud-risk review, placements to verify, subscriptions past due, failed payments (selected range), suspended accounts. A missing count shows "—", never 0.
+- Server: `GET /admin/analytics/overview` adds `queues.placementsAwaitingVerification` (joining confirmed, not platform-verified) and `queues.subscriptionsPastDue`. Both are live DB counts.
+- Layout: header with company drill-down, health, queues, all-time totals (users, AI runs, verified placements), the range-filtered analytics panel with export, deep dive, 12-month trend and pipeline, job approvals waiting, recent activity. The duplicate top KPI row and duplicate funnel card were removed.
+
+Limitations:
+- The readiness check covers the database and background job store only. It does not probe the payment gateway or email provider, and the UI does not claim it does.
+- "Awaiting platform verification" for placements is defined as `joining_confirmed` with `verification.isVerified` not set. This follows the existing placement verification model.
+- The overview endpoint is DB-backed and is not covered by an executed integration test yet (no MongoDB in this sandbox). Covered by unit and component tests only.
+
+Next: open limitations, then Requirement 13 and 18 with the final QA phase.

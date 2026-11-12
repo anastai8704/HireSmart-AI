@@ -23,6 +23,9 @@ vi.mock("../../components/ui/useToast", () => ({
   useToast: () => ({ success: () => {}, error: () => {} }),
 }));
 
+// Per-test override of the readiness response (null = healthy).
+const readyOverride = vi.hoisted(() => ({ fn: null }));
+
 vi.mock("../../lib/api", () => ({
   adminApi: {
     users: () =>
@@ -226,11 +229,27 @@ vi.mock("../../lib/api", () => ({
     reactivate: () => Promise.resolve({ data: { id: "u1", status: "active" } }),
     live: () => Promise.resolve({ data: { status: "ok" } }),
     ready: () =>
+      readyOverride.fn
+        ? readyOverride.fn()
+        : Promise.resolve({
+            data: { status: "ready", checks: { mongodb: "up", jobStore: "up" }, queue: { queued: 0, staleProcessing: 0 } },
+          }),
+    overviewAnalytics: () =>
       Promise.resolve({
         data: {
-          status: "ready",
-          checks: { mongodb: "up", jobStore: "up" },
-          queue: { queued: 0, staleProcessing: 0 },
+          users: { total: 120, candidates: 100, recruiters: 18, suspended: 2 },
+          companies: { total: 20, verified: 14, pending: 3, underReview: 1, rejected: 1, suspended: 1 },
+          jobs: { total: 60, active: 40, pending: 4, draft: 5, closed: 11 },
+          applications: { total: 500, submitted: 200, shortlisted: 80, interview: 30, offer: 5, hired: 9 },
+          placements: { total: 12, joiningConfirmed: 7, verifiedPlacements: 6, currentlyWorking: 5, employmentEnded: 1 },
+          kpis: { fraudReviewQueue: 1, failedPayments: 0 },
+          queues: { placementsAwaitingVerification: 5, subscriptionsPastDue: 0 },
+          monthlyTrends: [],
+          companyWiseStats: [],
+          recentActivity: [],
+          series: {},
+          breakdowns: {},
+          range: { preset: "30d" },
         },
       }),
     aiActivity: () =>
@@ -262,12 +281,37 @@ describe("Admin portal smoke", () => {
   it("renders overview with real KPIs and pending actions", async () => {
     renderPage(<AdminHome />);
     expect(await screen.findByText("Platform Overview")).toBeInTheDocument();
-    expect(await screen.findByText("Total Users")).toBeInTheDocument();
-    expect(await screen.findByText("Pending Approvals")).toBeInTheDocument();
-    expect(await screen.findByText("AI Operations")).toBeInTheDocument();
-    expect(await screen.findByText("Pending Actions")).toBeInTheDocument();
+    expect(await screen.findByText("Control Center")).toBeInTheDocument();
+    expect(await screen.findByText("Total users")).toBeInTheDocument();
+    expect(await screen.findByText("AI runs")).toBeInTheDocument();
+    expect(await screen.findByText("Job approvals waiting")).toBeInTheDocument();
     expect(await screen.findByText("Recent Activity")).toBeInTheDocument();
-    expect(await screen.findByText("Platform Health")).toBeInTheDocument();
+    expect(await screen.findByText("Platform health")).toBeInTheDocument();
+  });
+
+  it("shows the live queue counts and drills down to the page that works each queue", async () => {
+    renderPage(<AdminHome />);
+    const approvals = await screen.findByTestId("queue-jobApprovals");
+    expect(approvals).toHaveTextContent("4");
+    expect(approvals).toHaveAttribute("href", "/app/admin/moderation");
+    expect(screen.getByTestId("queue-companyVerification")).toHaveTextContent("4");
+    expect(screen.getByTestId("queue-placementVerification")).toHaveTextContent("5");
+    expect(screen.getByTestId("queue-placementVerification")).toHaveAttribute("href", "/app/admin/placements");
+    expect(screen.getByTestId("queue-failedPayments")).toHaveTextContent("0");
+  });
+
+  it("never reports the platform as operational when the readiness check fails", async () => {
+    const failing = Object.assign(new Error("Service unavailable"), {
+      status: 503,
+      data: { checks: { mongodb: "down", jobStore: "down" }, queue: { queued: null, staleProcessing: null } },
+    });
+    readyOverride.fn = () => Promise.reject(failing);
+    renderPage(<AdminHome />);
+    expect(await screen.findByTestId("health-mongodb")).toHaveTextContent("Down");
+    expect(screen.getByTestId("health-jobStore")).toHaveTextContent("Down");
+    expect(screen.getByTestId("health-overall")).toHaveTextContent("Service down");
+    expect(screen.queryByText("All checks passing")).not.toBeInTheDocument();
+    readyOverride.fn = null;
   });
 
   it("renders approvals with company moderation card and pending job", async () => {

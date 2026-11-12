@@ -88,6 +88,8 @@ apiClient.interceptors.response.use(
     problem.code = code || (error.request ? "NETWORK_ERROR" : "REQUEST_FAILED");
     problem.requestId = error.response?.data?.requestId;
     problem.fieldErrors = error.response?.data?.fieldErrors || [];
+    // Structured payload of a non-2xx response (e.g. the readiness checks on a 503). Optional for callers.
+    problem.data = error.response?.data?.data;
     problem.retryAfter = error.response?.headers?.["retry-after"];
     throw problem;
   },
