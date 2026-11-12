@@ -30,6 +30,12 @@ const EMITTED = [
   ["subscription_renewed", "recruiter"],
   ["subscription_expiring", "recruiter"],
   ["subscription_expiring", "candidate"],
+  ["subscription_expiring_7d", "recruiter"],
+  ["subscription_expiring_7d", "candidate"],
+  ["subscription_expiring_1d", "recruiter"],
+  ["subscription_expiring_1d", "candidate"],
+  ["subscription_expired", "recruiter"],
+  ["subscription_expired", "candidate"],
   ["subscription_payment_failed", "recruiter"],
   ["subscription_halted", "recruiter"],
   ["subscription_cancelled", "recruiter"],
@@ -61,7 +67,7 @@ test("billing events appear in the preference template for candidates and recrui
     const billing = catalog.templateForRole(role).find((group) => group.key === "billing");
     assert.ok(billing, `${role} has a billing group`);
     const keys = billing.events.map((event) => event.key);
-    for (const type of ["subscription_activated", "subscription_expiring", "subscription_payment_failed", "refund_processed"]) {
+    for (const type of ["subscription_activated", "subscription_expiring", "subscription_expiring_7d", "subscription_expiring_1d", "subscription_expired", "subscription_payment_failed", "refund_processed"]) {
       assert.ok(keys.includes(type), `${role} billing includes ${type}`);
     }
   }

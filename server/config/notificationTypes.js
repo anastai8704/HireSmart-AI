@@ -369,6 +369,21 @@ const EVENTS = {
     candidate: billingView("Subscription expiring", "Your plan ends soon and will not renew automatically.", true),
     recruiter: billingView("Subscription expiring", "Your company's plan ends soon and will not renew automatically.", true),
   }),
+  // The worker sends one notice per window (services/subscriptionNoticeService.js). Each must be registered so the
+  // user's preferences apply to it and it is listed in the notification settings.
+  subscription_expiring_7d: views({
+    candidate: billingView("Subscription expires in 7 days", "Your paid plan ends in 7 days and will not renew automatically.", true),
+    recruiter: billingView("Subscription expires in 7 days", "Your company's paid plan ends in 7 days and will not renew automatically.", true),
+  }),
+  subscription_expiring_1d: views({
+    candidate: billingView("Subscription expires tomorrow", "Your paid plan ends tomorrow and will not renew automatically.", true),
+    recruiter: billingView("Subscription expires tomorrow", "Your company's paid plan ends tomorrow and will not renew automatically.", true),
+  }),
+  subscription_expired: views({
+    candidate: billingView("Subscription expired", "Your paid plan has ended and your account moved to the Free plan.", true),
+    recruiter: billingView("Subscription expired", "Your company's paid plan has ended and moved to the Free plan.", true),
+  }),
+
   subscription_payment_failed: views({
     candidate: billingView("Payment failed", "A subscription payment did not go through.", true),
     recruiter: billingView("Payment failed", "A subscription payment for your company did not go through.", true),

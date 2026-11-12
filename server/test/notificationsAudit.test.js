@@ -156,13 +156,14 @@ test("subscription expiry: one reminder per owner, none for auto-renewing or fre
 
   const first = await runSubscriptionExpiryNotices();
   assert.equal(first.sent, 1, `expected one reminder, got ${first.sent}`);
+  const reminderTypes = { $in: ["subscription_expiring_7d", "subscription_expiring_1d"] };
   const ownerReminders = await Notification.countDocuments({
-    type: "subscription_expiring",
+    type: reminderTypes,
     user: ctx.recruiter.userId,
   });
   assert.equal(ownerReminders, 1);
   const candidateReminders = await Notification.countDocuments({
-    type: "subscription_expiring",
+    type: reminderTypes,
     user: ctx.candidate.userId,
   });
   assert.equal(candidateReminders, 0);
@@ -170,7 +171,7 @@ test("subscription expiry: one reminder per owner, none for auto-renewing or fre
   // Running again in the same period must not duplicate the reminder.
   const second = await runSubscriptionExpiryNotices();
   assert.equal(second.sent, 0);
-  assert.equal(await Notification.countDocuments({ type: "subscription_expiring", user: ctx.recruiter.userId }), 1);
+  assert.equal(await Notification.countDocuments({ type: reminderTypes, user: ctx.recruiter.userId }), 1);
 
   // The reminder is for the company's owner, not for other members.
   const owners = await Membership.find({ organization: ctx.recruiter.orgId, role: "owner" }).lean();
