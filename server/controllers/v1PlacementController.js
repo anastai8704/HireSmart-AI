@@ -93,6 +93,16 @@ exports.listOrganizationPlacements = asyncHandler(async (req, res) => {
     .lean();
   const byUser = new Map(profiles.map((p) => [String(p.user), p]));
 
+  // Reading candidate contact details and employment status is sensitive access (Requirement 9): record it.
+  await audit({
+    req,
+    organization: orgId,
+    action: "placement.list_viewed",
+    resourceType: "placement",
+    resourceId: orgId,
+    metadata: { scope: "organization", count: items.length, statusFilter: req.query.status || "" },
+  });
+
   res.json({
     data: items.map((p) => {
       const value = p.toObject();
@@ -132,6 +142,16 @@ exports.listAdminPlacements = asyncHandler(async (req, res) => {
     .populate("verification.verifiedBy", "name")
     .sort({ _id: -1 })
     .limit(page.limit);
+
+  // Admin reads of employment status are sensitive access too (Requirement 9).
+  await audit({
+    req,
+    organization: req.query.organizationId ? objectIdOrReject(req.query.organizationId) : null,
+    action: "placement.list_viewed",
+    resourceType: "placement",
+    resourceId: "admin",
+    metadata: { scope: "admin", count: items.length, statusFilter: req.query.status || "" },
+  });
 
   res.json({
     data: items.map((p) => placementAdminView(p)),

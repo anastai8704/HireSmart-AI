@@ -453,3 +453,23 @@ test("an unconfirmed legacy record is resolved only by an administrator, with a 
   assert.equal(stored.employment.status, "active_verified");
   assert.ok(stored.employmentHistory.some((e) => e.event === "employment_resolved"));
 });
+
+test("reading a company's placements is audited as sensitive access (Requirement 9)", async () => {
+  await newPlacement({
+    organization: orgOwnerX.orgId,
+    candidate: candidate.userId,
+    status: "hired",
+  });
+  const before = await AuditLog.countDocuments({ action: "placement.list_viewed", organization: orgOwnerX.orgId });
+  const res = await request(app)
+    .get(`${API}/organizations/${orgOwnerX.orgId}/placements`)
+    .set(auth(orgOwnerX.token));
+  assert.equal(res.status, 200, JSON.stringify(res.body));
+  const after = await AuditLog.find({ action: "placement.list_viewed", organization: orgOwnerX.orgId }).lean();
+  assert.equal(after.length, before + 1, "one audit entry for the read");
+  const entry = after[after.length - 1];
+  assert.equal(entry.resourceType, "placement");
+  assert.equal(entry.metadata.scope, "organization");
+  assert.ok(entry.metadata.count >= 1, "records how many placements were shown");
+  assert.equal(String(entry.actor || entry.user || ""), orgOwnerX.userId, "the reader is recorded");
+});
