@@ -54,3 +54,27 @@ Last verified checkpoint: see `git log --oneline -1` on the branch.
 6. Admin dashboard, revenue reporting, placement and employment tracking.
 7. Dates in Asia/Kolkata, searchable dropdowns, plan badges.
 8. Documentation and final QA report.
+
+## Continuation note (resume from the latest remote commit on arena/a534346b-hiresmart-ai)
+
+Status at this checkpoint:
+
+- Done and unit-tested: payment reconciliation (no failing captured payments), expiry reminders (7d/1d), expiry notice and lapse processing, demo grants labelled `source=demo_seed`/`isDemo`, guarded demo reset with verified backup.
+- Existing in the base and verified by reading the code (not re-implemented): server-side job/team/AI quota enforcement (`middleware/subscriptionCheck.js`, `domain/subscriptionRules.js`), 3-day grace period (`PAYMENT_GRACE_DAYS = 3`), webhook signature check on the raw body, idempotent webhook events, refunds (full revoke, partial review).
+- Decision: no paid-only feature flags exist in the plan catalogue (limits are numeric quotas, features are display text). No `FEATURE_NOT_INCLUDED` gate was added, to avoid inventing features. `SUBSCRIPTION_EXPIRED` is not returned: an expired paid plan falls back to Free, as Requirement 16 specifies, and existing data is kept.
+
+Not yet implemented (in suggested order):
+
+1. Req 1/2 remainder: DB-backed webhook tests for deferral, duplicate and replayed events (need MongoDB).
+2. Req 2 (billing UI): redesign `client` Billing & Quotas page (overview, plan cards, billing history with search/filter/pagination, subscription actions incl. scheduled vs immediate cancel).
+3. Req 3: job-first interview scheduling. Interview model needs jobId, applicationId, candidateId, recruiterId, organizationId, interviewerIds; reject candidates from other jobs; list only the selected job's applications.
+4. Req 4: Google Calendar/Meet via official API. Needs OAuth settings (`GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REDIRECT_URI`, `GOOGLE_TOKEN_ENCRYPTION_KEY`), encrypted token storage, `conferenceDataVersion=1`, `hangoutsMeet`, pending/success/failure handling. Test with mocks only until credentials exist.
+5. Req 5/6: recruiter and candidate interview UI; lifecycle draft/scheduled/in_progress/completed/cancelled/rescheduled/no_show; candidate join only when `in_progress`.
+6. Req 7/8/9: admin dashboard reorganisation with metric definitions; Revenue & Plans with captured-only revenue and test/live separation; Placements & Employment navigation and audited employment changes.
+7. Req 10/12: Asia/Kolkata date formatting (`DD MMM YYYY`) and a shared searchable combobox replacing native selects.
+8. Req 14–18 UI: plan badges (server-derived tier), upgrade messages, E2E tests (`test/planEntitlements.test.js` and `test/demoSeed.test.js` exist but are DB-backed and NOT RUN).
+9. Req 13: documentation (payment, webhook, Google setup, interview workflow, placement workflow, demo credentials, reset safety, env example) and final QA report.
+
+Verification still needed: `npm test` (DB-backed suites need MongoDB), frontend `npm test` and `npm run build`, `npm audit`, real Razorpay Test Mode checkout and webhook, real Google Calendar/Meet with credentials.
+
+Demo password: never stored in code or docs. Set `DEMO_PASSWORD` (min 12 characters) in `server/.env` and use the same value for the three demo accounts. Requirement 11 names the password for local demo only; do not commit it.
