@@ -9,7 +9,6 @@ const { audit } = require("../services/auditService");
 const asyncHandler = require("../middleware/asyncHandler");
 const AppError = require("../utils/AppError");
 const { parseOptionalDate, assertEmploymentRange } = require("../domain/employmentDates");
-const { verificationBlockFor } = require("../domain/placementVerification");
 const CandidateProfile = require("../models/CandidateProfile");
 const pipeline = require("../domain/candidatePipeline");
 const { parse, applyCursor, meta } = require("../utils/pagination");
@@ -206,9 +205,6 @@ exports.adminVerifyPlacement = asyncHandler(async (req, res) => {
   if (!placement) {
     throw new AppError("Placement record not found", 404, "RESOURCE_NOT_FOUND");
   }
-
-  const blocked = verificationBlockFor(placement);
-  if (blocked) throw new AppError(blocked.message, 409, blocked.code);
 
   // Verification is a separate fact from employment status. Keep an organization-reported
   // employment status (currently_working / employment_ended) intact; only pre-employment
