@@ -39,6 +39,8 @@ const childEnv = (extra = {}) => ({
   ...process.env,
   NODE_ENV: "test",
   MONGO_URI: ctx.demoUri,
+  // validateEnvironment() requires these; the children do not load server/.env (see the header comment).
+  JWT_SECRET: "demo_lifecycle_test_secret_at_least_32_characters_long",
   DEMO_PASSWORD,
   DEMO_RESET_DATABASE: "",
   ...extra,
@@ -59,7 +61,12 @@ const runNode = async (args, env) => {
     });
     return { code: 0, out: `${stdout}${stderr}` };
   } catch (error) {
-    return { code: error.code ?? 1, out: `${error.stdout || ""}${error.stderr || ""}${error.message}` };
+    const out = `${error.stdout || ""}${error.stderr || ""}${error.message}`;
+    // Keep the full child output as a CI artifact (test runner messages drop multi-line output).
+    const logDir = path.join(SERVER_DIR, "test-results");
+    fs.mkdirSync(logDir, { recursive: true });
+    fs.appendFileSync(path.join(logDir, "demo-lifecycle-children.log"), `\n$ node ${args.join(" ")}\n${out}\n`);
+    return { code: error.code ?? 1, out };
   }
 };
 
