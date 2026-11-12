@@ -2,7 +2,7 @@
 
 Branch: `arena/a534346b-hiresmart-ai` (only this branch is used). Pushes are normal fast-forward pushes; no force-push, no `main` or `development` changes.
 
-Last verified checkpoint: row 19 (`c9d2f95`, CI `43223458499` success). Rows 13–17 record earlier red runs and are kept as history.
+Last verified checkpoint: row 20 (`39ed31b`, CI `43225341645` success). Rows 13–17 record earlier red runs and are kept as history.
 
 ## Checkpoint history
 
@@ -28,6 +28,7 @@ Last verified checkpoint: row 19 (`c9d2f95`, CI `43223458499` success). Rows 13�
 | 17 | `7882ca0` | test(demo): report the first error line from a failed child in the test message. | CI `43209502480` FAILED (same). Cause of the child seed exit is NOT yet identified. |
 | 18 | `91d5e1a`, `32f7b7c`, `2575bd9`, `5e46797`, `fd5b955` | fix(seed): Subscription and Placement are named exports (the seed never created demo plans); CandidateProfile employmentStatus only uses enum values (repeated seeding failed on `placed`); test diagnostics made one-line so child-process reasons are visible. | CI `43218627217` on `fd5b955`: backend SUCCESS (all 8 demo lifecycle tests, incl. first seed, entitlements, demo grants, repeated seeding, guarded reset, migration dry run on the disposable database) and frontend-contract SUCCESS. The browser E2E job is NOT in CI: the workflow file cannot be changed by the GitHub App; the full workflow is in `docs/ci/ci.yml`. |
 | 19 | `c9d2f95` | test(admin): header search and IST date covered by AppShell tests (Requirement 7); FINAL_VERIFICATION Requirement 7 corrected. Patch and checksum generated against base `434463e` (see deliverables). | CI `43223458499` on `c9d2f95`: backend SUCCESS (all server test files incl. DB-backed), frontend-contract SUCCESS. Local: client lint 0 errors; client vitest 49 files; client build; server check, lint, 284 unit tests; `npm audit --omit=dev --audit-level=high` 0 vulnerabilities (server and client). Browser E2E: NOT RUN (workflow file not applied). |
+| 20 | `190c309`, `5df8912`, `39ed31b` | fix(notifications): a failed SMTP send no longer fails the action that created the notification (`jobQueueService`); tests in `smtpQueue.unit.test.js` (5). feat(placements): company and admin placement list reads are audited (`placement.list_viewed`); DB test added. docs: 18-requirement verification matrix with evidence and blockers. | CI `43225341645` on `39ed31b`: backend SUCCESS (incl. new DB audit test), frontend-contract SUCCESS. Local: server check, lint, 289 unit tests; client lint, vitest, build; `npm audit --omit=dev --audit-level=high` 0 vulnerabilities. Browser E2E NOT RUN (workflow not applied). |
 
 ## Checkpoint 2 details: first-charge subscription record
 
