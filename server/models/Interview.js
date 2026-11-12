@@ -88,4 +88,11 @@ const interviewSchema = new mongoose.Schema(
   { timestamps: true, optimisticConcurrency: true },
 );
 interviewSchema.index({ organization: 1, scheduledStart: 1 });
+// API responses identify an interview by `id` like the other resources (the client accepts `_id` as well).
+interviewSchema.set("toJSON", {
+  transform(_doc, ret) {
+    ret.id = String(ret._id);
+    return ret;
+  },
+});
 module.exports = mongoose.model("Interview", interviewSchema);

@@ -13,7 +13,18 @@ const {
 /* ----------------------------- 1. Interview Domain Model & Schema ----------------------------- */
 
 test("Interview model validates statuses, types, and schema fields", () => {
-  const allowedStatuses = ["draft", "invited", "confirmed", "reschedule_requested", "cancelled", "completed"];
+  // Requirement 6 lifecycle. "invited" and "confirmed" are the scheduled states (see domain/interviewPolicy.js).
+  const allowedStatuses = [
+    "draft",
+    "invited",
+    "confirmed",
+    "reschedule_requested",
+    "rescheduled",
+    "in_progress",
+    "cancelled",
+    "completed",
+    "no_show",
+  ];
   const allowedTypes = ["phone", "video", "onsite", "technical", "panel", "hr"];
   const allowedRecommendations = ["strong_yes", "yes", "mixed", "no", "strong_no"];
 

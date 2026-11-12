@@ -561,7 +561,7 @@ exports.confirm = asyncHandler(async (req, res) => {
   } catch (error) {
     logger.error(`Interview confirm notification failed: ${error.message}`);
   }
-  res.json({ data: interview });
+  res.json({ data: candidateView(interview) });
 });
 
 exports.rescheduleRequest = asyncHandler(async (req, res) => {
@@ -618,7 +618,7 @@ exports.rescheduleRequest = asyncHandler(async (req, res) => {
   } catch (error) {
     logger.error(`Reschedule request notification failed: ${error.message}`);
   }
-  res.json({ data: interview });
+  res.json({ data: candidateView(interview) });
 });
 
 exports.feedback = asyncHandler(async (req, res) => {
