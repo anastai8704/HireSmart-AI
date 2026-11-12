@@ -21,6 +21,7 @@ const { ALL_PLANS } = require("../config/subscriptionPlans");
 const { RECURRING } = require("../config/recurringBilling");
 const payments = require("./paymentService");
 const { audit } = require("./auditService");
+const { getOrCreateOrgSubscription, getOrCreateCandidateSubscription } = require("../middleware/subscriptionCheck");
 const { notify } = require("./notificationService");
 const AppError = require("../utils/AppError");
 
@@ -65,6 +66,8 @@ const ensureProviderPlan = async (plan, billingCycle) => {
 
 /** Starts a recurring purchase. Returns what the browser needs to open Checkout. */
 const startSubscriptionCheckout = async ({ req, subscriber, plan, billingCycle }) => {
+  // The record must exist before the provider subscription is created, so the first charge can always be applied.
+  await ensureSubscriber(subscriber.subscriberType, subscriber.subscriberId);
   const providerPlan = await ensureProviderPlan(plan, billingCycle);
   const providerSub = await payments.createProviderSubscription({
     planId: providerPlan.razorpayPlanId,
@@ -113,13 +116,21 @@ const startSubscriptionCheckout = async ({ req, subscriber, plan, billingCycle }
   };
 };
 
+/**
+ * The internal subscription record for a subscriber. Created with the Free plan if it does not exist yet, so
+ * a first paid charge can always be applied. Before this, a subscriber without a record failed as
+ * unknown_subscription and the purchase was marked failed although the provider had charged the customer.
+ */
+const ensureSubscriber = (subscriberType, subscriberId) =>
+  subscriberType === "organization" ? getOrCreateOrgSubscription(subscriberId) : getOrCreateCandidateSubscription(subscriberId);
+
 /** The internal subscription linked to a provider subscription id (set on first charge). */
 const linkedSubscription = async (providerSubscriptionId) => {
   const linked = await Subscription.findOne({ providerSubscriptionId });
   if (linked) return linked;
   const txn = await PaymentTransaction.findOne({ providerSubscriptionId }).sort({ createdAt: -1 }).lean();
   if (!txn) return null;
-  return Subscription.findOne({ subscriberType: txn.subscriberType, subscriberId: txn.subscriberId });
+  return ensureSubscriber(txn.subscriberType, txn.subscriberId);
 };
 
 /** The provider plan row for the plan_id on a provider subscription. Ties a charge to our plan. */
@@ -404,6 +415,8 @@ const requestCancellation = async (sub) => {
 module.exports = {
   priceFor,
   ensureProviderPlan,
+  ensureSubscriber,
+  linkedSubscription,
   startSubscriptionCheckout,
   recordCharge,
   applyStatusEvent,
