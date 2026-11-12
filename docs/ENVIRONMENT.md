@@ -89,6 +89,27 @@ See `docs/PAYMENTS.md` for the full setup. Live payments are not enabled.
 | `RAZORPAY_KEY_SECRET` | empty | Test key secret. Required for `razorpay_test`. |
 | `RAZORPAY_WEBHOOK_SECRET` | empty | Secret set on the Razorpay webhook. At least 16 characters. Required for `razorpay_test`. |
 
+## Google Calendar and Google Meet
+
+See `docs/GOOGLE_CALENDAR_SETUP.md` for the Google Cloud steps. Scope: `calendar.events` only.
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `GOOGLE_OAUTH_CLIENT_ID` | empty | OAuth client id (Web application). Never commit it. |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | empty | OAuth client secret. Server only. |
+| `GOOGLE_OAUTH_REDIRECT_URI` | empty | Must match the redirect URI registered in Google Cloud Console exactly. |
+| `GOOGLE_TOKEN_ENCRYPTION_KEY` | empty | 32 bytes, base64 or hex. Encrypts refresh tokens at rest and signs OAuth state. Losing it means recruiters reconnect. |
+
+## Demo accounts (development and test only)
+
+See `docs/DEMO_ACCOUNTS.md`.
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `DEMO_PASSWORD` | empty | Password for the demo accounts. At least 12 characters. Hashed in the database. Refused in production. |
+| `DEMO_RESET_DATABASE` | empty | Exact database name `npm run demo:reset` may erase. Must match the connected database. |
+| `DEMO_ADMIN_EMAIL` | `tofu1180@gmail.com` | Demo admin. Created if missing. An existing account is never changed. |
+
 ## Other
 
 | Variable | Description |

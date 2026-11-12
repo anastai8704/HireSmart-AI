@@ -426,10 +426,11 @@ test("webhook: the provider's cancellation notice is recorded without revoking a
 });
 
 test("a renewal cancelled at period end still holds the subscription slot until the period ends", async () => {
+  const ordersBefore = await PaymentTransaction.countDocuments({ subscriberId: ctx.asha.userId });
   const res = await checkout(ctx.asha, { planTier: "candidate_plus" });
   assert.equal(res.status, 409, JSON.stringify(res.body));
   assert.equal(res.body.code, "ALREADY_SUBSCRIBED");
-  assert.equal(await PaymentTransaction.countDocuments({ subscriberId: ctx.asha.userId, status: "initiated" }), 0, "no second order created");
+  assert.equal(await PaymentTransaction.countDocuments({ subscriberId: ctx.asha.userId }), ordersBefore, "no order created");
 });
 
 test("checkout cancellation: an abandoned subscription checkout is cancelled and cannot be verified", async () => {
