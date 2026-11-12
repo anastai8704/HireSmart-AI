@@ -121,11 +121,12 @@ paymentTransactionSchema.index(
 );
 
 // Derive the mode from the gateway when a record is created, so no caller can mark a sandbox charge as live.
-paymentTransactionSchema.pre("validate", function deriveMode(next) {
+// Mongoose 9 hooks receive no `next` callback (the old `next()` call threw "next is not a function" and failed
+// every checkout). An async hook without `next` is the supported form.
+paymentTransactionSchema.pre("validate", async function deriveMode() {
   if (this.isNew || !this.mode) {
     this.mode = this.gateway === "razorpay" ? "test" : "simulation";
   }
-  next();
 });
 
 paymentTransactionSchema.plugin(protectRecords);
