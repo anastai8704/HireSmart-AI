@@ -2,7 +2,7 @@
 
 Branch: `arena/a534346b-hiresmart-ai` (only this branch is used). Pushes are normal fast-forward pushes; no force-push, no `main` or `development` changes.
 
-Last verified checkpoint: see `git log --oneline -1` on the branch.
+Last verified checkpoint: row 18 (`fd5b955`, CI `43218627217` success). Rows 13–17 record earlier red runs and are kept as history.
 
 ## Checkpoint history
 
@@ -26,6 +26,7 @@ Last verified checkpoint: see `git log --oneline -1` on the branch.
 | 15 | `b5ddc56` | test(demo): fix demoLifecycle test wiring (Subscription import; DB connection per test; one-line failure messages). | CI `43207354077` FAILED (same five tests; seed child exits 1). |
 | 16 | `750be6f` | test(demo): give demo lifecycle children the JWT secret; child logs kept in `server/test-results/`. | CI `43208432880` FAILED (same). |
 | 17 | `7882ca0` | test(demo): report the first error line from a failed child in the test message. | CI `43209502480` FAILED (same). Cause of the child seed exit is NOT yet identified. |
+| 18 | `91d5e1a`, `32f7b7c`, `2575bd9`, `5e46797`, `fd5b955` | fix(seed): Subscription and Placement are named exports (the seed never created demo plans); CandidateProfile employmentStatus only uses enum values (repeated seeding failed on `placed`); test diagnostics made one-line so child-process reasons are visible. | CI `43218627217` on `fd5b955`: backend SUCCESS (all 8 demo lifecycle tests, incl. first seed, entitlements, demo grants, repeated seeding, guarded reset, migration dry run on the disposable database) and frontend-contract SUCCESS. The browser E2E job is NOT in CI: the workflow file cannot be changed by the GitHub App; the full workflow is in `docs/ci/ci.yml`. |
 
 ## Checkpoint 2 details: first-charge subscription record
 
