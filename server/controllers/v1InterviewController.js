@@ -12,6 +12,8 @@ const AppError = require("../utils/AppError");
 const idempotency = require("../services/idempotencyService");
 const logger = require("../utils/logger");
 const pickDefined = require("../utils/pickDefined");
+const Policy = require("../domain/interviewPolicy");
+const Meeting = require("../services/interviewMeetingService");
 
 const orgOwner = async (organizationId) =>
   (await Membership.findOne({
@@ -70,6 +72,47 @@ const resolveParticipants = async (organizationId, participantIds) => {
   return [...new Set(memberships.map((m) => String(m.user)))];
 };
 
+/** Emails of the candidate and the assigned interviewers, from real user records. Used only for Calendar attendees. */
+const attendeeEmailsFor = async (interview) => {
+  const ids = [interview.candidate || interview.application?.candidate?._id, ...(interview.participants || [])]
+    .filter(Boolean)
+    .map((id) => id._id || id);
+  if (ids.length === 0) return [];
+  const users = await User.find({ _id: { $in: ids } }).select("email").lean();
+  return users.map((u) => u.email).filter(Boolean);
+};
+
+const stateError = (decision) => {
+  const messages = {
+    ALREADY_STARTED: "This interview has already started.",
+    INTERVIEW_CANCELLED: "A cancelled interview cannot be started.",
+    INTERVIEW_ENDED: "This interview has already ended.",
+    NOT_SCHEDULED: "Schedule a date and time before starting the interview.",
+    TOO_EARLY: "The interview can be started 15 minutes before its scheduled time.",
+    START_WINDOW_CLOSED: "The start window for this interview has closed. Reschedule it to start.",
+  };
+  return new AppError(messages[decision.code] || "This interview cannot be started.", 409, decision.code);
+};
+
+/**
+ * The candidate view of an interview. The meeting link appears only when the recruiter has started the interview,
+ * and the recruiter's feedback and scorecards are never sent to the candidate.
+ */
+const candidateView = (interview) => {
+  const o = typeof interview.toObject === "function" ? interview.toObject() : { ...interview };
+  const joinState = Policy.candidateJoinState({
+    status: o.status,
+    meetingUrl: o.meetingUrl,
+    scheduledStart: o.scheduledStart,
+  });
+  delete o.feedback;
+  delete o.googleEventId;
+  delete o.conferenceRequestId;
+  delete o.meetingError;
+  if (!joinState.canJoin) delete o.meetingUrl;
+  return { ...o, joinState };
+};
+
 // Fields a recruiter may set when scheduling. Ownership and workflow fields are set by the server only.
 const INTERVIEW_WRITABLE_FIELDS = [
   "title",
@@ -104,19 +147,49 @@ exports.create = asyncHandler(async (req, res) => {
     throw new AppError("scheduledEnd must be after scheduledStart", 422, "INVALID_SCHEDULE");
   }
 
+  // Job-first binding (Req 3): if the client names a job it must be the application's job. The stored job is always
+  // taken from the application, never from the client.
+  const binding = Policy.assertApplicationBelongsToJob({
+    applicationJobId: application.job?._id || application.job,
+    selectedJobId: req.body.jobId,
+  });
+  if (req.body.jobId && !binding.ok) {
+    throw new AppError("This application does not belong to the selected job.", 422, binding.code);
+  }
+  if (req.body.scheduledStart) {
+    const future = Policy.scheduleIsInFuture({ scheduledStart: req.body.scheduledStart });
+    if (!future.ok) throw new AppError("An interview cannot be scheduled in the past.", 422, future.code);
+  }
+
   let participants = [];
   if (req.body.participants) {
     participants = await resolveParticipants(req.auth.organizationId, req.body.participants);
   }
 
-  const interview = await Interview.create({
+  const priorRounds = await Interview.countDocuments({ application: application._id, status: { $ne: "cancelled" } });
+  const interview = new Interview({
     organization: req.auth.organizationId,
     application: application._id,
+    job: application.job?._id || application.job,
+    candidate: application.candidate?._id || application.candidate,
+    round: priorRounds + 1,
     createdBy: req.user._id,
     ...pickDefined(req.body, INTERVIEW_WRITABLE_FIELDS),
     participants: participants.length > 0 ? participants : (req.body.participants || []),
     status: req.body.scheduledStart ? "invited" : "draft",
   });
+  if (req.body.meetingUrl) {
+    interview.meetingProvider = "manual";
+    interview.meetingStatus = "manual";
+  } else if (interview.scheduledStart) {
+    await Meeting.ensureMeeting({
+      interview,
+      recruiterId: req.user._id,
+      attendeeEmails: await attendeeEmailsFor(interview),
+      title: req.body.title,
+    });
+  }
+  await interview.save();
 
   if (interview.status === "invited") {
     try {
@@ -223,6 +296,15 @@ exports.update = asyncHandler(async (req, res) => {
     );
   }
 
+  const schedulingChanged = req.body.scheduledStart !== undefined || req.body.scheduledEnd !== undefined;
+  if (interview.status === "in_progress" && schedulingChanged) {
+    throw stateError({ code: "ALREADY_STARTED" });
+  }
+  if (req.body.scheduledStart) {
+    const future = Policy.scheduleIsInFuture({ scheduledStart: req.body.scheduledStart });
+    if (!future.ok) throw new AppError("An interview cannot be rescheduled to the past.", 422, future.code);
+  }
+
   const nextStart = req.body.scheduledStart !== undefined ? req.body.scheduledStart : interview.scheduledStart;
   const nextEnd = req.body.scheduledEnd !== undefined ? req.body.scheduledEnd : interview.scheduledEnd;
   if (nextStart && nextEnd && new Date(nextEnd) <= new Date(nextStart)) {
@@ -248,10 +330,28 @@ exports.update = asyncHandler(async (req, res) => {
     );
   }
 
+  if (req.body.meetingUrl !== undefined) {
+    if (req.body.meetingUrl) {
+      interview.meetingProvider = "manual";
+      interview.meetingStatus = "manual";
+    } else if (interview.meetingProvider === "manual") {
+      interview.meetingProvider = "none";
+      interview.meetingStatus = "none";
+    }
+  }
+
   const rescheduled = Boolean(req.body.scheduledStart);
   if (rescheduled) {
     interview.status = "invited";
     interview.candidateConfirmedAt = null;
+    if (interview.meetingProvider !== "manual") {
+      await Meeting.syncMeetingOnReschedule({
+        interview,
+        recruiterId: req.user._id,
+        attendeeEmails: await attendeeEmailsFor(interview),
+        title: interview.title,
+      });
+    }
   }
   await interview.save();
 
@@ -300,6 +400,9 @@ exports.cancel = asyncHandler(async (req, res) => {
   const interview = await getOrgInterview(req);
   if (interview.status === "completed") {
     throw new AppError("Completed interview cannot be cancelled", 409, "INVALID_STATE");
+  }
+  if (interview.googleEventId) {
+    await Meeting.removeMeetingOnCancel({ interview, recruiterId: req.user._id });
   }
   interview.status = "cancelled";
   interview.cancelledReason = req.body.reason;
@@ -389,7 +492,7 @@ exports.listMine = asyncHandler(async (req, res) => {
     })
     .populate("participants", "name email avatar")
     .sort({ scheduledStart: 1 });
-  res.json({ data: items });
+  res.json({ data: items.map(candidateView) });
 });
 
 exports.getCandidateInterview = asyncHandler(async (req, res) => {
@@ -411,7 +514,7 @@ exports.getCandidateInterview = asyncHandler(async (req, res) => {
   ) {
     throw new AppError("Interview not found", 404, "RESOURCE_NOT_FOUND");
   }
-  res.json({ data: interview });
+  res.json({ data: candidateView(interview) });
 });
 
 exports.confirm = asyncHandler(async (req, res) => {
@@ -605,4 +708,112 @@ exports.questions = asyncHandler(async (req, res) => {
     subjectId: interview._id,
   });
   res.json({ data: result });
+});
+
+/**
+ * Start the interview (Req 6). Only an authorised recruiter in the organisation, only a scheduled interview, and only
+ * inside the start window. The candidate's Join action becomes available from this point.
+ */
+exports.start = asyncHandler(async (req, res) => {
+  const interview = await getOrgInterview(req);
+  const decision = Policy.canStartInterview({
+    status: interview.status,
+    scheduledStart: interview.scheduledStart,
+    scheduledEnd: interview.scheduledEnd,
+  });
+  if (!decision.ok) throw stateError(decision);
+  if (!interview.meetingUrl) {
+    throw new AppError("Add a meeting link before starting. The candidate needs it to join.", 409, "MEETING_LINK_REQUIRED");
+  }
+
+  interview.status = "in_progress";
+  interview.startedAt = new Date();
+  await interview.save();
+
+  await audit({
+    req,
+    organization: req.auth.organizationId,
+    action: "interview.started",
+    resourceType: "interview",
+    resourceId: interview._id,
+    metadata: { application: String(interview.application?._id || interview.application) },
+  });
+
+  const candidateId = interview.application?.candidate?._id || interview.candidate;
+  if (candidateId) {
+    try {
+      await notify({
+        user: candidateId,
+        organization: interview.organization,
+        type: "interview_started",
+        category: "interviews",
+        title: `Your interview has started: ${interview.title || "interview"}`,
+        message: "Your recruiter has started the interview. You can join now from your interview page.",
+        resourceType: "interview",
+        resourceId: interview._id,
+        idempotencyKey: `interview:${interview._id}:started:${interview.startedAt.getTime()}`,
+      });
+    } catch (error) {
+      logger.error(`Interview start notification failed: ${error.message}`);
+    }
+  }
+  res.json({ data: interview });
+});
+
+/** Candidate join (Req 6). Only the candidate on this application, and only once the recruiter has started it. */
+exports.join = asyncHandler(async (req, res) => {
+  const interview = await Interview.findById(req.params.interviewId).populate({
+    path: "application",
+    select: "candidate job",
+  });
+  const candidateId = interview?.application?.candidate?._id || interview?.application?.candidate;
+  if (!interview || String(candidateId) !== String(req.user._id)) {
+    throw new AppError("Interview not found", 404, "RESOURCE_NOT_FOUND");
+  }
+  const state = Policy.candidateJoinState({
+    status: interview.status,
+    meetingUrl: interview.meetingUrl,
+    scheduledStart: interview.scheduledStart,
+  });
+  if (!state.canJoin) throw new AppError(state.message, 409, `JOIN_${state.reason}`);
+
+  await audit({
+    req,
+    organization: interview.organization,
+    action: "interview.join_opened",
+    resourceType: "interview",
+    resourceId: interview._id,
+  });
+  res.json({ data: { url: interview.meetingUrl, joinState: state } });
+});
+
+/** Staff join link for the organisation's assigned interviewers and recruiters. Not blocked by the candidate rule. */
+exports.staffJoin = asyncHandler(async (req, res) => {
+  const interview = await getOrgInterview(req);
+  if (interview.status === "cancelled") throw new AppError("This interview was cancelled.", 409, "JOIN_CANCELLED");
+  if (!interview.meetingUrl) throw new AppError("No meeting link is set for this interview.", 409, "JOIN_MISSING_MEETING_URL");
+  res.json({ data: { url: interview.meetingUrl, meetingProvider: interview.meetingProvider } });
+});
+
+/** Retries Meet creation for an interview whose conference is pending, failed or not yet set up. */
+exports.retryMeeting = asyncHandler(async (req, res) => {
+  const interview = await getOrgInterview(req);
+  if (["cancelled", "completed", "no_show"].includes(interview.status)) {
+    throw new AppError("Meeting links are not changed for a closed interview.", 409, "INVALID_STATE");
+  }
+  if (interview.meetingProvider === "manual") {
+    throw new AppError("This interview uses a manual meeting link. Edit the link instead.", 409, "MANUAL_LINK_IN_USE");
+  }
+  if (interview.googleEventId) {
+    await Meeting.refreshPendingMeeting({ interview, recruiterId: req.user._id });
+  } else {
+    await Meeting.ensureMeeting({
+      interview,
+      recruiterId: req.user._id,
+      attendeeEmails: await attendeeEmailsFor(interview),
+      title: interview.title,
+    });
+  }
+  await interview.save();
+  res.json({ data: interview });
 });

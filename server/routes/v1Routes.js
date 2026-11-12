@@ -15,6 +15,7 @@ const {
 const { ALL_PLANS } = require("../config/subscriptionPlans");
 const { httpUrl } = require("../domain/safeUrl");
 const candidateOnly = requireAccountRole("candidate");
+const recruiterOnly = requireAccountRole("recruiter");
 const upload = require("../middleware/uploadResumeV1");
 const uploadAvatar = require("../middleware/uploadAvatarV1");
 const auth = require("../controllers/v1AuthController");
@@ -30,6 +31,7 @@ const recruitment = require("../controllers/v1RecruitmentController");
 const companies = require("../controllers/v1CompanyController");
 const alerts = require("../controllers/v1AlertController");
 const interview = require("../controllers/v1InterviewController");
+const googleIntegration = require("../controllers/v1GoogleController");
 const notifications = require("../controllers/v1NotificationController");
 const ai = require("../controllers/v1AIController");
 const analytics = require("../controllers/v1AnalyticsController");
@@ -761,6 +763,7 @@ router.get(
 
 const interviewSchema = strict({
   applicationId: z.string().length(24),
+  jobId: z.string().length(24).optional(),
   title: z.string().min(2).max(150),
   type: z.enum(["phone", "video", "onsite", "technical", "panel", "hr"]).optional(),
   scheduledStart: z.coerce.date().nullable().optional(),
@@ -793,8 +796,26 @@ router.patch(
   "/organizations/:organizationId/interviews/:interviewId",
   authenticate,
   requireOrganization("interview.manage"),
-  validate(interviewSchema.omit({ applicationId: true }).partial()),
+  validate(interviewSchema.omit({ applicationId: true, jobId: true }).partial()),
   interview.update,
+);
+router.post(
+  "/organizations/:organizationId/interviews/:interviewId/start",
+  authenticate,
+  requireOrganization("interview.manage"),
+  interview.start,
+);
+router.get(
+  "/organizations/:organizationId/interviews/:interviewId/join",
+  authenticate,
+  requireOrganization("interview.feedback"),
+  interview.staffJoin,
+);
+router.post(
+  "/organizations/:organizationId/interviews/:interviewId/meeting/retry",
+  authenticate,
+  requireOrganization("interview.manage"),
+  interview.retryMeeting,
 );
 router.post(
   "/organizations/:organizationId/interviews/:interviewId/cancel",
@@ -810,6 +831,11 @@ router.post(
   interview.complete,
 );
 router.get("/candidates/me/interviews", authenticate, candidateOnly, interview.listMine);
+router.get("/interviews/:interviewId/join", authenticate, candidateOnly, interview.join);
+router.get("/integrations/google/status", authenticate, recruiterOnly, googleIntegration.status);
+router.get("/integrations/google/connect", authenticate, recruiterOnly, googleIntegration.connect);
+router.get("/integrations/google/callback", googleIntegration.callback);
+router.delete("/integrations/google", authenticate, recruiterOnly, googleIntegration.disconnect);
 router.get("/interviews/:interviewId", authenticate, candidateOnly, interview.getCandidateInterview);
 router.post("/interviews/:interviewId/confirm", authenticate, candidateOnly, interview.confirm);
 router.post(

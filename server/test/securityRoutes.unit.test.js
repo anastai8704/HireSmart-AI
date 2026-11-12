@@ -31,6 +31,7 @@ const PUBLIC_ROUTES = new Set([
   "GET /companies/:slug/jobs",
   "GET /subscriptions/plans",
   "POST /payments/webhooks/razorpay", // authenticated by HMAC signature over the raw body
+  "GET /integrations/google/callback", // browser redirect from Google; the signed, expiring state names the user
 ]);
 
 const routeLayers = router.stack.filter((layer) => layer.route);

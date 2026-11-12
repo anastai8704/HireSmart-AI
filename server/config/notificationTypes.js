@@ -92,6 +92,16 @@ const EVENTS = {
       push: false,
     },
   }),
+  interview_started: views({
+    candidate: {
+      group: "interviews",
+      label: "Interview started",
+      description: "When your recruiter starts your interview and the join link becomes available.",
+      legacyCategory: "interviews",
+      emailDefault: false,
+      push: false,
+    },
+  }),
   interview_cancelled: views({
     candidate: {
       group: "interviews",

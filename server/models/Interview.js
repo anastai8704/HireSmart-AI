@@ -33,6 +33,12 @@ const interviewSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    // Denormalised from the application at creation so every interview is traceable to its job and candidate (Req 3).
+    job: { type: mongoose.Schema.Types.ObjectId, ref: "Job", default: null, index: true },
+    candidate: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null, index: true },
+    // Interview round within the application (1 = first round).
+    round: { type: Number, min: 1, default: 1 },
+    instructions: { type: String, maxlength: 2000, default: "" },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     title: { type: String, required: true, trim: true, maxlength: 150 },
     type: {
@@ -42,7 +48,17 @@ const interviewSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["draft", "invited", "confirmed", "reschedule_requested", "cancelled", "completed"],
+      enum: [
+        "draft",
+        "invited",
+        "confirmed",
+        "reschedule_requested",
+        "rescheduled",
+        "in_progress",
+        "cancelled",
+        "completed",
+        "no_show",
+      ],
       default: "draft",
       index: true,
     },
@@ -53,6 +69,18 @@ const interviewSchema = new mongoose.Schema(
     meetingUrl: { type: String, default: "", maxlength: 2048 },
     participants: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     candidateConfirmedAt: { type: Date, default: null },
+    // Set when the recruiter starts the interview. The candidate may join only from this point (Req 6).
+    startedAt: { type: Date, default: null },
+    // Where the meeting link came from. Never claim "google_meet" unless Google returned the conference.
+    meetingProvider: { type: String, enum: ["google_meet", "manual", "none"], default: "none" },
+    meetingStatus: {
+      type: String,
+      enum: ["none", "setup_required", "pending", "success", "failure", "manual", "cancelled"],
+      default: "none",
+    },
+    meetingError: { type: String, maxlength: 200, default: "" },
+    googleEventId: { type: String, default: "" },
+    conferenceRequestId: { type: String, default: "" },
     cancelledReason: { type: String, default: "", maxlength: 1000 },
     remindersSent: { type: [String], default: [] },
     feedback: { type: [feedbackSchema], default: [] },
