@@ -32,6 +32,13 @@ const getEffectiveSubscription = async (subscriberType, subscriberId, now = new 
     status: { $in: ["active", "past_due"] },
   }).sort({ createdAt: -1 });
 
+  // Once a paid period has lapsed its record is stored as "expired". Without this lookup the next read would
+  // find no live record and report "no subscription" (UPGRADE_REQUIRED) instead of SUBSCRIPTION_EXPIRED.
+  if (!sub) {
+    const lapsed = await Subscription.findOne({ subscriberType, subscriberId, status: "expired" }).sort({ createdAt: -1 });
+    if (lapsed) return effectiveState(lapsed.toObject(), subscriberType, now);
+  }
+
   // A provider-managed subscription whose period ended is in grace, not expired: the provider's renewal
   // charge (or its failure notice) may still be on its way. Cancelled subscriptions do not get grace.
   if (
