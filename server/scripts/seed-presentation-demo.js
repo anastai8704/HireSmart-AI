@@ -2,12 +2,12 @@
  * Presentation-Ready Demo Dataset & Idempotent Seeder for HireSmart-AI
  * 
  * Specially tailored for MCA Semester 3 Project Demonstration:
- *   - Primary Candidate: Anas Tai (tanastai5018@gmail.com / hiresmart8704)
+ *   - Primary Candidate: Anas Tai (tanastai5018@gmail.com / password from DEMO_PASSWORD)
  *       MCA Student @ SRIMCA, Surat, Gujarat (Fresher / MERN Stack)
  *       Projects: HireSmart-AI, HomeServeX, Travel Planner
  *       Ready PDF resume, 6 connected applications, scheduled interview, notifications
  *       Career Plus active subscription & confirmed placement record
- *   - Primary Recruiter: 2025mca150@gmail.com / hiresmart8704
+ *   - Primary Recruiter: 2025mca150@gmail.com / password from DEMO_PASSWORD
  *       Talent Lead @ Apex Innovations (Surat/Ahmedabad)
  *       5 Job postings, applications to review, interview scheduled, notifications
  *       Growth Plan active subscription & verified company status
@@ -28,7 +28,8 @@ process.env.NODE_ENV = process.env.NODE_ENV || "development";
 const path = require("node:path");
 require("dotenv").config({ path: path.join(__dirname, "..", ".env"), quiet: true });
 
-// This script creates accounts that share one known demo password. It must never run against production.
+// This script creates demo accounts protected by one password supplied via DEMO_PASSWORD (min 12 chars).
+// Passwords are bcrypt-hashed before storage and are never printed. It must never run against production.
 if (String(process.env.NODE_ENV).trim().toLowerCase() === "production") {
   throw new Error("seed-presentation-demo refuses to run when NODE_ENV=production");
 }
@@ -49,11 +50,14 @@ const { CandidateMatch } = require("../models/Recruitment");
 const Consent = require("../models/Consent");
 const Placement = require("../models/Placement");
 const Subscription = require("../models/Subscription");
-const PaymentTransaction = require("../models/PaymentTransaction");
-const { SUBSCRIPTION_PLANS } = require("../config/subscriptionPlans");
+const { CANDIDATE_PLANS, RECRUITER_PLANS } = require("../config/subscriptionPlans");
+const SUBSCRIPTION_PLANS = { candidate: CANDIDATE_PLANS, recruiter: RECRUITER_PLANS };
 const { createVersion, processVersion } = require("../services/resumeProcessingService");
 
-const DEMO_PASSWORD = "hiresmart8704";
+const DEMO_PASSWORD = String(process.env.DEMO_PASSWORD || "");
+if (DEMO_PASSWORD.length < 12) {
+  throw new Error("Set DEMO_PASSWORD (at least 12 characters) in server/.env before seeding demo accounts");
+}
 
 /* ------------------------------------------------------------------ *
  * Helper functions
@@ -1778,83 +1782,7 @@ const seedPresentationData = async () => {
       );
     }
 
-    // Historical Payment Transactions (For Admin MRR/ARR analytics graphs)
-    const TX_SPEC = [
-      // August 2026
-      { org: "apex-innovations", amount: 2499, tier: "recruiter_growth", inv: "INV-2026-0801", date: daysAgo(90) },
-      { org: "bytescale-technologies", amount: 7999, tier: "recruiter_enterprise", inv: "INV-2026-0802", date: daysAgo(90) },
-      { org: "nexus-byte-solutions", amount: 2499, tier: "recruiter_growth", inv: "INV-2026-0803", date: daysAgo(88) },
-      // September 2026
-      { org: "apex-innovations", amount: 2499, tier: "recruiter_growth", inv: "INV-2026-0901", date: daysAgo(60) },
-      { org: "bytescale-technologies", amount: 7999, tier: "recruiter_enterprise", inv: "INV-2026-0902", date: daysAgo(60) },
-      { org: "nexus-byte-solutions", amount: 2499, tier: "recruiter_growth", inv: "INV-2026-0903", date: daysAgo(58) },
-      { org: "cloudforge-systems", amount: 999, tier: "recruiter_starter", inv: "INV-2026-0904", date: daysAgo(55) },
-      // October 2026
-      { org: "apex-innovations", amount: 2499, tier: "recruiter_growth", inv: "INV-2026-1001", date: daysAgo(30) },
-      { org: "bytescale-technologies", amount: 7999, tier: "recruiter_enterprise", inv: "INV-2026-1002", date: daysAgo(30) },
-      { org: "nexus-byte-solutions", amount: 2499, tier: "recruiter_growth", inv: "INV-2026-1003", date: daysAgo(28) },
-      { org: "cloudforge-systems", amount: 999, tier: "recruiter_starter", inv: "INV-2026-1004", date: daysAgo(25) },
-      { org: "zenith-global-labs", amount: 2499, tier: "recruiter_growth", inv: "INV-2026-1005", date: daysAgo(20) },
-      // November 2026 (Current)
-      { org: "apex-innovations", amount: 2499, tier: "recruiter_growth", inv: "INV-2026-1101", date: daysAgo(5) },
-      { org: "bytescale-technologies", amount: 7999, tier: "recruiter_enterprise", inv: "INV-2026-1102", date: daysAgo(5) },
-      { org: "nexus-byte-solutions", amount: 2499, tier: "recruiter_growth", inv: "INV-2026-1103", date: daysAgo(3) },
-      { org: "cloudforge-systems", amount: 999, tier: "recruiter_starter", inv: "INV-2026-1104", date: daysAgo(2) },
-      { org: "zenith-global-labs", amount: 2499, tier: "recruiter_growth", inv: "INV-2026-1105", date: daysAgo(1) },
-    ];
-
-    for (const spec of TX_SPEC) {
-      const org = orgMap[spec.org];
-      if (!org) continue;
-      const exists = await PaymentTransaction.findOne({ invoiceNumber: spec.inv });
-      if (!exists) {
-        await PaymentTransaction.create({
-          transactionNumber: `TXN-${Date.now().toString(36).toUpperCase()}-${Math.floor(Math.random() * 9000 + 1000)}`,
-          invoiceNumber: spec.inv,
-          subscriberType: "recruiter",
-          organization: org._id,
-          user: primaryRecruiter._id,
-          planTier: spec.tier,
-          amount: spec.amount,
-          currency: "INR",
-          status: "captured",
-          gateway: "razorpay",
-          paymentMethod: "card",
-          capturedAt: spec.date,
-          createdAt: spec.date,
-        });
-      }
-    }
-
-    // Candidate Plus Upgrade Transactions
-    const candTx = [
-      { candEmail: "tanastai5018@gmail.com", inv: "INV-CAND-2026-1001", date: daysAgo(10) },
-      { candEmail: "priya.sharma@example.com", inv: "INV-CAND-2026-1002", date: daysAgo(15) },
-      { candEmail: "vikram.nair@example.com", inv: "INV-CAND-2026-1003", date: daysAgo(20) },
-      { candEmail: "sneha.kulkarni@example.com", inv: "INV-CAND-2026-1004", date: daysAgo(25) },
-    ];
-
-    for (const ct of candTx) {
-      const c = candidateMap[ct.candEmail];
-      if (!c) continue;
-      const exists = await PaymentTransaction.findOne({ invoiceNumber: ct.inv });
-      if (!exists) {
-        await PaymentTransaction.create({
-          transactionNumber: `TXN-${Date.now().toString(36).toUpperCase()}-${Math.floor(Math.random() * 9000 + 1000)}`,
-          invoiceNumber: ct.inv,
-          subscriberType: "candidate",
-          user: c._id,
-          planTier: "candidate_plus",
-          amount: 149,
-          currency: "INR",
-          status: "captured",
-          gateway: "razorpay",
-          paymentMethod: "upi",
-          capturedAt: ct.date,
-          createdAt: ct.date,
-        });
-      }
-    }
+    // No PaymentTransaction records are created: demo subscriptions are complimentary and labelled as such.
 
     // 8. Placements & Employment Lifecycle Tracking
     console.log("\n[7/8] Seeding Verified Placements & Employment Records...");
@@ -1975,13 +1903,13 @@ const seedPresentationData = async () => {
     console.log("--------------------------------------------------------------------------------");
     console.log(`[CANDIDATE] Anas Tai (MCA Student @ SRIMCA, Surat, Gujarat)`);
     console.log(`            Email   : tanastai5018@gmail.com`);
-    console.log(`            Password: ${DEMO_PASSWORD}`);
+    console.log(`            Password: <value of DEMO_PASSWORD in server/.env>`);
     console.log(`            Features: 100% Profile, Ready Resume, Career Plus Membership,`);
     console.log(`                      6 Applications, Scheduled Google Meet, Confirmed Placement`);
     console.log("");
     console.log(`[RECRUITER]  Demo Recruiter (Talent Lead @ Apex Innovations, Surat)`);
     console.log(`            Email   : 2025mca150@gmail.com`);
-    console.log(`            Password: ${DEMO_PASSWORD}`);
+    console.log(`            Password: <value of DEMO_PASSWORD in server/.env>`);
     console.log(`            Features: Verified Company Status (GSTIN: 24AAACA1234A1Z5), Growth Plan,`);
     console.log(`                      5 Jobs, Review Pipelines, Interviews, In-App Notifications`);
     console.log("");

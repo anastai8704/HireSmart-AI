@@ -11,7 +11,8 @@ Last verified checkpoint: see `git log --oneline -1` on the branch.
 | 0 | `e9fcd4b` | Remote base before this work | — |
 | 1 | `c7cbe75` | fix(payments): log sanitized Razorpay failure details. A failed provider call logs the operation, provider HTTP status and error code. Keys and raw messages are never logged. | Server unit suite, lint |
 | 2 | `d4359bd` | fix(payments): create the subscriber record before the first charge | Server unit suite (167/167), lint, `check`; mutation check (see below) |
-| 3 | next commit | fix(payments): accept an absent payment subscription_id only under the verified Checkout signature | Server unit suite (168/168), lint, `check` |
+| 3 | `cd731cd` | fix(payments): accept an absent payment subscription_id only under the verified Checkout signature | Server unit suite (168/168), lint, `check` |
+| 4 | next commit | fix(demo): harden presentation seeder and remove fake transactions. `DEMO_PASSWORD` from env (min 12 chars, bcrypt-hashed, never printed, refused in production); fixed plan imports; removed hard-coded password from code and docs; removed fabricated captured PaymentTransaction records. | Server unit suite (168/168), lint, `check`; seeder guard checks (no DB) |
 
 ## Checkpoint 2 details: first-charge subscription record
 

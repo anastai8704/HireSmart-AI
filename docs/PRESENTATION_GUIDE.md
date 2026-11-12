@@ -36,11 +36,11 @@ npm run dev
 
 | Role | Email | Password | Details & Key Capabilities |
 | :--- | :--- | :--- | :--- |
-| **Primary Candidate** | `tanastai5018@gmail.com` | `hiresmart8704` | **Anas Tai** — MCA Student @ SRIMCA, Surat (100% profile, MERN projects, processed PDF resume, 6 applications, scheduled interview, Career Plus active plan, verified placement record) |
-| **Primary Recruiter** | `2025mca150@gmail.com` | `hiresmart8704` | **Apex Innovations** (Surat) — Verified company status (GSTIN: `24AAACA1234A1Z5`), Growth Tier Plan, 5 Job postings, candidate review pipeline, Google Meet scheduler |
+| **Primary Candidate** | `tanastai5018@gmail.com` | the value of `DEMO_PASSWORD` in `server/.env` | **Anas Tai** — MCA Student @ SRIMCA, Surat (100% profile, MERN projects, processed PDF resume, 6 applications, scheduled interview, Career Plus active plan, verified placement record) |
+| **Primary Recruiter** | `2025mca150@gmail.com` | the value of `DEMO_PASSWORD` in `server/.env` | **Apex Innovations** (Surat) — Verified company status (GSTIN: `24AAACA1234A1Z5`), Growth Tier Plan, 5 Job postings, candidate review pipeline, Google Meet scheduler |
 | **Platform Admin** | _(Existing Admin Email)_ | _(Preserved Password)_ | Platform Analytics Overview, Company Verification & Risk Assessment, Job Moderation, Subscriptions & Revenue Dashboard (MRR/ARR), AI Telemetry, Security Logs |
 
-### Additional Candidate Logins (Password for all: `hiresmart8704`)
+### Additional Candidate Logins (Password for all: the value of `DEMO_PASSWORD` in `server/.env`)
 - **Priya Sharma** (`priya.sharma@example.com`) — Frontend Engineer (React/Redux), Ahmedabad (Hired & Verified Placement at Apex Innovations)
 - **Vikram Nair** (`vikram.nair@example.com`) — Backend Engineer (Node.js/PostgreSQL), Bengaluru
 - **Sneha Kulkarni** (`sneha.kulkarni@example.com`) — DevOps & Cloud SRE (Kubernetes/AWS), Pune (Currently Working at CloudForge Systems)
@@ -49,7 +49,7 @@ npm run dev
 - **Karan Patel** (`karan.patel@example.com`) — Full Stack Engineer (MERN/Redis), Ahmedabad
 - **Ananya Iyer** (`ananya.iyer@example.com`) — Senior Frontend Architect (React/TypeScript), Ahmedabad
 
-### Additional Recruiter & Company Logins (Password for all: `hiresmart8704`)
+### Additional Recruiter & Company Logins (Password for all: the value of `DEMO_PASSWORD` in `server/.env`)
 - **Rohit Sharma** (`rohit.sharma@nexusbyte.com`) — Nexus Byte Solutions (Bengaluru) [Verified, Growth Plan]
 - **Neha Patel** (`neha.patel@cloudforge.io`) — CloudForge Systems (Pune) [Verified, Starter Plan]
 - **Amit Verma** (`amit.verma@bytescale.tech`) — ByteScale Technologies (Mumbai) [Verified, Enterprise Plan]
@@ -60,7 +60,7 @@ npm run dev
 ## 3. Recommended 5-Act Live Presentation Flow
 
 ### Act 1: Candidate Experience (Anas Tai)
-1. **Login:** Log in with `tanastai5018@gmail.com` / `hiresmart8704`.
+1. **Login:** Log in with `tanastai5018@gmail.com` / the value of `DEMO_PASSWORD` in `server/.env`.
 2. **Dashboard & Profile Completion:**
    - Observe **100% Profile Completion** score.
    - Point out SRIMCA education (2024-2026), BCA from VNSGU, and featured projects (*HireSmart-AI*, *HomeServeX*, *Travel Planner*).
@@ -81,7 +81,7 @@ npm run dev
 ---
 
 ### Act 2: Recruiter Workflow & Workspace (Apex Innovations)
-1. **Login:** Log in with `2025mca150@gmail.com` / `hiresmart8704`.
+1. **Login:** Log in with `2025mca150@gmail.com` / the value of `DEMO_PASSWORD` in `server/.env`.
 2. **Recruiter Overview & Pipelines:**
    - View company dashboard for **Apex Innovations** showing applicant counts, pipeline stages, and active postings.
 3. **Applicant Review:**

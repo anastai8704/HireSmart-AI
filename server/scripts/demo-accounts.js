@@ -2,8 +2,8 @@
  * Demo Accounts & Presentation Dataset Setup (Idempotent, Safe, Non-Destructive).
  *
  * Runs the complete MCA project demonstration dataset containing:
- *  - Primary Candidate: Anas Tai (tanastai5018@gmail.com / hiresmart8704)
- *  - Primary Recruiter: 2025mca150@gmail.com / hiresmart8704
+ *  - Primary Candidate: Anas Tai (tanastai5018@gmail.com / password from DEMO_PASSWORD)
+ *  - Primary Recruiter: 2025mca150@gmail.com / password from DEMO_PASSWORD
  *  - Platform Admin: Preserves existing admin account
  *  - Complete connected world with 8 candidates, 5 companies, 12 jobs, 22 applications,
  *    interviews, notes, hybrid matches, AI analysis metrics, and notifications.
