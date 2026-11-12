@@ -18,6 +18,7 @@ const {
   requestCancellation,
   fetchProviderSubscription,
   verifyRazorpaySubscriptionSignature,
+  paymentBelongsToSubscription,
 } = require("../services/recurringBillingService");
 const { failTransaction, captureTransaction } = require("../services/paymentProcessingService");
 const {
@@ -347,7 +348,7 @@ exports.verifySubscription = asyncHandler(async (req, res) => {
   }
 
   const payment = await fetchProviderPayment(paymentId);
-  if (String(payment.subscription_id || "") !== String(subscriptionId)) {
+  if (!paymentBelongsToSubscription(payment, subscriptionId)) {
     await failTransaction(req, txn, "subscription_mismatch");
     throw invalidVerification();
   }

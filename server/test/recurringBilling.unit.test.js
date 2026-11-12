@@ -88,3 +88,13 @@ test("no transaction for the provider subscription means no record and no creati
     assert.equal(calls.created.length, 0);
   });
 });
+
+const { paymentBelongsToSubscription } = require("../services/recurringBillingService");
+
+test("payment-to-subscription link: absent id is accepted (Checkout signature covers it), a conflicting id is rejected", () => {
+  assert.equal(paymentBelongsToSubscription({ id: "pay_1" }, "sub_A"), true, "absent subscription_id");
+  assert.equal(paymentBelongsToSubscription({ id: "pay_1", subscription_id: null }, "sub_A"), true, "null subscription_id");
+  assert.equal(paymentBelongsToSubscription({ id: "pay_1", subscription_id: "" }, "sub_A"), true, "empty subscription_id");
+  assert.equal(paymentBelongsToSubscription({ id: "pay_1", subscription_id: "sub_A" }, "sub_A"), true, "matching id");
+  assert.equal(paymentBelongsToSubscription({ id: "pay_1", subscription_id: "sub_B" }, "sub_A"), false, "conflicting id");
+});

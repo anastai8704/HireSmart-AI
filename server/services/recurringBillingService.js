@@ -133,6 +133,18 @@ const linkedSubscription = async (providerSubscriptionId) => {
   return ensureSubscriber(txn.subscriberType, txn.subscriberId);
 };
 
+/**
+ * Whether a provider payment is linked to the given provider subscription.
+ * The Checkout signature (HMAC of payment_id|subscription_id, verified before this is called) already binds the
+ * payment to the subscription. So an absent subscription_id on the payment entity is accepted, and only a
+ * present, different value is a mismatch. A mismatch is never accepted.
+ */
+const paymentBelongsToSubscription = (payment, providerSubscriptionId) => {
+  const linked = payment?.subscription_id;
+  if (linked === undefined || linked === null || linked === "") return true;
+  return String(linked) === String(providerSubscriptionId);
+};
+
 /** The provider plan row for the plan_id on a provider subscription. Ties a charge to our plan. */
 const planForProviderSubscription = (providerPlanId) => RazorpayPlan.findOne({ razorpayPlanId: String(providerPlanId) }).lean();
 
@@ -417,6 +429,7 @@ module.exports = {
   ensureProviderPlan,
   ensureSubscriber,
   linkedSubscription,
+  paymentBelongsToSubscription,
   startSubscriptionCheckout,
   recordCharge,
   applyStatusEvent,

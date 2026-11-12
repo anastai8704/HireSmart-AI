@@ -10,7 +10,8 @@ Last verified checkpoint: see `git log --oneline -1` on the branch.
 | --- | --- | --- | --- |
 | 0 | `e9fcd4b` | Remote base before this work | — |
 | 1 | `c7cbe75` | fix(payments): log sanitized Razorpay failure details. A failed provider call logs the operation, provider HTTP status and error code. Keys and raw messages are never logged. | Server unit suite, lint |
-| 2 | next commit | fix(payments): create the subscriber record before the first charge | Server unit suite (167/167), lint, `check`; mutation check (see below) |
+| 2 | `d4359bd` | fix(payments): create the subscriber record before the first charge | Server unit suite (167/167), lint, `check`; mutation check (see below) |
+| 3 | next commit | fix(payments): accept an absent payment subscription_id only under the verified Checkout signature | Server unit suite (168/168), lint, `check` |
 
 ## Checkpoint 2 details: first-charge subscription record
 
@@ -24,6 +25,13 @@ Last verified checkpoint: see `git log --oneline -1` on the branch.
 - `test/recurringBilling.unit.test.js` (4 tests, no database): creates the record for an organization and for a candidate, reuses an existing record, and returns null with no transaction.
 - Mutation check: with the fix reverted in a temporary copy, the test fails (3 pass, 1 fail). The copy was deleted afterwards.
 - Not run: the database-backed `test/paymentWebhooks.test.js` needs MongoDB, which is not available in this environment.
+
+## Checkpoint 3 details: payment-to-subscription link
+
+- `verifySubscription` required `payment.subscription_id` to equal the subscription id. The Razorpay documentation pages checked do not confirm that the payment entity always carries that field. If it is absent, the purchase was failed as `subscription_mismatch`, which is one candidate for the reported failure.
+- The Checkout signature (HMAC of `payment_id|subscription_id`) is verified before this check, so an absent field is accepted. A present, different value is still rejected.
+- Helper `paymentBelongsToSubscription` (unit-tested: absent, null, empty, matching, conflicting).
+- Not confirmed: whether a real subscription payment entity includes `subscription_id`. The runtime log line from checkpoint 1 will show `subscription_mismatch` only if the id is present and different, so it cannot distinguish the two cases on its own. Confirm from your records (`paymenttransactions.status` and the `verify` response).
 
 ## Still unverified
 
