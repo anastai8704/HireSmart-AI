@@ -61,8 +61,11 @@ const withStep = async (label, fn) => {
 };
 
 let txSeq = 0;
-const payment = (status, amount, { createdAt, updatedAt } = {}) => {
+// Razorpay test-mode records by default: only provider-captured records are revenue. Pass gateway "simulation" to
+// create a sandbox record, which must never be counted.
+const payment = (status, amount, { createdAt, updatedAt, gateway = "razorpay" } = {}) => {
   txSeq += 1;
+  const captured = status === "captured" || status === "refunded";
   return PaymentTransaction.collection.insertOne({
     transactionNumber: `TXN-RPT-${txSeq}`,
     subscriberType: "organization",
@@ -71,7 +74,9 @@ const payment = (status, amount, { createdAt, updatedAt } = {}) => {
     amount,
     currency: "INR",
     status,
-    gateway: "simulation",
+    gateway,
+    mode: "test",
+    gatewayPaymentId: gateway === "razorpay" && captured ? `pay_rpt_${txSeq}` : "",
     gatewayOrderId: `order-rpt-${txSeq}`,
     createdAt: createdAt || new Date(),
     updatedAt: updatedAt || createdAt || new Date(),
@@ -170,6 +175,8 @@ test("revenue export: totals row matches the admin overview KPIs for the same ra
   await payment("refunded", 200, { createdAt: new Date(now - 3 * DAY_MS), updatedAt: new Date(now - 1 * DAY_MS) });
   await payment("failed", 500, { createdAt: new Date(now - 2 * DAY_MS) });
   await payment("initiated", 300, { createdAt: new Date(now - 2 * DAY_MS) });
+  // A sandbox capture is never revenue (Requirement 8): it must not change any total below.
+  await payment("captured", 999, { createdAt: new Date(now - 2 * DAY_MS), gateway: "simulation" });
 
   const overview = await request(app).get(`${API}/admin/analytics/overview?range=30d`).set(auth(ctx.admin.token));
   assert.equal(overview.status, 200, JSON.stringify(overview.body));
