@@ -6,7 +6,15 @@ const Job = require("../models/Job");
 const AIAnalysis = require("../models/AIAnalysis");
 const { Membership } = require("../models/Membership");
 const { ALL_PLANS, CANDIDATE_PLANS } = require("../config/subscriptionPlans");
-const { effectiveState, decideJobPublish, decideTeamInvite, decideAiUse, FREE_TIER } = require("../domain/subscriptionRules");
+const {
+  effectiveState,
+  decideJobPublish,
+  decideTeamInvite,
+  decideAiUse,
+  refusalCodeFor,
+  featureDecision,
+  FREE_TIER,
+} = require("../domain/subscriptionRules");
 const { audit } = require("../services/auditService");
 const AppError = require("../utils/AppError");
 const asyncHandler = require("./asyncHandler");
@@ -155,11 +163,7 @@ const assertCanPublishJob = async (organizationId, jobIdToExclude = null, now = 
   const publishedCount = await Job.countDocuments(query);
   const decision = decideJobPublish({ state, publishedCount });
   if (!decision.allowed) {
-    throw new AppError(
-      `Your ${planNameOf(state.tier)} plan allows ${decision.limit} active job posting${decision.limit === 1 ? "" : "s"}. Close a posting or upgrade your plan to publish another.`,
-      403,
-      "UPGRADE_REQUIRED",
-    );
+    throw refusal(state, `Your ${planNameOf(state.tier)} plan allows ${decision.limit} active job posting${decision.limit === 1 ? "" : "s"}. Close a posting${state.paid ? "" : " or upgrade your plan"} to publish another.`);
   }
   return { state, decision };
 };
@@ -170,13 +174,38 @@ const assertCanInviteMember = async (organizationId, now = new Date()) => {
   const activeMembers = await Membership.countDocuments({ organization: organizationId, status: "active" });
   const decision = decideTeamInvite({ state, activeMembers });
   if (!decision.allowed) {
-    throw new AppError(
-      `Your ${planNameOf(state.tier)} plan allows up to ${decision.limit} team member${decision.limit === 1 ? "" : "s"}. Upgrade your plan to invite more teammates.`,
-      403,
-      "UPGRADE_REQUIRED",
-    );
+    throw refusal(state, `Your ${planNameOf(state.tier)} plan allows up to ${decision.limit} team member${decision.limit === 1 ? "" : "s"}. ${state.paid ? "Remove a member or wait for the plan limit to change" : "Upgrade your plan to invite more teammates"}.`);
   }
   return { state, decision };
+};
+
+/**
+ * The refusal for a quota action. The code depends on the entitlement state (see refusalCodeFor).
+ * An expired paid plan explains that data is kept and the Free limits apply.
+ */
+const refusal = (state, message) => {
+  const code = refusalCodeFor(state);
+  const text =
+    code === "SUBSCRIPTION_EXPIRED"
+      ? `Your ${planNameOf(state.tier)} subscription has ended, so the Free plan limits apply. Your existing data is kept. Renew to restore ${planNameOf(state.tier)} limits.`
+      : message;
+  return new AppError(text, 403, code);
+};
+
+/**
+ * Feature gate for a route. Throws FEATURE_NOT_INCLUDED when the subscriber's plan does not include the feature.
+ * `requiredTiers` comes from the catalogue; see featureDecision.
+ */
+const assertFeatureIncluded = (state, requiredTiers) => {
+  const decision = featureDecision({ state, requiredTiers });
+  if (!decision.allowed) {
+    throw new AppError(
+      `This feature is not included in your ${planNameOf(state.tier)} plan. Upgrade to a plan that includes it.`,
+      403,
+      "FEATURE_NOT_INCLUDED",
+    );
+  }
+  return decision;
 };
 
 /** Start of the usage window: the paid period start, or the IST calendar month on free plans. */
@@ -216,11 +245,7 @@ const checkAiPlanLimit = asyncHandler(async (req, _res, next) => {
   const used = await AIAnalysis.countDocuments({ ...scope, createdAt: { $gte: since } });
   const decision = decideAiUse({ state, usedThisPeriod: used });
   if (!decision.allowed) {
-    throw new AppError(
-      `You have used the ${decision.limit} AI analyses included in your ${planNameOf(state.tier)} plan for this period. Upgrade your plan or try again next period.`,
-      403,
-      "UPGRADE_REQUIRED",
-    );
+    throw refusal(state, `You have used the ${decision.limit} AI analyses included in your ${planNameOf(state.tier)} plan for this period. ${state.paid ? "Try again next period." : "Upgrade your plan or try again next period."}`);
   }
   req.subscription = state;
   next();
@@ -235,6 +260,7 @@ module.exports = {
   getEffectiveSubscription,
   assertCanPublishJob,
   assertCanInviteMember,
+  assertFeatureIncluded,
   checkRecruiterJobLimit,
   checkRecruiterTeamLimit,
   checkCandidateAILimit,

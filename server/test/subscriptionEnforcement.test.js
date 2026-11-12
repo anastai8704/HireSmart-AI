@@ -165,7 +165,29 @@ test("an expired paid period reverts to the free limits, without deleting or unp
   const more = await createJob("Analytics Engineer");
   const refused = await publish(more);
   assert.equal(refused.status, 403);
-  assert.equal(refused.body.code, "UPGRADE_REQUIRED");
+  assert.equal(refused.body.code, "SUBSCRIPTION_EXPIRED", "a lapsed paid plan is reported as expired, not as a free-plan limit");
+  assert.match(refused.body.error?.message || refused.body.message || "", /data is kept/i);
+});
+
+test("an active paid plan at its own limit is refused with PLAN_LIMIT_REACHED, and the data stays", async () => {
+  await Subscription.updateOne(
+    { subscriberType: "organization", subscriberId: ctx.owner.orgId },
+    {
+      $set: {
+        planTier: "recruiter_growth",
+        priceInr: 2499,
+        status: "active",
+        currentPeriodStart: new Date(Date.now() - DAY),
+        currentPeriodEnd: new Date(Date.now() + 30 * DAY),
+        limits: { activeJobs: 2, teamMembers: 5, aiAnalysesPerMonth: 250 },
+      },
+    },
+  );
+  const published = await Job.countDocuments({ organization: ctx.owner.orgId, status: "published" });
+  const refused = await publish(await createJob("Site Reliability Engineer"));
+  assert.equal(refused.status, 403, JSON.stringify(refused.body));
+  assert.equal(refused.body.code, "PLAN_LIMIT_REACHED");
+  assert.equal(await Job.countDocuments({ organization: ctx.owner.orgId, status: "published" }), published, "nothing is withdrawn");
 });
 
 test("AI analyses are capped by the stored AI usage for the period", async () => {

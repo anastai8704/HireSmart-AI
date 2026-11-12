@@ -112,7 +112,31 @@ const decideAiUse = ({ state, usedThisPeriod }) => {
   return { allowed: usedThisPeriod < limit, limit, current: usedThisPeriod };
 };
 
+/**
+ * Error code for a refused quota action (Requirement 14). Chosen from the entitlement state only:
+ * - a paid plan that has lapsed (its limits now fall back to Free)  → SUBSCRIPTION_EXPIRED
+ * - an active or grace-period paid plan at its limit                → PLAN_LIMIT_REACHED
+ * - the Free plan at its limit (upgrading is the next step)          → UPGRADE_REQUIRED
+ */
+const refusalCodeFor = (state) => {
+  if (state && state.status === "expired") return "SUBSCRIPTION_EXPIRED";
+  if (state && state.paid) return "PLAN_LIMIT_REACHED";
+  return "UPGRADE_REQUIRED";
+};
+
+/**
+ * Feature gate (Requirement 14). `requiredTiers` lists the plan tiers that include the feature.
+ * No feature is gated by default: gating an existing feature would remove it from Free users, which the
+ * product decision forbids. Routes call this only where the catalogue explicitly reserves a feature.
+ */
+const featureDecision = ({ state, requiredTiers }) => {
+  if (!Array.isArray(requiredTiers) || requiredTiers.length === 0) return { allowed: true };
+  return requiredTiers.includes(state?.tier) ? { allowed: true } : { allowed: false, code: "FEATURE_NOT_INCLUDED" };
+};
+
 module.exports = {
+  refusalCodeFor,
+  featureDecision,
   FREE_TIER,
   PAYMENT_GRACE_DAYS,
   effectiveState,
