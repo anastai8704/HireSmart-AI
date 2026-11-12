@@ -186,3 +186,32 @@ test("recurring cycles: monthly 120 cycles, yearly 10 cycles, interval 1", () =>
   assert.deepEqual(RECURRING.monthly, { period: "monthly", interval: 1, totalCount: 120 });
   assert.deepEqual(RECURRING.yearly, { period: "yearly", interval: 1, totalCount: 10 });
 });
+
+test("a provider failure is logged with the operation and provider status, never the key or raw message", async () => {
+  const logger = require("../utils/logger");
+  const original = logger.error;
+  const lines = [];
+  logger.error = (message) => lines.push(String(message));
+  try {
+    await withEnv(razorpayEnv, async () => {
+      ps.setProviderClientForTests({
+        subscriptions: {
+          create: async () => {
+            const err = new Error("Authentication failed for key rzp_test_unit_key_id");
+            err.statusCode = 401;
+            err.error = { code: "BAD_REQUEST_ERROR", description: "secret detail" };
+            throw err;
+          },
+        },
+      });
+      await assert.rejects(() => ps.createProviderSubscription({ planId: "plan_TEST1", totalCount: 120 }));
+    });
+  } finally {
+    logger.error = original;
+  }
+  const joined = lines.join("\n");
+  assert.match(joined, /"operation":"subscriptions\.create"/);
+  assert.match(joined, /"providerStatus":401/);
+  assert.match(joined, /"providerErrorCode":"BAD_REQUEST_ERROR"/);
+  assert.doesNotMatch(joined, /rzp_test|Authentication failed|secret detail/);
+});

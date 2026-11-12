@@ -1,5 +1,6 @@
 const crypto = require("node:crypto");
 const AppError = require("../utils/AppError");
+const logger = require("../utils/logger");
 
 /**
  * Payment service (Phase 7).
@@ -156,9 +157,19 @@ const getProviderClient = (cfg = readPaymentConfig()) => {
   return razorpayClient;
 };
 
-const providerError = () => {
-  // Never forward provider messages or identifiers to the browser.
-  // The cause is intentionally not returned; log it server-side if needed.
+/**
+ * Converts a provider failure into a generic 502. The browser never sees the provider's message or identifiers.
+ * The server log records only the operation name and the provider's HTTP status and error code, so a failed
+ * checkout can be diagnosed. Key ids, secrets and the raw provider message are never logged.
+ */
+const providerError = (operation, cause) => {
+  const safe = {
+    operation,
+    providerStatus: Number.isInteger(cause?.statusCode) ? cause.statusCode : undefined,
+    providerErrorCode: typeof cause?.error?.code === "string" ? cause.error.code : undefined,
+    providerErrorType: cause?.name || undefined,
+  };
+  logger.error(`Payment provider call failed: ${JSON.stringify(safe)}`);
   return new AppError("The payment provider could not complete this request. Try again shortly.", 502, "PAYMENT_PROVIDER_ERROR");
 };
 
@@ -242,8 +253,8 @@ const createProviderPlan = async ({ period, interval = 1, name, amountPaise, cur
       item: { name, amount: amountPaise, currency, description: name },
       notes,
     });
-  } catch {
-    throw providerError();
+  } catch (error) {
+    throw providerError("plans.create", error);
   }
 };
 
@@ -261,8 +272,8 @@ const createProviderSubscription = async ({ planId, totalCount, notes = {} }) =>
       customer_notify: 1,
       notes,
     });
-  } catch {
-    throw providerError();
+  } catch (error) {
+    throw providerError("subscriptions.create", error);
   }
 };
 
@@ -274,8 +285,8 @@ const fetchProviderSubscription = async (subscriptionId) => {
   }
   try {
     return await getProviderClient(cfg).subscriptions.fetch(String(subscriptionId));
-  } catch {
-    throw providerError();
+  } catch (error) {
+    throw providerError("subscriptions.fetch", error);
   }
 };
 
@@ -287,8 +298,8 @@ const cancelProviderSubscription = async (subscriptionId) => {
   }
   try {
     return await getProviderClient(cfg).subscriptions.cancel(String(subscriptionId), true);
-  } catch {
-    throw providerError();
+  } catch (error) {
+    throw providerError("subscriptions.cancel", error);
   }
 };
 
@@ -312,8 +323,8 @@ const fetchProviderPayment = async (paymentId) => {
   }
   try {
     return await getProviderClient(cfg).payments.fetch(String(paymentId));
-  } catch {
-    throw providerError();
+  } catch (error) {
+    throw providerError("payments.fetch", error);
   }
 };
 
