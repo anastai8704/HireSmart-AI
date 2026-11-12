@@ -1473,6 +1473,8 @@ const seedPresentationData = async () => {
         user = await User.create(userData);
         console.log(`  + Created Recruiter: ${user.name} <${user.email}>`);
       } else {
+        // Repeated seeding never replaces an existing password (Requirement 11).
+        delete userData.password;
         Object.assign(user, userData);
         await user.save();
         console.log(`  ✓ Updated Recruiter: ${user.name} <${user.email}>`);
@@ -1570,6 +1572,8 @@ const seedPresentationData = async () => {
         user = await User.create(userData);
         console.log(`  + Created Candidate: ${user.name} <${user.email}>`);
       } else {
+        // Repeated seeding never replaces an existing password (Requirement 11).
+        delete userData.password;
         Object.assign(user, userData);
         await user.save();
         console.log(`  ✓ Synced Candidate: ${user.name} <${user.email}>`);
