@@ -44,7 +44,8 @@ const RDashboard = pick(() => import("./pages/recruiter/RecruiterPages"), "Recru
   CandidateDetail = pick(() => import("./pages/recruiter/RecruiterPages"), "CandidateDetail"),
   Compare = pick(() => import("./pages/recruiter/RecruiterPages"), "ComparePage"),
   CandidateSearch = pick(() => import("./pages/recruiter/RecruiterPages"), "CandidateSearch"),
-  Interviews = pick(() => import("./pages/recruiter/RecruiterPages"), "InterviewsPage"),
+  InterviewScheduler = pick(() => import("./pages/interviews/InterviewScheduler"), "default"),
+  Interviews = pick(() => import("./pages/interviews/RecruiterInterviewDashboard"), "default"),
   InterviewDetail = pick(() => import("./pages/recruiter/RecruiterPages"), "InterviewDetail"),
   Analytics = pick(() => import("./pages/recruiter/RecruiterPages"), "AnalyticsPage"),
   RecruiterCopilot = pick(() => import("./pages/recruiter/RecruiterPages"), "RecruiterCopilot"),
@@ -53,6 +54,7 @@ const RDashboard = pick(() => import("./pages/recruiter/RecruiterPages"), "Recru
   RBilling = pick(() => import("./pages/recruiter/RecruiterBilling"), "RecruiterBilling");
 const Notifications = pick(() => import("./pages/SystemPages"), "NotificationsPage"),
   Settings = pick(() => import("./pages/SystemPages"), "SettingsPage"),
+  Integrations = pick(() => import("./pages/settings/IntegrationsPage"), "default"),
   Profile = pick(() => import("./pages/ProfilePages"), "ProfilePage"),
   AdminHome = pick(() => import("./pages/admin/AdminPages"), "AdminHome"),
   AdminUsers = pick(() => import("./pages/admin/AdminPages"), "AdminUsers"),
@@ -112,6 +114,7 @@ const App = () => (
                 <Route path="/app/notifications" element={<Notifications />} />
                 <Route path="/app/profile" element={<Profile />} />
                 <Route path="/app/settings" element={<Settings />} />
+                <Route path="/app/settings/integrations" element={<Integrations />} />
               </Route>
             </Route>
             <Route element={<ProtectedRoute roles={["candidate"]} />}>
@@ -167,6 +170,10 @@ const App = () => (
                 <Route path="/app/o/:organizationId/candidates" element={<CandidateSearch />} />
                 <Route path="/app/o/:organizationId/compare" element={<Compare />} />
                 <Route path="/app/o/:organizationId/interviews" element={<Interviews />} />
+                <Route
+                  path="/app/o/:organizationId/interviews/schedule"
+                  element={<InterviewScheduler />}
+                />
                 <Route
                   path="/app/o/:organizationId/interviews/:interviewId"
                   element={<InterviewDetail />}

@@ -238,6 +238,14 @@ const {
     },
     mockInterviewApi: {
       confirm: vi.fn(() => Promise.resolve({ data: { ...sampleInterview, status: "confirmed" } })),
+      join: vi.fn(() =>
+        Promise.resolve({
+          data: {
+            url: "https://meet.google.com/abc-defg-hij",
+            joinState: { canJoin: true, reason: "STARTED", message: "The recruiter has started the interview. You can join now." },
+          },
+        }),
+      ),
       reschedule: vi.fn(() => Promise.resolve({ data: { ...sampleInterview, status: "reschedule_requested" } })),
       prep: vi.fn(() =>
         Promise.resolve({
@@ -484,15 +492,16 @@ describe("Application Tracking & Hiring Progress", () => {
 });
 
 describe("Interviews & AI Preparation", () => {
-  it("renders interview schedule with video meeting link and confirm action", async () => {
+  it("keeps Join disabled and hides the meeting link until the recruiter starts", async () => {
     renderWithClient(<CandidateInterviews />);
 
     expect(await screen.findByText("Your interview schedule")).toBeInTheDocument();
     expect(await screen.findByText("Technical Interview - System Design")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /join interview/i })).toHaveAttribute(
-      "href",
-      "https://meet.google.com/abc-defg-hij",
-    );
+    const join = screen.getByRole("button", { name: /join interview/i });
+    expect(join).toBeDisabled();
+    expect(screen.getByText(/waiting for the recruiter to start/i)).toBeInTheDocument();
+    // The raw link is never rendered for a candidate before the server allows it.
+    expect(document.querySelector('a[href="https://meet.google.com/abc-defg-hij"]')).toBeNull();
 
     const confirmBtn = screen.getByRole("button", { name: /confirm attendance/i });
     fireEvent.click(confirmBtn);
@@ -500,6 +509,62 @@ describe("Interviews & AI Preparation", () => {
     await waitFor(() => {
       expect(mockInterviewApi.confirm).toHaveBeenCalledWith("i1");
     });
+  });
+
+  it("never renders interviewer feedback to the candidate", async () => {
+    mockCandidateApi.interviews.mockImplementationOnce(() =>
+      Promise.resolve({
+        data: [
+          {
+            _id: "i9",
+            title: "Round with feedback",
+            status: "completed",
+            scheduledStart: "2026-09-15T10:00:00Z",
+            scheduledEnd: "2026-09-15T11:00:00Z",
+            timezone: "Asia/Kolkata",
+            application: { job: { title: "Backend Engineer", company: "Acme" } },
+            feedback: [{ recommendation: "strong_no", summary: "Confidential scorecard summary" }],
+            joinState: { canJoin: false, reason: "ENDED", message: "This interview has ended." },
+          },
+        ],
+      }),
+    );
+    renderWithClient(<CandidateInterviews />);
+    fireEvent.click(await screen.findByRole("button", { name: /past & completed/i }));
+    expect(await screen.findByText("Round with feedback")).toBeInTheDocument();
+    expect(screen.queryByText(/confidential scorecard/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/strong no/i)).not.toBeInTheDocument();
+  });
+
+  it("asks the server for the link only after the recruiter has started the interview", async () => {
+    const started = {
+      _id: "i1",
+      title: "Technical Interview - System Design",
+      type: "video",
+      status: "in_progress",
+      scheduledStart: "2026-09-15T10:00:00Z",
+      scheduledEnd: "2026-09-15T11:00:00Z",
+      timezone: "Asia/Kolkata",
+      application: { job: { title: "Backend Engineer", company: "Acme" }, candidate: { name: "Asha" } },
+      joinState: { canJoin: true, reason: "STARTED", message: "The recruiter has started the interview. You can join now." },
+    };
+    mockCandidateApi.interviews.mockImplementationOnce(() => Promise.resolve({ data: [started] }));
+    const opened = { location: { href: "" }, closed: false, opener: {} };
+    const openSpy = vi.spyOn(window, "open").mockReturnValue(opened);
+
+    renderWithClient(<CandidateInterviews />);
+    const join = await screen.findByRole("button", { name: /join interview/i });
+    expect(join).toBeEnabled();
+    fireEvent.click(join);
+
+    await waitFor(() => {
+      expect(mockInterviewApi.join).toHaveBeenCalledWith("i1");
+    });
+    await waitFor(() => {
+      expect(opened.location.href).toBe("https://meet.google.com/abc-defg-hij");
+    });
+    expect(opened.opener).toBeNull();
+    openSpy.mockRestore();
   });
 
   it("generates structured AI preparation plan grounded in real requirements", async () => {

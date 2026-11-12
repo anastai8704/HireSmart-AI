@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import Button from "../../components/ui/Button";
 import { CandidateOfferPanel } from "../../components/hiring/OfferPanels";
+import CandidateJoinButton from "../../components/interviews/CandidateJoinButton";
 import Input, { Textarea } from "../../components/ui/Input";
 import Badge from "../../components/ui/Badge";
 import Modal from "../../components/ui/Modal";
@@ -67,7 +68,6 @@ import {
   formatDuration,
   formatJobSalary,
   formatRelativeTime,
-  isValidMeetingUrl,
   downloadInterviewIcs,
 } from "../../lib/utils";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
@@ -2375,7 +2375,7 @@ export const CandidateInterviews = () => {
       return sDate && sDate >= now && sDate <= endOfThisWeek && i.status !== "cancelled";
     }
     if (tab === "upcoming") {
-      return ["invited", "confirmed", "reschedule_requested"].includes(i.status);
+      return ["invited", "confirmed", "reschedule_requested", "rescheduled", "in_progress"].includes(i.status);
     }
     if (tab === "past") {
       return ["completed"].includes(i.status) || (sDate && sDate < now && i.status !== "cancelled");
@@ -2397,7 +2397,7 @@ export const CandidateInterviews = () => {
   });
 
   const tabCounts = {
-    upcoming: allInterviews.filter((i) => ["invited", "confirmed", "reschedule_requested"].includes(i.status)).length,
+    upcoming: allInterviews.filter((i) => ["invited", "confirmed", "reschedule_requested", "rescheduled", "in_progress"].includes(i.status)).length,
     today: allInterviews.filter((i) => {
       const d = i.scheduledStart ? new Date(i.scheduledStart) : null;
       return d && d >= startOfToday && d < endOfToday && i.status !== "cancelled";
@@ -2462,7 +2462,7 @@ export const CandidateInterviews = () => {
           {searched.map((i) => {
             const startDate = i.scheduledStart ? new Date(i.scheduledStart) : null;
             const duration = formatDuration(i.scheduledStart, i.scheduledEnd);
-            const hasValidLink = isValidMeetingUrl(i.meetingUrl);
+            const hasValidLink = Boolean(i.joinState?.canJoin);
 
             return (
               <div
@@ -2533,18 +2533,7 @@ export const CandidateInterviews = () => {
                 </div>
 
                 <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-ink-100 pt-4">
-                  {hasValidLink && (
-                    <Button
-                      size="sm"
-                      as="a"
-                      href={safeHttpUrl(i.meetingUrl)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      leftIcon={<Video className="h-4 w-4" />}
-                    >
-                      Join interview
-                    </Button>
-                  )}
+                  {!["cancelled", "completed", "no_show"].includes(i.status) && <CandidateJoinButton interview={i} />}
 
                   {startDate && (
                     <Button
@@ -2661,7 +2650,7 @@ export const InterviewPrep = () => {
   const interview = interviewQuery.data?.data;
   const startDate = interview?.scheduledStart ? new Date(interview.scheduledStart) : null;
   const duration = interview ? formatDuration(interview.scheduledStart, interview.scheduledEnd) : null;
-  const hasValidLink = isValidMeetingUrl(interview?.meetingUrl);
+  const hasValidLink = Boolean(interview?.joinState?.canJoin);
 
   return (
     <div className="page-wrap max-w-4xl space-y-6">
@@ -2694,18 +2683,7 @@ export const InterviewPrep = () => {
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              {hasValidLink && (
-                <Button
-                  size="sm"
-                  as="a"
-                  href={safeHttpUrl(interview.meetingUrl)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  leftIcon={<Video className="h-4 w-4" />}
-                >
-                  Join interview
-                </Button>
-              )}
+              <CandidateJoinButton interview={interview} />
               {startDate && (
                 <Button
                   size="sm"

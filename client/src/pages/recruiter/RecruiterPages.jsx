@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { newId } from "../../lib/id";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
@@ -12,13 +12,10 @@ import { Controller, useForm } from "react-hook-form";
 import {
   ArrowRight,
   BriefcaseBusiness,
-  Calendar,
   Check,
   CheckCircle2,
-  Clock,
   Clock3,
   Download,
-  MapPin,
   Plus,
   RefreshCw,
   Star,
@@ -35,6 +32,9 @@ import SectionCard from "../../components/ui/SectionCard";
 import PipelineFunnel from "../../components/ui/PipelineFunnel";
 import ConfirmModal from "../../components/ui/ConfirmModal";
 import { RecruiterOfferPanel } from "../../components/hiring/OfferPanels";
+import MeetingStatus from "../../components/interviews/MeetingStatus";
+import RecruiterMeetingControls from "../../components/interviews/RecruiterMeetingControls";
+import InterviewHistory from "../../components/interviews/InterviewHistory";
 import { EmptyState, ErrorState, LoadingState, SkeletonList } from "../../components/ui/States";
 import {
   AIProvenance,
@@ -65,7 +65,6 @@ import {
 } from "../../lib/utils";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { CompanyVerificationCard } from "./CompanyVerificationCard";
-import { safeHttpUrl } from "../../lib/safeUrl";
 const greeting = () => {
   const hour = new Date().getHours();
   return hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
@@ -1967,520 +1966,6 @@ export const CandidateSearch = () => {
     </div>
   );
 };
-export const InterviewsPage = () => {
-  const orgId = useOrg(),
-    [params, setParams] = useSearchParams(),
-    prefilledApplicationId = params.get("applicationId") || "",
-    qc = useQueryClient(),
-    toast = useToast(),
-    [requestKey, setRequestKey] = useState(() => newId()),
-    [appSearch, setAppSearch] = useState(""),
-    [tab, setTab] = useState("upcoming"),
-    [searchQuery, setSearchQuery] = useState(""),
-    [form, setForm] = useState({
-      applicationId: prefilledApplicationId,
-      title: "Technical Interview",
-      type: "video",
-      scheduledStart: "",
-      scheduledEnd: "",
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
-      location: "",
-      meetingUrl: "",
-    }),
-    [participantIds, setParticipantIds] = useState([]),
-    q = useQuery({
-      queryKey: ["interviews", orgId, {}],
-      queryFn: () => interviewApi.list(orgId, { limit: 100 }),
-    }),
-    jobs = useQuery({
-      queryKey: ["jobs-org", orgId, null],
-      queryFn: () => jobsApi.orgList(orgId, { limit: 50 }),
-    }),
-    members = useQuery({
-      queryKey: ["organization-members", orgId],
-      queryFn: () => organizationApi.members(orgId, { limit: 100 }),
-    }),
-    appQueries = useQueries({
-      queries: (jobs.data?.data || []).slice(0, 12).map((job) => ({
-        queryKey: ["applications-job", orgId, job.id, "interviews"],
-        queryFn: () => recruitmentApi.applications(orgId, job.id, { limit: 50 }),
-      })),
-    });
-
-  const options = useMemo(() => {
-    const jobList = jobs.data?.data || [];
-    return appQueries.flatMap((query, index) => {
-      const job = jobList[index];
-      return (query.data?.data || []).map((a) => ({
-        id: a._id,
-        label: `${a.candidate?.name || "Candidate"} — ${job?.title || "Job"} (${stageLabel(a.status)})`,
-        name: a.candidate?.name || "Candidate",
-        job: job?.title || "",
-        status: a.status,
-      }));
-    });
-  }, [appQueries, jobs.data]);
-
-  const visibleOptions = options.filter(
-    (o) =>
-      !appSearch ||
-      o.name.toLowerCase().includes(appSearch.toLowerCase()) ||
-      o.job.toLowerCase().includes(appSearch.toLowerCase()),
-  );
-  const selectedOption = options.find((o) => o.id === form.applicationId) || null;
-
-  const applyDurationPreset = (minutes) => {
-    if (!form.scheduledStart) return;
-    const startObj = new Date(form.scheduledStart);
-    if (Number.isNaN(startObj.getTime())) return;
-    const endObj = new Date(startObj.getTime() + minutes * 60000);
-    const pad = (n) => String(n).padStart(2, "0");
-    const endStr = `${endObj.getFullYear()}-${pad(endObj.getMonth() + 1)}-${pad(endObj.getDate())}T${pad(endObj.getHours())}:${pad(endObj.getMinutes())}`;
-    setForm((f) => ({ ...f, scheduledEnd: endStr }));
-  };
-
-  const create = useMutation({
-    mutationFn: () => {
-      const body = {
-        applicationId: form.applicationId,
-        title: form.title,
-        type: form.type,
-        scheduledStart: form.scheduledStart ? new Date(form.scheduledStart) : undefined,
-        scheduledEnd: form.scheduledEnd ? new Date(form.scheduledEnd) : undefined,
-        timezone: form.timezone,
-      };
-      if (form.location.trim()) body.location = form.location.trim();
-      if (form.meetingUrl.trim()) body.meetingUrl = form.meetingUrl.trim();
-      if (participantIds.length) body.participants = participantIds;
-      return interviewApi.create(orgId, body, requestKey);
-    },
-    onSuccess: () => {
-      setRequestKey(newId());
-      setParams({});
-      setForm((f) => ({
-        ...f,
-        applicationId: "",
-        title: "Technical Interview",
-        scheduledStart: "",
-        scheduledEnd: "",
-        location: "",
-        meetingUrl: "",
-      }));
-      setParticipantIds([]);
-      setAppSearch("");
-      qc.invalidateQueries({ queryKey: ["interviews", orgId] });
-      toast.success("Interview scheduled and invitation sent to candidate");
-    },
-    onError: (error) => toast.error(error.message || "Unable to schedule the interview"),
-  });
-
-  const duration = formatDuration(form.scheduledStart, form.scheduledEnd);
-  const allInterviews = q.data?.data || [];
-  const now = new Date();
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-  const endOfThisWeek = new Date(now.getTime() + 7 * 86400000);
-
-  const filterByTab = (i) => {
-    const sDate = i.scheduledStart ? new Date(i.scheduledStart) : null;
-    if (tab === "today") {
-      return sDate && sDate >= startOfToday && sDate < endOfToday && i.status !== "cancelled";
-    }
-    if (tab === "this_week") {
-      return sDate && sDate >= now && sDate <= endOfThisWeek && i.status !== "cancelled";
-    }
-    if (tab === "upcoming") {
-      return ["invited", "confirmed", "reschedule_requested"].includes(i.status);
-    }
-    if (tab === "past") {
-      return ["completed"].includes(i.status) || (sDate && sDate < now && i.status !== "cancelled");
-    }
-    if (tab === "cancelled") {
-      return i.status === "cancelled";
-    }
-    return true;
-  };
-
-  const filteredInterviews = allInterviews.filter((i) => {
-    if (!filterByTab(i)) return false;
-    if (!searchQuery.trim()) return true;
-    const term = searchQuery.toLowerCase();
-    const title = (i.title || "").toLowerCase();
-    const candidate = (i.application?.candidate?.name || "").toLowerCase();
-    const job = (i.application?.job?.title || "").toLowerCase();
-    return title.includes(term) || candidate.includes(term) || job.includes(term);
-  });
-
-  const tabCounts = {
-    upcoming: allInterviews.filter((i) => ["invited", "confirmed", "reschedule_requested"].includes(i.status)).length,
-    today: allInterviews.filter((i) => {
-      const d = i.scheduledStart ? new Date(i.scheduledStart) : null;
-      return d && d >= startOfToday && d < endOfToday && i.status !== "cancelled";
-    }).length,
-    this_week: allInterviews.filter((i) => {
-      const d = i.scheduledStart ? new Date(i.scheduledStart) : null;
-      return d && d >= now && d <= endOfThisWeek && i.status !== "cancelled";
-    }).length,
-    past: allInterviews.filter((i) => ["completed"].includes(i.status) || (i.scheduledStart && new Date(i.scheduledStart) < now && i.status !== "cancelled")).length,
-    cancelled: allInterviews.filter((i) => i.status === "cancelled").length,
-    all: allInterviews.length,
-  };
-
-  return (
-    <div className="page-wrap space-y-6">
-      <PageHeader
-        eyebrow="Interviews"
-        title="Schedule and manage interviews"
-        description="Plan interview rounds, invite candidate and interviewers, and collect structured scorecards."
-      />
-
-      <div className="grid gap-6 lg:grid-cols-[.78fr_1.22fr]">
-        {/* Scheduling Form */}
-        <form
-          className="panel h-fit space-y-4 p-5"
-          onSubmit={(e) => {
-            e.preventDefault();
-            create.mutate();
-          }}
-        >
-          <div className="border-b border-ink-100 pb-3">
-            <h2 className="font-bold text-ink-950">Schedule Interview</h2>
-            <p className="text-xs text-ink-500">Candidate receives an invitation email and notification.</p>
-          </div>
-
-          <div>
-            <Input
-              label="Find a candidate"
-              hint="Search by candidate name or job"
-              placeholder="Type candidate or job name..."
-              value={appSearch}
-              onChange={(e) => setAppSearch(e.target.value)}
-            />
-            <Select
-              className="mt-2"
-              aria-label="Select candidate application"
-              label="Candidate application"
-              required
-              placeholder={
-                options.length
-                  ? "Choose candidate application"
-                  : "No applications found — create a job first"
-              }
-              value={form.applicationId}
-              onChange={(e) => setForm((f) => ({ ...f, applicationId: e.target.value }))}
-              options={visibleOptions.map((o) => ({ value: o.id, label: o.label }))}
-            />
-            {selectedOption && (
-              <div className="mt-2 flex items-center gap-2 rounded-lg bg-ink-50 p-2 text-xs text-ink-700">
-                <span className="font-semibold text-ink-900">{selectedOption.name}</span>
-                <span>·</span>
-                <span>{selectedOption.job}</span>
-                <span>·</span>
-                <Badge variant="brand">{stageLabel(selectedOption.status)}</Badge>
-              </div>
-            )}
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Input
-              label="Interview title"
-              required
-              value={form.title}
-              onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-            />
-            <Select
-              aria-label="Interview type"
-              label="Type"
-              value={form.type}
-              onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
-              options={[
-                { value: "phone", label: "Phone screen" },
-                { value: "video", label: "Video call" },
-                { value: "onsite", label: "On-site" },
-                { value: "technical", label: "Technical round" },
-                { value: "panel", label: "Panel" },
-                { value: "hr", label: "HR round" },
-              ]}
-            />
-          </div>
-
-          <div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Input
-                label="Starts"
-                type="datetime-local"
-                required
-                value={form.scheduledStart}
-                onChange={(e) => setForm((f) => ({ ...f, scheduledStart: e.target.value }))}
-              />
-              <Input
-                label="Ends"
-                type="datetime-local"
-                required
-                value={form.scheduledEnd}
-                onChange={(e) => setForm((f) => ({ ...f, scheduledEnd: e.target.value }))}
-              />
-            </div>
-
-            {/* Duration presets */}
-            <div className="mt-2 flex items-center justify-between">
-              <div className="flex items-center gap-1 text-xs text-ink-500">
-                <span className="font-medium">Quick duration:</span>
-                {[30, 45, 60, 90].map((mins) => (
-                  <button
-                    key={mins}
-                    type="button"
-                    onClick={() => applyDurationPreset(mins)}
-                    className="rounded bg-ink-100 px-1.5 py-0.5 text-[11px] font-semibold text-ink-700 transition hover:bg-brand-50 hover:text-brand-700"
-                  >
-                    {mins}m
-                  </button>
-                ))}
-              </div>
-              {duration && <span className="text-xs font-semibold text-brand-700">{duration}</span>}
-            </div>
-          </div>
-
-          <Input
-            label="Timezone"
-            value={form.timezone}
-            onChange={(e) => setForm((f) => ({ ...f, timezone: e.target.value }))}
-          />
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Input
-              label="Meeting URL (optional)"
-              placeholder="https://meet.google.com/..."
-              value={form.meetingUrl}
-              onChange={(e) => setForm((f) => ({ ...f, meetingUrl: e.target.value }))}
-            />
-            <Input
-              label="Location / Room (optional)"
-              placeholder="e.g. Conference Room B"
-              value={form.location}
-              onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))}
-            />
-          </div>
-
-          {(members.data?.data || []).length > 0 && (
-            <div>
-              <p className="mb-1.5 text-xs font-bold uppercase tracking-wider text-ink-500">
-                Assign Interviewers (optional)
-              </p>
-              <div className="max-h-36 overflow-y-auto space-y-1 rounded-xl border border-ink-100 p-2">
-                {(members.data.data || []).map((m) => {
-                  const memberUserId = m.user?._id || m.user?.id || m._id;
-                  const isChecked = participantIds.includes(memberUserId);
-                  return (
-                    <label
-                      key={m._id}
-                      className="flex cursor-pointer items-center justify-between gap-2 rounded-lg p-2 text-xs transition hover:bg-ink-50"
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <input
-                          type="checkbox"
-                          className="shrink-0 rounded text-brand-600 focus:ring-brand-500"
-                          checked={isChecked}
-                          onChange={(e) =>
-                            setParticipantIds((ids) =>
-                              e.target.checked
-                                ? [...ids, memberUserId]
-                                : ids.filter((id) => id !== memberUserId),
-                            )
-                          }
-                        />
-                        <span className="truncate font-medium text-ink-900">
-                          {m.user?.name || m.user?.email}
-                        </span>
-                      </div>
-                      <Badge variant="outline" className="text-[10px] capitalize shrink-0">
-                        {m.role}
-                      </Badge>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          <Button type="submit" fullWidth disabled={!form.applicationId} isLoading={create.isPending}>
-            Schedule &amp; Send Invitation
-          </Button>
-          {create.error && <ErrorCallout error={create.error} />}
-        </form>
-
-        {/* Interviews List with Calendar Badges and Filters */}
-        <div className="space-y-4">
-          {/* Tabs and Search */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-wrap gap-1 rounded-xl border border-ink-100 bg-ink-50/60 p-1">
-              {[
-                { id: "upcoming", label: `Upcoming (${tabCounts.upcoming})` },
-                { id: "today", label: `Today (${tabCounts.today})` },
-                { id: "this_week", label: `This Week (${tabCounts.this_week})` },
-                { id: "past", label: `Past (${tabCounts.past})` },
-                { id: "cancelled", label: `Cancelled (${tabCounts.cancelled})` },
-                { id: "all", label: `All (${tabCounts.all})` },
-              ].map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => setTab(t.id)}
-                  className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
-                    tab === t.id ? "bg-ink-950 text-white shadow-sm" : "text-ink-600 hover:bg-white/80"
-                  }`}
-                >
-                  {t.label}
-                </button>
-              ))}
-            </div>
-
-            <div className="w-full sm:w-48">
-              <Input
-                aria-label="Search interviews"
-                placeholder="Search interviews..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-          </div>
-
-          {q.isLoading ? (
-            <LoadingState />
-          ) : q.error ? (
-            <ErrorState error={q.error} onRetry={() => q.refetch()} />
-          ) : filteredInterviews.length ? (
-            <div className="space-y-3">
-              {filteredInterviews.map((i) => {
-                const startDate = i.scheduledStart ? new Date(i.scheduledStart) : null;
-                const iDuration = formatDuration(i.scheduledStart, i.scheduledEnd);
-                const hasValidLink = isValidMeetingUrl(i.meetingUrl);
-                const feedbackCount = (i.feedback || []).length;
-
-                return (
-                  <div
-                    key={i._id}
-                    className="panel group flex flex-col justify-between p-4 transition-all hover:border-brand-200 hover:shadow-sm"
-                  >
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div className="flex items-start gap-3">
-                        {startDate ? (
-                          <div className="flex min-w-[54px] flex-col items-center justify-center rounded-xl border border-brand-200 bg-brand-50/70 px-2 py-1.5 text-center shrink-0">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-brand-700">
-                              {startDate.toLocaleDateString("en-US", { month: "short" })}
-                            </span>
-                            <span className="text-lg font-black leading-tight text-ink-950">
-                              {startDate.getDate()}
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-ink-100 text-ink-600">
-                            <Clock className="h-5 w-5" />
-                          </span>
-                        )}
-
-                        <div>
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <Link
-                              to={`/app/o/${orgId}/interviews/${i._id}`}
-                              className="font-bold text-ink-950 transition hover:text-brand-700"
-                            >
-                              {i.title}
-                            </Link>
-                            {i.type && (
-                              <Badge variant="outline" className="text-[10px] capitalize">
-                                {i.type.replaceAll("_", " ")}
-                              </Badge>
-                            )}
-                          </div>
-                          <p className="mt-0.5 text-xs text-ink-600">
-                            <span className="font-semibold text-ink-900">{i.application?.candidate?.name || "Candidate"}</span>
-                            {" · "}
-                            <span>{i.application?.job?.title || "Job"}</span>
-                          </p>
-                          <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-ink-500">
-                            <span className="flex items-center gap-1">
-                              <Calendar className="h-3.5 w-3.5 text-ink-400" />
-                              {startDate ? formatDateTime(startDate, i.timezone) : "Unscheduled"}
-                              {iDuration ? ` (${iDuration})` : ""}
-                            </span>
-                            {i.location && (
-                              <span className="flex items-center gap-1 text-ink-600">
-                                <MapPin className="h-3.5 w-3.5 text-ink-400" />
-                                {i.location}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-row sm:flex-col items-end gap-2 shrink-0">
-                        <StatusPill status={i.status} />
-                        {feedbackCount > 0 && (
-                          <Badge variant="brand" className="text-[10px]">
-                            {feedbackCount} scorecard{feedbackCount === 1 ? "" : "s"}
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-ink-100 pt-3">
-                      <div className="flex flex-wrap items-center gap-2">
-                        {hasValidLink && (
-                          <Button
-                            size="sm"
-                            as="a"
-                            href={safeHttpUrl(i.meetingUrl)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            leftIcon={<Video className="h-3.5 w-3.5" />}
-                          >
-                            Join video
-                          </Button>
-                        )}
-                        {startDate && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => downloadInterviewIcs(i)}
-                            leftIcon={<Download className="h-3.5 w-3.5" />}
-                          >
-                            Add to calendar
-                          </Button>
-                        )}
-                      </div>
-
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        as={Link}
-                        to={`/app/o/${orgId}/interviews/${i._id}`}
-                        rightIcon={<ArrowRight className="h-3.5 w-3.5" />}
-                      >
-                        Interview workspace
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <EmptyState
-              icon={Video}
-              title={searchQuery ? "No matching interviews" : tab === "upcoming" ? "No upcoming interviews" : "No interviews in this tab"}
-              description={
-                searchQuery
-                  ? `No interviews matched "${searchQuery}".`
-                  : "Schedule the first interview with the form — the candidate receives an invitation automatically."
-              }
-            />
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
-
 export const InterviewDetail = () => {
   const orgId = useOrg(),
     { interviewId } = useParams(),
@@ -2715,6 +2200,17 @@ export const InterviewDetail = () => {
         }
       />
 
+      <section aria-labelledby="meeting-panel-heading" className="panel space-y-3 p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 id="meeting-panel-heading" className="font-bold text-ink-950">
+            Meeting and start
+          </h2>
+          <span className="text-xs text-ink-500">The candidate can join only after you start the interview.</span>
+        </div>
+        <MeetingStatus interview={interview} />
+        <RecruiterMeetingControls orgId={orgId} interview={interview} />
+      </section>
+
       {/* Candidate & Logistics Context Panel */}
       <div className="panel p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -2749,18 +2245,6 @@ export const InterviewDetail = () => {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {hasValidLink && (
-              <Button
-                size="sm"
-                as="a"
-                href={safeHttpUrl(interview.meetingUrl)}
-                target="_blank"
-                rel="noopener noreferrer"
-                leftIcon={<Video className="h-4 w-4" />}
-              >
-                Join meeting
-              </Button>
-            )}
             {startDate && (
               <Button
                 size="sm"
@@ -3197,6 +2681,7 @@ export const InterviewDetail = () => {
           />
         </div>
       </Modal>
+      <InterviewHistory interview={interview} />
     </div>
   );
 };

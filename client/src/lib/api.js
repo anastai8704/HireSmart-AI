@@ -187,6 +187,18 @@ export const interviewApi = {
     return api.post(`/organizations/${orgId}/interviews/${id}/feedback`, body);
   },
   questions: (orgId, id) => api.post(`/organizations/${orgId}/interviews/${id}/questions`),
+  /** Recruiter starts the interview (server enforces role, status and the start window). */
+  start: (orgId, id) => api.post(`/organizations/${orgId}/interviews/${id}/start`),
+  /** Staff meeting link. Returns { url, meetingProvider }. */
+  staffJoin: (orgId, id) => api.get(`/organizations/${orgId}/interviews/${id}/join`),
+  retryMeeting: (orgId, id) => api.post(`/organizations/${orgId}/interviews/${id}/meeting/retry`),
+  /** Candidate join. Returns { url, joinState }; rejected with JOIN_* until the recruiter starts. */
+  join: (id) => api.get(`/interviews/${id}/join`),
+};
+export const integrationsApi = {
+  googleStatus: () => api.get("/integrations/google/status"),
+  googleConnect: () => api.get("/integrations/google/connect"),
+  googleDisconnect: () => api.delete("/integrations/google"),
 };
 export const notificationApi = {
   list: (params) => api.get(`/notifications${query(params)}`),

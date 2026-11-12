@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
@@ -179,7 +179,8 @@ vi.mock("../../lib/api", () => ({
   },
 }));
 
-import { InterviewDetail, InterviewsPage, RecruiterDashboard } from "./RecruiterPages";
+import { InterviewDetail, RecruiterDashboard } from "./RecruiterPages";
+import RecruiterInterviewDashboard from "../interviews/RecruiterInterviewDashboard";
 
 const renderPage = (ui, initialEntry = "/app/o/org1") => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -224,32 +225,26 @@ describe("Recruiter dashboard", () => {
 });
 
 describe("Recruiter Interviews Management (Phase 10)", () => {
-  it("renders interview scheduling form, duration presets, and calendar-style list", async () => {
-    renderPage(<InterviewsPage />, "/app/o/org1/interviews");
+  it("renders the interview schedule with grouped tabs and a job-first schedule action", async () => {
+    renderPage(<RecruiterInterviewDashboard />, "/app/o/org1/interviews");
 
-    expect(await screen.findByText("Schedule and manage interviews")).toBeInTheDocument();
-    expect(screen.getByText("Schedule Interview")).toBeInTheDocument();
+    expect(await screen.findByText("Interview schedule")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /schedule interview/i })).toHaveAttribute(
+      "href",
+      "/app/o/org1/interviews/schedule",
+    );
+    expect(screen.getByRole("tab", { name: /upcoming/i })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /past/i })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /completed/i })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /cancelled/i })).toBeInTheDocument();
 
-    // Scheduling form controls
-    expect(screen.getByLabelText(/find a candidate/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/interview title/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/type/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/starts/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/ends/i)).toBeInTheDocument();
-    expect(screen.getByText("Quick duration:")).toBeInTheDocument();
-
-    // Filter tabs
-    expect(screen.getByRole("button", { name: /upcoming/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /past/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /all/i })).toBeInTheDocument();
-
-    // Scheduled interview card
+    // The fixture interview is in the past, so it is listed under Past with its candidate and job.
+    fireEvent.click(screen.getByRole("tab", { name: /past/i }));
     expect(await screen.findByText("Screening call")).toBeInTheDocument();
-    expect(screen.getByText("Asha Sharma")).toBeInTheDocument();
-    expect(screen.getByText("Backend Engineer")).toBeInTheDocument();
-    expect(screen.getByText("Join video")).toBeInTheDocument();
-    expect(screen.getByText("Add to calendar")).toBeInTheDocument();
-    expect(screen.getByText("Interview workspace")).toBeInTheDocument();
+    expect(screen.getByText(/Asha Sharma/)).toBeInTheDocument();
+    expect(screen.getAllByText(/Backend Engineer/).length).toBeGreaterThan(0);
+    // Staff see the meeting source, not an unlabelled link.
+    expect(screen.getByText("Meeting link (source not recorded)")).toBeInTheDocument();
   });
 
   it("renders interview detail workspace with AI question kit and multi-criteria scorecards", async () => {
