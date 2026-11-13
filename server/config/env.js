@@ -1,6 +1,8 @@
 const path = require("node:path");
 const dotenv = require("dotenv");
 
+const preEnvPaymentMode = process.env.PAYMENT_MODE;
+
 dotenv.config({
   path: path.join(__dirname, "..", ".env"),
   quiet: process.env.NODE_ENV === "test",
@@ -19,6 +21,18 @@ const numberEnv = (name, fallback) =>
 // clone while never affecting development or production, where the real
 // validateEnvironment() check below still applies.
 if (nodeEnv === "test") {
+  // Automated tests default to simulation mode with throw-away credentials so
+  // tests never depend on, invoke, or conflict with local development .env keys.
+  if (!preEnvPaymentMode || preEnvPaymentMode === "simulation") {
+    process.env.PAYMENT_MODE = "simulation";
+    if (!process.env.PAYMENT_SIMULATION_SECRET) {
+      process.env.PAYMENT_SIMULATION_SECRET = "test_only_payment_simulation_secret_0123456789";
+    }
+    delete process.env.RAZORPAY_KEY_ID;
+    delete process.env.RAZORPAY_KEY_SECRET;
+    delete process.env.RAZORPAY_WEBHOOK_SECRET;
+  }
+
   const testDefaults = {
     JWT_SECRET: "test_only_secret_do_not_use_in_production",
     JWT_EXPIRES_IN: "1h",
@@ -165,6 +179,12 @@ const validateEnvironment = () => {
 
   if (missing.length > 0) {
     throw new Error(`Missing required environment variables: ${missing.join(", ")}`);
+  }
+
+  if (config.isTest && process.env.PAYMENT_MODE === "simulation") {
+    delete process.env.RAZORPAY_KEY_ID;
+    delete process.env.RAZORPAY_KEY_SECRET;
+    delete process.env.RAZORPAY_WEBHOOK_SECRET;
   }
 
   // Payment configuration must fail closed: live modes and live credentials are rejected.

@@ -16,13 +16,29 @@ const TEST_ENV_DEFAULTS = {
   STORAGE_PROVIDER: "local",
   REQUIRE_EMAIL_VERIFICATION: "false",
   CLIENT_URL: "http://localhost:5173",
+  PAYMENT_MODE: "simulation",
+  PAYMENT_SIMULATION_SECRET: "test_only_payment_simulation_secret_0123456789",
 };
 
 const loadTestEnv = () => {
+  const prePaymentMode = process.env.PAYMENT_MODE;
+
   dotenv.config({
     path: path.join(__dirname, "..", ".env"),
     silent: true,
   });
+
+  if (process.env.NODE_ENV === "test") {
+    if (!prePaymentMode || prePaymentMode === "simulation") {
+      process.env.PAYMENT_MODE = "simulation";
+      if (!process.env.PAYMENT_SIMULATION_SECRET) {
+        process.env.PAYMENT_SIMULATION_SECRET = "test_only_payment_simulation_secret_0123456789";
+      }
+      delete process.env.RAZORPAY_KEY_ID;
+      delete process.env.RAZORPAY_KEY_SECRET;
+      delete process.env.RAZORPAY_WEBHOOK_SECRET;
+    }
+  }
 
   for (const [key, value] of Object.entries(TEST_ENV_DEFAULTS)) {
     if (!process.env[key]) {
@@ -68,7 +84,7 @@ const startDatabase = async () => {
       // Only pin a download version when we have to download at all.
       ...(localBinary ? {} : { binary: { version: process.env.MONGOMS_VERSION || "7.0.14" } }),
     });
-    testUri = mongoServer.getUri();
+    testUri = replaceDatabaseName(mongoServer.getUri(), "hiresmart_test");
     process.env.MONGO_URI = testUri;
   } catch (error) {
     if (!process.env.MONGO_URI) {
