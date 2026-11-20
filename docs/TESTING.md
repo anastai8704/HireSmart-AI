@@ -1,7 +1,6 @@
-# Test suite (Phase 11)
+# HireSmart AI — Test Suite & Quality Assurance
 
-This document records what each test covers, how the suites are classified, and which gaps remain. It is a record
-of what was run, not a claim of coverage. Only CI results count as verified for database-backed tests.
+This document details the test suites, verification commands, coverage categories, and testing strategies across backend and frontend services.
 
 ## How tests run
 

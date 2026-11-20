@@ -1,14 +1,10 @@
-# Security
+# Security Architecture & Controls
 
-This document describes the security controls in HireSmart AI, the Phase 8 review that tightened them, the dependency audit, the known limitations, and what is deliberately deferred. It is written for engineers and reviewers. It contains no secrets or environment values.
+This document describes the security controls, authentication safeguards, authorization policies, and data protection measures implemented across HireSmart AI. It contains no secrets or environment values.
 
-Last reviewed: 2026-11-05 (Phase 8 of the master spec).
+## 1. Scope & Security Model
 
-## 1. Scope and method
-
-The review read the actual server and client code paths: app bootstrap, configuration, authentication and session handling, the route table, the controllers that accept untrusted input, the upload pipeline, file delivery, logging, and the client's token and link handling. Every finding below was confirmed by reading the code. Where behaviour depends on a live environment (the deployed webhook, the malware scanner, an S3 bucket), it is listed as not verified.
-
-Automated coverage added in this phase is in section 6.
+The security controls span application bootstrap, configuration validation, session management, the API route table, input validation, the document upload pipeline, file delivery, audit logging, and client-side token storage.
 
 ## 2. Controls in place
 

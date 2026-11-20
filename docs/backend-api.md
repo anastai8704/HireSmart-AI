@@ -1,8 +1,8 @@
 # Backend API reference
 
-This is the reference for the HTTP API that the React client and any future integration use. It is generated from
+This is the reference for the HTTP API that the React client and integrations use. It is generated from
 `server/routes/v1Routes.js` (179 routes) and checked against the mounted router. Only `/api/v1` is supported.
-Legacy `/api/{auth,user,jobs,candidate,matching}` routes were removed (see `docs/marketplace-blueprint.md`, phase 0).
+All legacy unversioned routes have been decommissioned.
 
 ## Conventions
 

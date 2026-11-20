@@ -27,4 +27,4 @@ Authentication uses an in-memory access token plus backend-managed rotating refr
 - `src/pages/recruiter`: organization recruiting and hiring-manager workflows
 - `src/pages/SystemPages.jsx`: notifications, settings and platform admin
 
-See `../docs/backend-api.md` and `../docs/FRONTEND_IMPLEMENTATION_PLAN.md`.
+See `../docs/backend-api.md` and `../docs/LEARN.md`.

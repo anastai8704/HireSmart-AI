@@ -1,91 +1,91 @@
-# Domain model (Phase 1)
+# HireSmart AI — Domain Model & Data Architecture
 
-This document maps the Master Prompt's Phase 1 domain areas onto the existing MongoDB models
-(Mongoose 9). The project keeps a single database (MongoDB). Existing models were extended where
-they already covered an area; new models were added only where no entity existed.
+This document describes the core domain areas, data entities, status state machines, and data protection policies implemented in HireSmart AI using MongoDB and Mongoose.
 
-## Domain areas
+---
 
-| # | Area | Implementation | Status |
-|---|------|----------------|--------|
-| 1 | Users | `User` | Existing |
-| 2 | Candidate profiles | `CandidateProfile` | Existing |
-| 3 | Recruiter profiles | `User` (recruiter role, department and specialization fields) | Existing. No separate model, to avoid a duplicate entity. |
-| 4 | Companies | `Organization` | Existing |
-| 5 | Company memberships | `Membership` | Existing |
-| 6 | Company verification cases | `CompanyVerificationCase` (evidence, assessment, decision, history) | **New in Phase 1.** Business logic arrives in Phase 2. |
-| 7 | Jobs | `Job` | Existing |
-| 8 | Job moderation history | `JobModerationEvent` (append-only) | **New in Phase 1.** Writes from moderation endpoints arrive in Phase 3. |
-| 9 | Applications | `Application` (with `statusHistory`) | Existing |
-| 10 | Interview stages | `Interview`, `Recruitment` | Existing |
-| 11 | Offers | Application stage `offer`; post-hire terms in `Placement.offerDetails` | **Gap.** No pre-hire offer entity. Decision needed in Phase 4. |
-| 12 | Employment records | `Placement` (employment status with source and actor) | Existing, extended in Phase 0.5 |
-| 13 | Subscription plans | `config/subscriptionPlans.js` | Existing (code-defined plans) |
-| 14 | Company subscriptions | `Subscription` (subscriber is an organization) | Existing |
-| 15 | Payments | `PaymentTransaction` (sandbox only) | Existing |
-| 16 | Invoices / billing records | `PaymentTransaction.invoiceNumber` | Existing. No separate invoice model. |
-| 17 | Notifications | `Notification` | Existing |
-| 18 | Audit logs | `AuditLog`, `SecurityEvent` | Existing |
-| 19 | Reports / report jobs | None | **Deferred** to Phase 10 (Reporting). Not required for Phase 1. |
+## 1. Core Entities & Collections
 
-## Status names
+| Domain Area | Primary Model | Purpose & Relationships |
+| :--- | :--- | :--- |
+| **Users** | `User` | Global user identity (`candidate`, `recruiter`, `admin`), password hashes, verification flags, tokens. |
+| **Candidate Profiles** | `CandidateProfile` | Education, experience, skills, social links, bio, and location (1:1 with `User`). |
+| **Resumes & ATS** | `Resume`, `ResumeVersion`, `ParsedResume` | Immutable resume storage versions (PDF/DOCX), SHA-256 hashes, parsed text, and normalized skill taxonomy. |
+| **Organizations** | `Organization` | Companies posting jobs, verification status, website, industry, and workspace settings. |
+| **Memberships** | `Membership` | Recruiter-to-organization multi-tenancy mappings with roles (`owner`, `hiring_manager`, `interviewer`, etc.). |
+| **Company Verification** | `CompanyVerificationCase` | Review workflows for GSTIN, CIN, domain ownership, and risk indicators. |
+| **Jobs & Requisitions** | `Job` | Structured job postings, compensation, required/preferred skills, location, and workplace mode. |
+| **Job Moderation** | `JobModerationEvent` | Append-only audit history of job moderation lifecycle and state transitions. |
+| **Applications** | `Application` | Candidate applications tied to exact job and resume versions with status history and pre-hire offer subdocument. |
+| **Candidate Matching** | `CandidateMatch` | Hybrid match scoring (skills, experience, education, semantic similarity) with explainable component breakdowns. |
+| **Interviews** | `Interview` | Scheduled interview rounds, calendar integration (Google Meet / manual), evaluator scorecards, and ratings. |
+| **Placements & Employment**| `Placement` | Canonical employment records, offer details, joining confirmations, and verification status. |
+| **Subscriptions & Billing**| `Subscription`, `PaymentTransaction`, `RazorpayPlan` | Entitlement limits (active jobs, team seats, AI quota) and transaction ledger (Test Mode & Simulation). |
+| **Governance & Security** | `AuditLog`, `SecurityEvent`, `Consent` | Immutable system audit trails, suspicious auth detections, and user DPDP/GDPR consent records. |
+| **Notifications & Alerts** | `Notification`, `JobAlert` | In-app alerts, saved search alerts, and queued notification deliveries. |
 
-The Master Prompt names were adapted to the existing enums. Existing data is not renamed.
+---
 
-| Master Prompt | Existing value | Where |
-|---|---|---|
-| Company `pending_verification` | `pending` | `Organization.verificationStatus` |
-| Company `under_review`, `verified`, `rejected`, `suspended` | same | same |
-| Job `draft`, `approved`, `rejected`, `closed` | `status` = `draft` / `published` / `closed`; `moderation.status` = `none` / `pending` / `approved` / `rejected` | `Job` |
-| Job `pending_review` | `moderation.status` = `pending` | `Job` |
-| Job `changes_requested`, `suspended` | `moderation.status` = `changes_requested` / `suspended` (added in Phase 3; see `docs/JOB_MODERATION.md`) | `Job` |
-| Job `expired` | **Missing.** Not part of Phase 3; needs a decision on `closesAt` handling. | — |
-| Application `applied` | `submitted` (and legacy `Applied`) | `Application.status` |
-| Application `screening` | `under_review` | `Application.status` |
-| Application `shortlisted`, `interview`, `offer`, `hired`, `rejected`, `withdrawn` | same | same |
+## 2. Status Enums & State Machines
 
-## Transition rules
+All status transitions are centralized in `server/domain/stateMachines.js` to guarantee deterministic business rules across controllers.
 
-All transition rules are in `server/domain/stateMachines.js`. The recruitment controller uses the
-application-stage map from that module. Its rules are identical to the previous local map, so
-behaviour did not change.
+### 2.1 Job Lifecycle & Moderation
 
-Verification-related rules are enforced by the model itself:
+- **Job Lifecycle (`Job.status`):**
+  - `draft` → `published`, `closed`
+  - `published` → `closed`
+  - `closed` (terminal)
 
-- A company case can only be `verified` with an assessment of `verified_evidence` and at least one
-  evidence item marked `verified`.
-- A `rejected` or `suspended` case needs a recorded reason.
-- Only one open case (`pending` or `under_review`) may exist per organization. This is a partial
-  unique index, so concurrent duplicates fail at the database.
+- **Job Moderation (`Job.moderation.status`):**
+  - `none` → `pending`
+  - `pending` → `approved`, `rejected`, `changes_requested`
+  - `rejected` → `pending`
+  - `changes_requested` → `pending`
+  - `approved` → `suspended`, `pending`, `rejected`
+  - `suspended` → `approved`
 
-The placement employment status is governed by `placementEmployment`. Verification
-(`Placement.verification.isVerified`) is a separate fact and is not part of that machine.
+### 2.2 Company Verification (`Organization.verificationStatus`)
 
-## Deletion and retention
+- `pending` → `under_review`, `rejected`
+- `under_review` → `verified`, `rejected`
+- `verified` → `suspended`
+- `suspended` → `verified`
+- `rejected` → `under_review`
 
-Records that must not be lost are protected by `server/models/plugins/protectRecords.js`:
+### 2.3 Application Stages (`Application.status`)
 
-- **Protected from hard delete:** `Application`, `Placement`, `PaymentTransaction`, `Subscription`,
-  `CompanyVerificationCase`, `JobModerationEvent`.
-- **Append-only:** `JobModerationEvent`. Updates are refused.
-- Hard deletes are refused with `409 RECORD_PROTECTED`. The only override is the explicit option
-  `.setOptions({ allowHardDelete: true })`, which is used by the seed and cleanup scripts
-  (`server/scripts/seed-data.js`, `server/scripts/professional-data.js`).
+- `submitted` → `under_review`, `shortlisted`, `rejected`
+- `under_review` → `shortlisted`, `interview`, `rejected`
+- `shortlisted` → `interview`, `rejected`
+- `interview` → `offer`, `rejected`
+- `offer` → `hired`, `rejected`
+- `hired` (terminal)
 
-Retention policy (proposed; needs approval before Phase 12):
+### 2.4 Canonical Employment (`Placement.employment.status`)
 
-- Billing and placement records are retained and never hard-deleted.
-- Personal data is minimized and anonymized on account closure. Billing records keep the
-  organization reference.
+1. `offer_accepted` → `pending_joining`, `joined_pending_verification`
+2. `pending_joining` → `joined_pending_verification`
+3. `joined_pending_verification` → `active_verified`, `offer_accepted`, `pending_joining`
+4. `active_verified` → `employment_end_pending_verification`
+5. `employment_end_pending_verification` → `employment_ended_verified`, `active_verified`
+6. `employment_ended_verified` (terminal)
+7. `status_unconfirmed` → `offer_accepted`, `pending_joining`, `active_verified`, `employment_ended_verified`
 
-**Open issue:** the account-deletion path (`v1AuthController`) still hard-deletes the user's
-organization, memberships and user. Organizations with billing or placement history therefore
-lose their parent record. This behaviour was not changed in Phase 1 because it is a policy decision.
+---
 
-## Data changes and migrations
+## 3. Data Protection & Append-Only Guarantees
 
-- All Phase 1 schema changes are additive: new collections (`CompanyVerificationCase`,
-  `JobModerationEvent`) and a plugin on existing models. Existing documents need no rewriting.
-- The one new index with a uniqueness constraint (open case per organization) applies to a new
-  collection, so it cannot conflict with existing data.
-- `npm run indexes:create` creates indexes for every model. CI runs it on each push.
+Critical business records are protected by Mongoose plugins in `server/models/plugins/protectRecords.js`:
+
+- **Protected against accidental hard deletion:** `Application`, `Placement`, `PaymentTransaction`, `Subscription`, `CompanyVerificationCase`, and `JobModerationEvent`.
+- **Append-Only History:** `JobModerationEvent` documents cannot be updated or mutated after insertion.
+- **Deletions Refused:** Any standard `deleteOne` or `findByIdAndDelete` on protected entities returns `409 RECORD_PROTECTED`. Only guarded seed or administrative migration scripts with `.setOptions({ allowHardDelete: true })` can bypass this check.
+
+---
+
+## 4. Indexing & Multi-Tenant Scoping
+
+- **Tenant Isolation:** Every multi-tenant collection (`jobs`, `applications`, `interviews`, `memberships`, `placements`) indexes `{ organization: 1 }` to enforce isolation.
+- **Partial Unique Indexes:** Prevent race conditions (e.g. only one open verification case per organization, unique active primary resumes per candidate, unique application per job-candidate pair).
+- **Index Generation:** Run `npm run indexes:create` in `server/` to verify and register all schema indexes.

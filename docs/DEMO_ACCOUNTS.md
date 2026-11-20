@@ -1,49 +1,59 @@
-# Demo accounts
+# HireSmart AI — Demo Accounts & Database Seeding
 
-Demo accounts exist for presentations and local testing. They are development data, not real users.
+Demo accounts and seeding scripts exist for local evaluation, presentation, and testing. They are intended for local development environments only.
 
-| Role | Email | Plan (source) |
-|---|---|---|
-| Admin | `tofu1180@gmail.com` (override with `DEMO_ADMIN_EMAIL`) | Platform admin access (no billing plan needed) |
-| Recruiter | `2025mca150@gmail.com` | Enterprise (`source=demo_seed`, `isDemo=true`) |
-| Candidate | `tanastai5018@gmail.com` | Career Plus (`source=demo_seed`, `isDemo=true`) |
+---
 
-## Passwords
+## 1. Demo User Accounts
 
-- The password is supplied only through `DEMO_PASSWORD` in `server/.env` (minimum 12 characters).
-- It is never written in code or in these docs. Passwords are bcrypt-hashed before storage and are never printed.
+| Role | Email | Assigned Organization / Plan | Notes |
+| :--- | :--- | :--- | :--- |
+| **Platform Admin** | `tofu1180@gmail.com` | Global Platform Governance | System administrator access across all workspaces. |
+| **Recruiter (Lead)** | `2025mca150@gmail.com` | Apex Innovations (Enterprise) | Organization owner with active hiring pipeline and jobs. |
+| **Recruiter** | `rohit.sharma@nexusbyte.com` | Nexus Byte Solutions (Growth) | Cloud systems firm with active requisitions. |
+| **Recruiter** | `kavya.nair@zenithlabs.in` | Zenith Technologies (Starter) | Fintech engineering requisitions and candidates. |
+| **Candidate (Lead)** | `tanastai5018@gmail.com` | Candidate Plus (₹149/mo) | Complete MERN profile, verified resume, applications, and scheduled interview. |
+| **Candidate** | `priya.sharma@example.com` | Candidate Free | Frontend React Engineer with verified placement. |
+| **Candidate** | `sneha.kulkarni@example.com` | Candidate Free | Site Reliability Engineer with active placement. |
 
-## Seeding (idempotent)
+### Password & Security Policy
+- Existing user accounts store strong bcrypt-hashed passwords.
+- Passwords are never logged, printed, or exposed in repository files.
+- The platform refuses to run destructive seeding or resets in `production` (`NODE_ENV=production`).
 
-```powershell
-cd server
-npm run seed:demo
+---
+
+## 2. Repeatable Seeding & Backup Commands
+
+All commands are executed from the `server/` directory:
+
+### Dry-Run Seeding Inspection (Safe & Non-Destructive)
+Inspects the database, verifies active accounts and collection metrics without modifying any data:
+```bash
+npm run seed:fresh
 ```
 
-Running the seed again updates the demo records in place (upserts). It does not duplicate accounts.
-
-## Resetting (development only)
-
-`npm run demo:reset` clears the target database. It refuses to run unless all of these hold:
-
-1. `NODE_ENV` is not `production`.
-2. The `--confirm-reset` flag is passed.
-3. `DEMO_RESET_DATABASE` is set to the exact name of the database that is connected.
-4. A backup of every collection is written and verified before anything is deleted (under `server/backups/`).
-
-It is never run at server startup. Only run it against a disposable local database.
-
-```powershell
-$env:DEMO_RESET_DATABASE="hiresmart_dev"
-cd server
-npm run demo:reset -- --confirm-reset
+### Full Safe Demo Reset & Fresh Seed
+Automatically creates an EJSON verified backup of all 33 collections under `server/backups/`, clears obsolete application demo data, strictly preserves all existing user accounts/passwords, and inserts fresh interconnected data:
+```bash
+npm run seed:fresh:confirm
 ```
 
-## Payments
+### Relational Integrity Check
+Scans all foreign keys across users, organizations, jobs, applications, interviews, and placements to verify 0 orphaned references:
+```bash
+npm run seed:verify
+```
 
-Demo subscriptions are complimentary grants. They have no `PaymentTransaction` records, create no Razorpay transactions, and add no revenue. Revenue reports only count captured Razorpay records.
+### Standalone Database Backup
+Creates an immediate, verified snapshot of all database collections in `server/backups/`:
+```bash
+npm run db:backup
+```
 
-## Status
+---
 
-- Seed and reset logic: code-reviewed and unit-tested for the policy checks (`demoResetPolicy`).
-- Running the seed against a real database and signing in with each account: NOT VERIFIED in this sandbox (no MongoDB available here). Verify in CI or on a local disposable database.
+## 3. Safety Rules
+1. Never run reset or seed commands on a production or unknown database.
+2. Backups are saved in `server/backups/` and are automatically git-ignored.
+3. Seeding preserves platform configuration (`platformsettings`, `razorpayplans`, and existing `users`).

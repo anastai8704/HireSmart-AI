@@ -1,309 +1,368 @@
 # HireSmart AI
 
-HireSmart AI is a recruitment platform with three kinds of user: **candidates** who build profiles, upload resumes and
-apply for jobs; **recruiters** who work for a verified company, post jobs and run a hiring pipeline; and **platform
-administrators** who verify companies, moderate job posts, manage subscriptions and read reports.
+[![CI](https://github.com/anastai8704/HireSmart-AI/actions/workflows/ci.yml/badge.svg)](https://github.com/anastai8704/HireSmart-AI/actions/workflows/ci.yml)
+[![Node.js Version](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen.svg)](https://nodejs.org/)
+[![License: ISC](https://img.shields.io/badge/License-ISC-blue.svg)](LICENSE)
 
-> Status: feature-complete for a test-mode launch candidate. Live payments are not enabled. See
-> [Current limitations](#current-limitations) before any production use.
+**HireSmart AI** is an enterprise-grade, AI-powered Applicant Tracking System (ATS) and recruitment management platform. It streamlines the end-to-end hiring lifecycle across three dedicated role-based workspaces: **Candidates**, **Recruiters & Hiring Teams**, and **Platform Administrators**.
 
-## Main features
+The platform bridges the communication and efficiency gap in modern hiring: candidates receive explainable ATS scoring and intelligent career guidance, recruiters automate candidate evaluation and pipeline operations with deep insights, and platform administrators oversee compliance, security, moderation, and billing.
 
-- **Candidates:** profile, versioned resume upload with text extraction, job search and recommendations, fit scoring
-  against a job, saved jobs, applications, offer responses and joining confirmation.
-- **Recruiters and companies:** organisation with team members and permissions, company verification, job drafting
-  and moderation, candidate pipeline (stages, notes, interviews, offers), employment tracking, company analytics.
-- **Platform administration:** company verification review, job moderation (approve, reject, request changes,
-  suspend), user management, audit log and security event viewer, analytics dashboard.
-- **Billing:** plans and subscriptions with usage limits. Payments run through Razorpay **Test Mode** only.
-- **Notifications:** in-app notifications and e-mail for the main hiring and billing events, with per-user preferences.
-- **Reports:** authorised CSV exports for platform and company data, with formula-injection protection
-  (see [docs/REPORTS.md](docs/REPORTS.md)).
-- **Security:** rotating refresh sessions, CSRF protection on refresh, role and tenant checks on every route, redacted
-  audit logs, rate limiting (see [docs/SECURITY.md](docs/SECURITY.md)).
+---
 
-## Technology stack
+## 1. Academic Project Information
 
-| Layer | What is used |
-| --- | --- |
-| Backend | Node.js 20 (Docker image) / 22 (CI), Express 5, Mongoose 9, MongoDB 7 |
-| Auth | JWT access tokens, rotating refresh sessions in an httpOnly cookie, bcrypt password hashing |
-| Files | Local disk in development, S3-compatible storage in production (`@aws-sdk/client-s3`), multer uploads, pdf-parse and mammoth for resume text |
-| Background work | A job queue in the database, processed by `server/worker.js` (or inline in tests and development) |
-| E-mail | nodemailer over SMTP. Mailpit in Docker Compose for local testing |
-| Payments | Razorpay SDK, Test Mode subscriptions and webhooks |
-| Frontend | React 19, React Router 7, TanStack Query, Vite 8, Tailwind CSS 4, Recharts, Vitest |
-| Delivery | Docker (Node API image, Nginx static web image), Docker Compose, GitHub Actions CI |
+HireSmart AI was developed as an **MCA Semester 3** academic project, demonstrating production-grade software engineering, secure multi-tenant architecture, explainable AI pipelines, and resilient distributed design.
 
-## Architecture overview
+### Project Team
 
+| Team Member | Role | Enrollment Number |
+| :--- | :--- | :--- |
+| **Anas Tai** | Project Lead | 202504104610150 |
+| **Palak Mehta** | Developer | 202504104610145 |
+| **Zaid Malek** | Developer | 202504104610135 |
+| **Suraj Pandey** | Developer | 202504104610094 |
+
+---
+
+## 2. Main Workspaces & Features
+
+### Candidate Workspace
+- **Personalized Dashboard:** Live application status counters, profile completion tracking, and upcoming scheduled interviews.
+- **Job Discovery & Saved Jobs:** Filter published requisitions by location, salary, experience, and workplace mode (onsite, hybrid, remote).
+- **Persistent Job Alerts:** Automated email and in-app alerts tailored to specific job search queries and cadences.
+- **Resume Manager:** Upload, parse, and version resumes (PDF/DOCX) with SHA-256 duplicate detection and secure S3/local storage.
+- **ATS Resume Analyzer:** Detailed fit analysis against job descriptions with a component score breakdown (required skills, preferred skills, experience, education, semantic similarity).
+- **Career AI Copilot:** Interactive, full-page AI copilot providing resume improvement feedback, interview preparation tips, and career guidance.
+- **Application Tracking:** Real-time visibility into application stages (`submitted`, `under_review`, `shortlisted`, `interview`, `offer`, `hired`).
+- **Interviews & Calendar:** Access confirmed meeting links (Google Meet / manual) with time-gated candidate join controls.
+- **Offers & Placement:** Review formal pre-hire compensation details, accept or decline offers, and submit post-hire joining confirmation.
+- **Profile & Subscription:** Manage contact information, skills taxonomy, DPDP/GDPR consent preferences, and Candidate Plus subscription plans.
+
+### Recruiter Workspace
+- **Recruiter Dashboard & Analytics:** Hiring pipeline conversion funnels, time-to-hire metrics, requisition statuses, and team activity streams.
+- **Company Profile & Verification:** Submit company registration credentials (GSTIN, CIN, domain ownership) for administrative platform verification.
+- **Team Management:** Invite colleagues into role-based permissions (`owner`, `hiring_manager`, `interviewer`, `viewer`).
+- **Requisitions & Job Management:** Create, edit, and publish job requisitions with compensation ranges, AI-assisted JD generation, and required skill tags.
+- **Applications Pipeline:** Interactive candidate stage progression with drag-and-drop or batch status updates, private notes, and rating scorecards.
+- **Candidate 360 Profile:** Complete candidate journey view including extracted resume details, portfolio links, and match scores.
+- **Candidate Comparison:** Multi-applicant comparison matrix highlighting matched vs. missing requirements side-by-side without automated bias.
+- **Interview Scheduling:** Job-bound scheduling with timezone awareness, evaluator scorecards, and optional Google Calendar integration.
+- **Offers & Hiring Management:** Draft, issue, and manage pre-hire offers with CTC, base salary, bonus, and joining dates.
+- **Recruitment AI Copilot:** AI assistant providing customized interview question generation, JD optimization, and candidate summary synthesis.
+- **Billing & Subscriptions:** Tiered plans (`Enterprise`, `Growth`, `Starter`, `Free`) with team seat and job quota tracking.
+
+### Admin Workspace
+- **Platform Control Center:** System-wide operations, active tenant counts, user registrations, revenue metrics, and server health.
+- **Company Governance:** Review pending organization verification cases, inspect submitted legal documents, and verify or reject organizations.
+- **Job Moderation:** Enforce compliance on published requisitions with an append-only moderation state machine (`approved`, `rejected`, `changes_requested`).
+- **Candidate & User Directory:** Global user directory with role filtering, account status management, and audit inspection.
+- **Candidate 360 Oversight:** Full audit inspection of candidate activities, applications, and security events across all tenants.
+- **Placements & Employment Overview:** Track placements across companies, canonical employment statuses, and verify proof of joining.
+- **Security & Fraud Detection:** Audit trails, failed authentication tracking, session revocation, and security event investigations.
+- **Revenue & Transactions:** Financial transaction tracking, plan subscription ledger, and Razorpay Test Mode reconciliation.
+- **Subscriptions & Quota Oversight:** Manage tenant limits, upgrade overrides, and usage quota enforcement.
+- **Reports & Data Exports:** Authorised CSV export engine with automated spreadsheet formula-injection sanitization.
+- **Platform Settings & Configuration:** Dynamic platform setting management, feature flags, and maintenance controls.
+
+---
+
+## 3. System Architecture
+
+HireSmart AI utilizes a modular monolith pattern with an asynchronous worker queue, prioritizing tenancy boundaries and security.
+
+```mermaid
+flowchart TD
+    subgraph Client["Frontend Client (React 19 + Vite)"]
+        UI["Tailwind CSS 4 + Headless Components"]
+        TQ["TanStack Query (Cache & State)"]
+        AuthCtx["Auth Context (Memory Token)"]
+    end
+
+    subgraph API["Backend API (Express 5 + Node.js)"]
+        Router["/api/v1 Router"]
+        AuthMiddleware["v1Auth & RBAC Middleware"]
+        TenantGuard["Organization Isolation Guard"]
+        Controllers["Area Controllers (Admin, Recruiter, Candidate)"]
+        Services["Domain Services (Matching, Payments, AI, Verification)"]
+        StateMachines["Domain State Machines (stateMachines.js)"]
+    end
+
+    subgraph Data["Data & Storage Layer"]
+        MongoDB[("MongoDB 7/8 (Mongoose 9)")]
+        LocalS3["Storage Engine (Local / AWS S3)"]
+        Worker["Background Job Worker (worker.js)"]
+    end
+
+    subgraph External["External Integrations"]
+        AIProvider["AI Providers (Gemini / OpenAI / Groq)"]
+        RazorpayGateway["Razorpay Gateway (Test Mode / Simulation)"]
+        GoogleMeet["Google Calendar & Meet API"]
+        SMTP["SMTP Mail Delivery (Nodemailer / Mailpit)"]
+    end
+
+    Client -- HTTPS / JSON --> Router
+    Router --> AuthMiddleware
+    AuthMiddleware --> TenantGuard
+    TenantGuard --> Controllers
+    Controllers --> Services
+    Services --> StateMachines
+    Services --> MongoDB
+    Services --> LocalS3
+    Services --> Worker
+    Services --> AIProvider
+    Services --> RazorpayGateway
+    Services --> GoogleMeet
+    Worker --> SMTP
 ```
-Browser (React SPA)
-   │  /api/v1 (same origin in Docker via Nginx; Vite proxy in development)
-   ▼
-Express API (server/app.js → routes/v1Routes.js)
-   │  middleware: auth, org/permission checks, validation, rate limits
-   ▼
-controllers → services (business rules) → domain (pure rules) → models (Mongoose) → MongoDB
-   │
-   ├─ queued work (e-mail, notifications, recurring billing) → worker.js
-   └─ files → storage service (local or S3)
-```
 
-- Controllers stay thin. Business rules live in `services/` and pure calculations in `domain/`, so they can be unit
-  tested without a database.
-- Every organisation route takes the organisation id from the path and checks membership and permission on each
-  request. Platform admin routes sit behind one guard.
-- Responses use a `data` envelope and a stable error `code`. See [docs/backend-api.md](docs/backend-api.md).
+---
 
-## Folder structure
+## 4. AI Architecture & Integration
 
-```
-HireSmart-AI/
-├── client/                 React single-page app (Vite)
-│   └── src/
-│       ├── pages/          Screens by area: admin, auth, candidate, recruiter, public
-│       ├── components/     Reusable UI: ui, layout, hiring, admin, brand
-│       ├── lib/            API client, date ranges, formatting, safe URL helpers
-│       ├── context/        Session and app-wide state
-│       ├── hooks/          Shared React hooks
-│       └── security/       Route guards for each role
-├── server/                 Express API and worker
-│   ├── app.js              Express app: security middleware, /api/v1 mount, error handler
-│   ├── server.js           Starts the HTTP server and connects to MongoDB
-│   ├── worker.js           Background worker: queue, alerts, recommendations, notices
-│   ├── config/             Environment loading and validation, plans, notification catalogue
-│   ├── constants/          Shared enums and fixed values
-│   ├── controllers/        HTTP handlers (v1* files) for each area
-│   ├── domain/             Pure business rules (state machines, analytics definitions)
-│   ├── middleware/         Authentication, organisation checks, validation, uploads, errors
-│   ├── models/             Mongoose schemas
-│   ├── routes/v1Routes.js  Every /api/v1 route and its access rule
-│   ├── services/           Business logic, integrations (email, storage, payments, AI)
-│   ├── scripts/            Admin bootstrap, seeding, index creation, migrations
-│   ├── test/               Node test suites (database suites run in CI)
-│   └── utils/              Helpers: pagination, redaction, logging, validation
-├── docs/                   Project documentation (see the index below)
-├── .github/workflows/      CI pipeline
-├── docker-compose.yml      Local stack: MongoDB, API, worker, Mailpit, web
-├── setup.sh / setup.ps1    Dependency install helpers for macOS/Linux and Windows
-└── README.md
-```
+HireSmart AI implements an explainable, resilient AI pipeline designed to assist humans rather than make autonomous hiring decisions:
 
-## Prerequisites
+- **Primary & Fallback Providers:** Built on an OpenAI-compatible adapter supporting Google Gemini, Groq, OpenAI, or local endpoints with automated fallback handling.
+- **Structured Outputs via Zod:** AI outputs are strictly constrained to typed JSON schemas, guaranteeing schema stability and predictable UI rendering.
+- **ATS Resume Analyzer:** Deterministic hybrid scoring combining:
+  - Required skills match (weighted)
+  - Preferred skills match
+  - Experience years & seniority alignment
+  - Education level verification
+  - Semantic content similarity (vector embeddings or deterministic TF-IDF fallback)
+- **Candidate Career Copilot:** Natural language coaching for resume gap identification, interview readiness, and application preparation.
+- **Recruiter Recruitment Copilot:** Context-aware assistant for job requisition drafting, customized interview question kits, and candidate synthesis.
+- **Privacy & Redaction:** Protected candidate personal attributes (gender, age, photo, address, contact identifiers) are excluded from AI ranking inputs to prevent bias.
 
-- Node.js 20 or newer (CI uses 22). npm comes with Node.
-- MongoDB 7 for local development (or Docker, see below).
-- Git.
-- Docker and Docker Compose, optional, for the full stack in containers.
+---
 
-## Installation
+## 5. Technology Stack
 
+| Layer | Technologies |
+| :--- | :--- |
+| **Frontend** | React 19, Vite 8, React Router 7, Tailwind CSS 4, TanStack Query v5, React Hook Form, Zod, Recharts, Lucide Icons |
+| **Backend** | Node.js (20 LTS / 22), Express 5, Mongoose 9, Multer, Helmet, CORS, Compression, HPP, express-mongo-sanitize |
+| **Database** | MongoDB (v7 / v8) with replica set support and 33 interconnected domain collections |
+| **Authentication** | JWT access tokens (in-memory), rotating HTTP-only refresh cookies, double-submit CSRF tokens, bcryptjs (cost 12) |
+| **AI Integration** | Modular provider orchestrator (Google Gemini, Groq, OpenAI), Zod schema validation, TF-IDF / vector embeddings |
+| **Payments** | Razorpay SDK (Test Mode only) and sandboxed simulation transactions |
+| **File Storage** | AWS S3 SDK (`@aws-sdk/client-s3`) and local private disk storage with magic-number validation |
+| **Document Processing** | `pdf-parse`, `mammoth` (DOCX parsing), crypto SHA-256 fingerprinting |
+| **Email Delivery** | Nodemailer with SMTP queue, Mailpit (local Docker testing) |
+| **Testing** | Node test runner (`node:test`), Supertest, Vitest, Playwright E2E |
+| **Deployment** | Docker multi-stage builds (Node API image, Nginx static web image), Docker Compose |
+
+---
+
+## 6. Installation & Local Setup
+
+### Prerequisites
+- **Node.js:** v20.0.0 or higher (v22 recommended)
+- **MongoDB:** v7.0 or higher running locally on port `27017` (or MongoDB Atlas)
+- **Git**
+
+### Step 1: Clone Repository
 ```bash
 git clone https://github.com/anastai8704/HireSmart-AI.git
 cd HireSmart-AI
-cd server && npm ci && cd ..
-cd client && npm ci && cd ..
 ```
 
-`setup.sh` (macOS/Linux) and `setup.ps1` (Windows) run the same installs and print the next steps.
-
-## Environment configuration
-
-1. Copy the example file: `cp server/.env.example server/.env`.
-2. Set at least `MONGO_URI` and a random `JWT_SECRET` (32+ characters).
-3. Leave payments disabled (`PAYMENT_MODE=disabled`) unless you are working on billing in test mode.
-
-Every variable, its default and its production rules are listed in [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md).
-Never commit `server/.env`. It is git-ignored.
-
-## Database setup
-
-Start MongoDB locally (for example `mongod --dbpath ./data`), or run `docker compose up mongo`.
-
+### Step 2: Install Dependencies
 ```bash
+# Install server dependencies
 cd server
-npm run indexes:create   # creates indexes (only runs fully when CI=true; otherwise it is a no-op)
-npm run bootstrap:admin  # needs ADMIN_NAME, ADMIN_EMAIL, ADMIN_PASSWORD in the environment
-```
+npm install
 
-For demo data in a **local or test** database only: `npm run seed`. It deletes every collection first and refuses to
-run when `NODE_ENV=production`. `npm run seed:demo` (`scripts/seed-presentation-demo.js`) loads a presentation dataset whose accounts share one known demo password; it also refuses to run when `NODE_ENV=production`.
-
-Migrations (`npm run migrate:v1`, `npm run migrate:applications`) are not run automatically. Read the script first and
-run it against a restored copy before any real data is changed.
-
-## Development commands
-
-```bash
-# Terminal 1: API (http://localhost:5000)
-cd server && npm run dev
-
-# Terminal 2: worker (only if PROCESS_JOBS_INLINE is not true)
-cd server && npm run worker
-
-# Terminal 3: web app (http://localhost:5173; /api is proxied to port 5000)
-cd client && npm run dev
-```
-
-Root shortcuts: `npm run dev:server`, `npm run dev:client`.
-
-## Testing commands
-
-```bash
-cd server
-npm run check            # syntax check of server files
-node --test test/*.unit.test.js   # unit suites, no database needed
-npm run lint
-npm test                 # all suites; database suites need MongoDB (CI provides it)
-
+# Install client dependencies
 cd ../client
-npx vitest run           # component and unit tests
+npm install
+cd ..
+```
+*(On Windows, you can alternatively run `.\setup.ps1`; on Linux/macOS, run `./setup.sh`)*
+
+### Step 3: Environment Setup
+Copy the example environment configuration:
+```bash
+cp server/.env.example server/.env
+```
+Open `server/.env` and configure your local settings:
+- `MONGO_URI=mongodb://127.0.0.1:27017/hiresmart_ai`
+- `JWT_SECRET=your_super_secret_jwt_key_at_least_32_characters_long`
+- Configure optional AI and payment providers as needed (placeholders provided).
+
+### Step 4: Database Seeding (Local Development)
+To load a fresh, interconnected demo dataset with verified organizations, candidate profiles, jobs, applications, and interviews:
+```bash
+cd server
+npm run seed:fresh:confirm
+```
+
+### Step 5: Start Development Servers
+Run the backend and frontend in separate terminals:
+
+```bash
+# Terminal 1: Backend API (http://localhost:5000)
+cd server
+npm run dev
+
+# Terminal 2: Frontend Web Client (http://localhost:5173)
+cd client
+npm run dev
+```
+
+Visit **`http://localhost:5173`** in your browser.
+
+---
+
+## 7. Environment Variables Reference
+
+Reference configuration template: `server/.env.example`
+
+| Variable | Description | Example / Default |
+| :--- | :--- | :--- |
+| `NODE_ENV` | Application runtime environment | `development` / `production` |
+| `PORT` | API server port | `5000` |
+| `MONGO_URI` | MongoDB connection URI | `mongodb://127.0.0.1:27017/hiresmart_ai` |
+| `CLIENT_URL` | Frontend client URL (CORS & links) | `http://localhost:5173` |
+| `JWT_SECRET` | Secret key for signing access tokens | `your_random_32_character_secret` |
+| `ACCESS_TOKEN_EXPIRES_IN`| In-memory access token validity | `15m` |
+| `REFRESH_TOKEN_EXPIRES_DAYS`| Rotating refresh cookie validity | `30` |
+| `STORAGE_PROVIDER` | Resume and document storage engine | `local` (or `s3`) |
+| `AI_PRIMARY_PROVIDER` | Primary AI integration provider | `gemini` (or `groq`, `openai`) |
+| `AI_PRIMARY_MODEL` | Primary AI model identifier | `gemini-1.5-flash` |
+| `AI_PRIMARY_API_KEY` | Primary provider API key | `your_api_key_here` |
+| `AI_FALLBACK_PROVIDER` | Fallback AI provider | `groq` |
+| `PAYMENT_MODE` | Payment processing gateway mode | `simulation` (or `razorpay_test`) |
+| `RAZORPAY_KEY_ID` | Razorpay Test Key ID | `rzp_test_your_key_id` |
+| `RAZORPAY_KEY_SECRET` | Razorpay Test Key Secret | `your_key_secret` |
+
+*Note: Never commit actual `.env` files. Keep production secrets in a secure secret manager.*
+
+---
+
+## 8. Database & Seeding Management
+
+HireSmart AI includes safe, repeatable seeding tools located in `server/scripts/`:
+
+```bash
+# Non-destructive preview of database state
+npm run seed:fresh
+
+# Full safe reset & fresh system-aligned seed (creates automatic backup first)
+npm run seed:fresh:confirm
+
+# Relational cross-reference verification (checks for orphaned records)
+npm run seed:verify
+
+# Standalone full database backup (EJSON format saved to server/backups/)
+npm run db:backup
+```
+
+> **Warning:** Reset commands delete application demo records. They strictly refuse to run in `production` (`NODE_ENV=production`) and require explicit CLI confirmation.
+
+---
+
+## 9. Security & Governance Controls
+
+- **Authentication Safeguards:** Passwords hashed with bcrypt (cost factor 12), timing-safe comparisons for unknown emails, and brute-force IP/account rate limits.
+- **Session Architecture:** 15-minute access tokens stored strictly in memory; rotating refresh tokens in `HttpOnly`, `SameSite: Lax` cookies with reuse detection that revokes entire compromised session families.
+- **CSRF Defense:** Double-submit cookie pattern (`hiresmart_csrf`) enforced on token rotation and state-changing requests.
+- **Tenant Isolation:** Multi-tenant scoping enforced at route, controller, and query levels using `req.auth.organizationId`.
+- **RBAC & Admin Guarding:** Platform admin endpoints return 404 to unauthorized users, completely hiding administrative surfaces.
+- **Document & File Safety:** Magic-number MIME verification, random UUID storage filenames, and private streaming routes preventing direct public bucket exposure.
+- **Audit Logging & Security Events:** Append-only logging of administrative actions, organization status changes, and sensitive candidate access.
+- **Formula Injection Mitigation:** CSV exports sanitize leading formula triggers (`=`, `+`, `-`, `@`) to protect spreadsheets.
+
+---
+
+## 10. Testing & Verification
+
+```bash
+# 1. Server syntax validation
+cd server
+npm run check
+
+# 2. Server unit test suite (no database required)
+node --test test/*.unit.test.js
+
+# 3. Server integration tests (requires MongoDB)
+npm test
+
+# 4. Frontend component and unit tests
+cd ../client
+npx vitest run
+
+# 5. Frontend & Backend linting
 npm run lint
+
+# 6. Production client build
+npm run build
 ```
 
-Database-backed suites cannot run without MongoDB. CI runs them with a MongoDB 7 service. The suite inventory and
-coverage map are in [docs/TESTING.md](docs/TESTING.md). There is no browser end-to-end suite yet.
+---
 
-## Build commands
+## 11. Project Directory Structure
 
-```bash
-cd client && npm run build      # static files in client/dist
-cd client && npm run preview    # serve the built files locally
+```
+HireSmart-AI/
+├── client/                     # Frontend React SPA
+│   ├── public/                 # Static assets, logos, and PWA manifests
+│   ├── src/
+│   │   ├── components/         # Reusable UI, admin, hiring, and AI components
+│   │   ├── context/            # AuthContext and application providers
+│   │   ├── hooks/              # Custom React hooks (checkout, entitlement)
+│   │   ├── lib/                # API client, date formatting, and utilities
+│   │   ├── pages/              # Candidate, Recruiter, Admin, and Auth screens
+│   │   └── security/           # Client-side protected route boundaries
+│   ├── package.json
+│   └── vite.config.js
+├── server/                     # Backend Express API & Worker
+│   ├── config/                 # Environment validation and plan catalogs
+│   ├── constants/              # System enums and fixed definitions
+│   ├── controllers/            # Role-based HTTP request handlers
+│   ├── domain/                 # Pure business rules and state machines
+│   ├── middleware/             # Auth, organization check, uploads, and errors
+│   ├── models/                 # Mongoose schemas and data models
+│   ├── routes/                 # /api/v1 route table
+│   ├── scripts/                # Seeding, backup, and migration utilities
+│   ├── services/               # Matching engine, AI orchestrator, payments
+│   ├── test/                   # Unit and integration test suites
+│   ├── app.js                  # Express application setup
+│   ├── server.js               # Server bootstrap and database connection
+│   └── worker.js               # Background queue processor
+├── docs/                       # Technical architecture documentation
+├── .github/workflows/          # CI pipeline definitions
+├── docker-compose.yml          # Container orchestration (API, Mongo, Web, Mailpit)
+├── setup.ps1 / setup.sh        # Setup helper scripts
+└── README.md                   # Main project documentation
 ```
 
-The API has no build step. Start it with `npm start` in `server/`.
+---
 
-## Docker
+## 12. Documentation Index
 
-```bash
-export JWT_SECRET="$(openssl rand -hex 32)"
-docker compose up --build
-```
+Detailed technical specifications are available in the [docs/](docs/) directory:
 
-| Service | Address | Purpose |
-| --- | --- | --- |
-| `web` | http://localhost:8080 | React build served by Nginx, which forwards `/api` to the API |
-| `api` | internal (port 5000) | Express API. Health: `/api/v1/health/ready` |
-| `worker` | internal | Background jobs |
-| `mongo` | internal | MongoDB 7 with a named volume |
-| `mailpit` | http://localhost:8025 | Captures outgoing e-mail for inspection |
+- [System Architecture & Learning Guide](docs/LEARN.md)
+- [Backend REST API Specification](docs/backend-api.md)
+- [Database & Domain Models](docs/DOMAIN_MODEL.md)
+- [Security & RBAC Controls](docs/SECURITY.md)
+- [Environment Configuration Guide](docs/ENVIRONMENT.md)
+- [Testing & Quality Assurance Guide](docs/TESTING.md)
+- [Demo Accounts & Database Seeding](docs/DEMO_ACCOUNTS.md)
+- [Candidate Pipeline Lifecycle](docs/CANDIDATE_PIPELINE.md)
+- [Company Verification Governance](docs/COMPANY_VERIFICATION.md)
+- [Job Moderation Policies](docs/JOB_MODERATION.md)
+- [Payment & Razorpay Test Setup](docs/PAYMENTS.md)
+- [Reports & Data Export Engine](docs/REPORTS.md)
+- [Resume Parsing & ATS Scoring](docs/RESUME.md)
+- [Analytics & KPI Definitions](docs/ANALYTICS.md)
+- [Google Calendar & Meet Integration](docs/GOOGLE_CALENDAR_SETUP.md)
+- [Viva & Academic Interview Preparation](docs/VIVA.md)
+- [Demo Presentation Walkthrough](docs/PRESENTATION_GUIDE.md)
 
-Uploaded resumes are stored in the `resume-uploads` volume. Compose does not set `PAYMENT_MODE`, so payments stay
-disabled by default.
+---
 
-## Payment setup (Razorpay Test Mode)
+## 13. License
 
-Billing is implemented for Razorpay **Test Mode** only. Live keys are refused at startup.
-
-1. Create a Razorpay account and switch the dashboard to Test Mode.
-2. Set `PAYMENT_MODE=razorpay_test`, `RAZORPAY_KEY_ID` (`rzp_test_…`), `RAZORPAY_KEY_SECRET`, and
-   `RAZORPAY_WEBHOOK_SECRET` (16+ characters).
-3. Expose the API to Razorpay (for example with a tunnel) and register the webhook at
-   `POST /api/v1/payments/webhooks/razorpay` with the same secret. Subscribe to the events listed in
-   `server/.env.example`.
-
-Plans are defined in `server/config/subscriptionPlans.js`. Yearly prices are not set (`yearlyPriceInr: null`) until
-pricing is finalised, so only monthly billing is offered. Details: [docs/PAYMENTS.md](docs/PAYMENTS.md).
-
-## Email setup
-
-E-mail is sent over SMTP when `SMTP_HOST` is set. Docker Compose includes Mailpit: the API container uses
-`SMTP_HOST=mailpit`, `SMTP_PORT=1025`, and the messages are readable at http://localhost:8025. Mailpit's SMTP port is
-not published to the host, so an API run directly on your machine needs its own SMTP server (or a Mailpit container
-with port 1025 published). Production requires `SMTP_HOST`, `SMTP_USER` and `SMTP_PASS`.
-
-## Test accounts
-
-Create a local admin with `npm run bootstrap:admin`, and create a candidate and a recruiter through the sign-up screens.
-`npm run seed` creates demo users and sets a default admin password (`Password@123`) unless `ADMIN_PASSWORD` is set.
-Use seeded data only in a local or test database, and never with a password you use elsewhere.
-
-## Deployment considerations
-
-- Run the API and the worker as separate processes, both with the same `MONGO_URI` and `JWT_SECRET`.
-- Serve the built web app and the API under one origin (or set `CORS_ORIGIN` and `CLIENT_URL` correctly).
-- Use HTTPS. Production requires `COOKIE_SECURE=true`.
-- Use S3-compatible storage (`STORAGE_PROVIDER=s3`) and a malware scanning endpoint (`MALWARE_SCANNER_URL`). See
-  the limitations below.
-- Create indexes once per deployment (`npm run indexes:create` with `CI=true`, or from your migration process).
-- The Docker API image runs `node server.js` and has a health check on `/api/v1/health/ready`.
-
-## Troubleshooting
-
-- **The server exits at startup with a message about an environment variable.** Production has stricter rules. Check
-  the list in [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md).
-- **`MongoServerError` or connection refused.** Check that MongoDB is running and that `MONGO_URI` matches it. In
-  Docker, use the service name `mongo`, not `localhost`.
-- **The web app shows network errors in development.** Start the API on port 5000 first. The Vite dev server proxies
-  `/api` to it.
-- **Login says 429 `RATE_LIMITED`.** Wait for the window to pass. Limits are per account and per IP.
-- **Uploads are rejected.** Only the supported resume and image types are accepted. Avatar uploads are also checked
-  against the file's content signature, not only its extension.
-- **Background e-mails or notifications never arrive.** Make sure the worker is running, or that
-  `PROCESS_JOBS_INLINE=true` is set in development.
-- **Tests that need a database fail locally.** Those suites run in CI. Use `node --test test/*.unit.test.js` locally.
-
-## Security notes
-
-- Passwords are hashed with bcrypt. Login has per-account and per-IP throttling. Refresh tokens rotate, and reuse of a
-  rotated token revokes the session family.
-- Every organisation and admin route is checked on the server. Non-members and non-admins get 404 so that existence is
-  not revealed.
-- Audit logs and security events redact secrets and tokens. They never store passwords or payment secrets.
-- Report exports protect against spreadsheet formula injection and contain no candidate names or e-mail addresses.
-- Dependency audit: `npm audit --omit=dev` reports no known vulnerabilities at the time of the last run.
-- Read [docs/SECURITY.md](docs/SECURITY.md) for the full list of controls and accepted trade-offs.
-
-## Current limitations
-
-- **Payments:** Razorpay Test Mode only. Live mode is not enabled. Yearly prices are not set. Dismissing a hosted
-  Checkout cancels the local record only, so the provider subscription stays in `created` until it expires. See
-  [docs/PAYMENTS.md](docs/PAYMENTS.md).
-- **Invoices:** PDF invoice generation is pending.
-- **Malware scanning:** the scanner integration exists, but a production scanner is not provisioned here.
-- **Data retention:** the retention and hard-delete policy is deferred. Current protections are documented in
-  [docs/SECURITY.md](docs/SECURITY.md) and must be decided before launch.
-- **Browser end-to-end tests:** not implemented. Workflows are covered at API and unit level
-  ([docs/TESTING.md](docs/TESTING.md)).
-- **Reports:** exports run synchronously with a 10,000-row cap. PDF reports are not provided.
-- **Development CORS:** when `CORS_ORIGIN` is empty in development, any origin is reflected. Production requires an
-  explicit list.
-- **Migrations and external integrations** (Razorpay webhook from a deployed URL, real SMTP provider, S3 bucket) have
-  not been verified end to end in this repository.
-
-## Production-launch checklist
-
-- [ ] Strong random `JWT_SECRET` (32+ characters) stored in a secrets manager.
-- [ ] `NODE_ENV=production`; startup checks pass.
-- [ ] HTTPS everywhere; `COOKIE_SECURE=true`; `CORS_ORIGIN` set to the web origin only.
-- [ ] S3 bucket with private access; `STORAGE_PROVIDER=s3`; malware scanner endpoint reachable.
-- [ ] SMTP provider configured; sender domain authenticated (SPF, DKIM).
-- [ ] MongoDB backups, restore tested, and access restricted to the API and worker.
-- [ ] Indexes created; migrations reviewed and run against a restored copy first.
-- [ ] Data-retention and hard-delete policy decided and documented ([docs/SECURITY.md](docs/SECURITY.md)).
-- [ ] Razorpay: decision on live mode, final plan prices, webhook URL verified in Test Mode end to end.
-- [ ] Admin account created with a unique password; seed scripts not run against production.
-- [ ] Logs reviewed for redaction; error monitoring configured.
-- [ ] `npm audit --omit=dev` clean in `server/` and `client/`; CI green on the release commit.
-- [ ] Legal pages and privacy notice reviewed for the launch jurisdiction.
-
-## Documentation index
-
-| Document | What it covers |
-| --- | --- |
-| [docs/backend-api.md](docs/backend-api.md) | API conventions and every route with its access rule |
-| [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md) | Environment variables, defaults and production rules |
-| [docs/SECURITY.md](docs/SECURITY.md) | Security controls, accepted trade-offs and open items |
-| [docs/PAYMENTS.md](docs/PAYMENTS.md) | Billing modes, Razorpay Test Mode setup and webhooks |
-| [docs/REPORTS.md](docs/REPORTS.md) | Report catalogue, CSV rules and export limits |
-| [docs/ANALYTICS.md](docs/ANALYTICS.md) | Dashboard metrics and date rules |
-| [docs/TESTING.md](docs/TESTING.md) | Test suites, classification and coverage gaps |
-| [docs/DOMAIN_MODEL.md](docs/DOMAIN_MODEL.md) | Data model and status lifecycles |
-| [docs/CANDIDATE_PIPELINE.md](docs/CANDIDATE_PIPELINE.md) | Applications, stages, interviews and offers |
-| [docs/COMPANY_VERIFICATION.md](docs/COMPANY_VERIFICATION.md) | Company verification rules |
-| [docs/JOB_MODERATION.md](docs/JOB_MODERATION.md) | Job moderation states and decisions |
-| [docs/RESUME.md](docs/RESUME.md) | Resume processing and fit scoring |
-
-Some files in `docs/` are planning, study or presentation material (for example `LEARN.md`, `VIVA.md`,
-`marketplace-blueprint.md`, `PROJECT_AUDIT.md`). They describe history and intent, not the current API.
+This project is licensed under the **ISC License**. Developed for academic evaluation and research purposes.

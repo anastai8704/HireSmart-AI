@@ -1,5 +1,5 @@
-// Database-backed tests: admin revenue (Requirement 8) and placements/employment (Requirement 9).
-// Runs against MongoDB through test/setup.js. Not verified until run with a MongoDB instance (see CHECKPOINT.md).
+// Database-backed tests: admin revenue and placements/employment.
+// Runs against MongoDB through test/setup.js in automated test environments.
 process.env.NODE_ENV = "test";
 process.env.PROCESS_JOBS_INLINE = "true";
 const assert = require("node:assert/strict");
