@@ -2,13 +2,26 @@
 
 [![CI](https://github.com/anastai8704/HireSmart-AI/actions/workflows/ci.yml/badge.svg)](https://github.com/anastai8704/HireSmart-AI/actions/workflows/ci.yml)
 
+> **Academic Project**: Developed and presented as an academic project for **Master of Computer Applications (MCA) — Semester 3**.
+
+### Project Team
+
+| Team Member | Role | Enrollment Number |
+| :--- | :--- | :--- |
+| **Anas Tai** | Project Lead | 202504104610150 |
+| **Palak Mehta** | Developer | 202504104610145 |
+| **Zaid Malek** | Developer | 202504104610135 |
+| **Suraj Pandey** | Developer | 202504104610094 |
+
+---
+
 **AI-Powered Applicant Tracking System + Resume Analyzer**
 
 Scores any resume against any job with an **explainable** matching engine, ranks
 applicants automatically for recruiters, and tells candidates exactly what to fix.
 
 ```
-Automated test suite   ·   Stack: React · Node.js · Express · MongoDB · Tailwind CSS
+Automated test suite   ·   Stack: React 19 · Node.js · Express · MongoDB · Tailwind CSS
 ```
 
 ---
@@ -63,7 +76,6 @@ Both are **pure, dependency-free functions**: no database, no network, no API ke
 They always work, and they unit-test in milliseconds.
 
 ---
-
 
 ## Production frontend
 
@@ -273,11 +285,13 @@ real MongoDB service container, plus frontend lint and a production build.
 
 ---
 
-## Team
+## Academic Project & Team Information
 
-- **Anas** — Project Lead
-- Member 2 — Developer
-- Member 3 — Developer
-- Member 4 — Developer
+This project was developed and submitted for **Master of Computer Applications (MCA) — Semester 3**.
 
-Built as an MCA Semester 3 project.
+| Team Member | Role | Enrollment Number |
+| :--- | :--- | :--- |
+| **Anas Tai** | Project Lead | 202504104610150 |
+| **Palak Mehta** | Developer | 202504104610145 |
+| **Zaid Malek** | Developer | 202504104610135 |
+| **Suraj Pandey** | Developer | 202504104610094 |
