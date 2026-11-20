@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarPlus, Download, FileText, Info } from "lucide-react";
+import { ArrowLeft, CalendarPlus, ChevronRight, Download, FileText, Info } from "lucide-react";
 import Button from "../../components/ui/Button";
-import Input from "../../components/ui/Input";
+import Input, { Textarea } from "../../components/ui/Input";
+import DatePicker from "../../components/ui/DatePicker";
 import { SearchableSelect } from "../../components/ui/SearchableSelect";
 import Badge from "../../components/ui/Badge";
 import { EmptyState, ErrorState, LoadingState, SkeletonList } from "../../components/ui/States";
@@ -27,7 +28,7 @@ import {
   roundLabel,
   validateSchedule,
 } from "../../lib/interviewWorkflow";
-import { formatDate } from "../../lib/utils";
+import { cn, formatDate } from "../../lib/utils";
 
 const idOf = (value) => value?.id || value?._id || "";
 const OPEN = ["draft", "invited", "confirmed", "reschedule_requested", "rescheduled", "in_progress"];
@@ -169,6 +170,7 @@ const InterviewScheduler = () => {
     timezone: DEFAULT_TIMEZONE,
     location: "",
     meetingUrl: "",
+    instructions: "",
   }));
 
   const jobs = useQuery({
@@ -280,19 +282,99 @@ const InterviewScheduler = () => {
         }
       />
 
-      <ol className="flex flex-wrap gap-2 text-xs font-semibold" aria-label="Scheduling steps">
-        <li className={effectiveJobId ? "text-success-700" : "text-brand-700"} aria-current={!effectiveJobId ? "step" : undefined}>
-          1. Job {effectiveJobId ? "✓" : ""}
-        </li>
-        <li className="text-ink-300" aria-hidden="true">›</li>
-        <li className={applicationId ? "text-success-700" : effectiveJobId ? "text-brand-700" : "text-ink-400"} aria-current={effectiveJobId && !applicationId ? "step" : undefined}>
-          2. Candidate {applicationId ? "✓" : ""}
-        </li>
-        <li className="text-ink-300" aria-hidden="true">›</li>
-        <li className={applicationId ? "text-brand-700" : "text-ink-400"} aria-current={applicationId ? "step" : undefined}>
-          3. Schedule
-        </li>
-      </ol>
+      {/* Modern Clickable Stepper Bar */}
+      <nav aria-label="Scheduling steps" className="rounded-2xl border border-ink-200 bg-white p-3 shadow-sm">
+        <ol className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 text-xs font-semibold">
+          <li
+            className={cn(
+              "flex flex-1 items-center gap-3 rounded-xl p-2.5 transition-all cursor-pointer",
+              effectiveJobId
+                ? "bg-success-50 text-success-900 border border-success-200"
+                : "bg-brand-50 text-brand-900 border border-brand-300"
+            )}
+            onClick={() => chooseJob("")}
+            aria-current={!effectiveJobId ? "step" : undefined}
+          >
+            <span
+              className={cn(
+                "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold",
+                effectiveJobId ? "bg-success-600 text-white" : "bg-brand-600 text-white"
+              )}
+            >
+              {effectiveJobId ? "✓" : "1"}
+            </span>
+            <div className="min-w-0">
+              <span className="block font-bold">1. Select Job</span>
+              <span className="block truncate text-[11px] font-normal opacity-80">
+                {selectedJob ? selectedJob.title : "Choose role to interview for"}
+              </span>
+            </div>
+          </li>
+
+          <ChevronRight className="hidden sm:block h-4 w-4 shrink-0 text-ink-300" aria-hidden="true" />
+
+          <li
+            className={cn(
+              "flex flex-1 items-center gap-3 rounded-xl p-2.5 transition-all",
+              !effectiveJobId
+                ? "cursor-not-allowed bg-ink-50 text-ink-400 border border-ink-100 opacity-60"
+                : applicationId
+                ? "cursor-pointer bg-success-50 text-success-900 border border-success-200"
+                : "bg-brand-50 text-brand-900 border border-brand-300"
+            )}
+            onClick={() => {
+              if (effectiveJobId) setApplicationId("");
+            }}
+            aria-current={effectiveJobId && !applicationId ? "step" : undefined}
+          >
+            <span
+              className={cn(
+                "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold",
+                applicationId
+                  ? "bg-success-600 text-white"
+                  : effectiveJobId
+                  ? "bg-brand-600 text-white"
+                  : "bg-ink-300 text-ink-600"
+              )}
+            >
+              {applicationId ? "✓" : "2"}
+            </span>
+            <div className="min-w-0">
+              <span className="block font-bold">2. Select Candidate</span>
+              <span className="block truncate text-[11px] font-normal opacity-80">
+                {selectedApplication?.candidate?.name || "Applicant from this job"}
+              </span>
+            </div>
+          </li>
+
+          <ChevronRight className="hidden sm:block h-4 w-4 shrink-0 text-ink-300" aria-hidden="true" />
+
+          <li
+            className={cn(
+              "flex flex-1 items-center gap-3 rounded-xl p-2.5 transition-all",
+              !applicationId
+                ? "cursor-not-allowed bg-ink-50 text-ink-400 border border-ink-100 opacity-60"
+                : "bg-brand-50 text-brand-900 border border-brand-300"
+            )}
+            aria-current={applicationId ? "step" : undefined}
+          >
+            <span
+              className={cn(
+                "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold",
+                applicationId ? "bg-brand-600 text-white" : "bg-ink-300 text-ink-600"
+              )}
+            >
+              3
+            </span>
+            <div className="min-w-0">
+              <span className="block font-bold">3. Schedule Details</span>
+              <span className="block truncate text-[11px] font-normal opacity-80">
+                {roundLabel(nextRound)}
+              </span>
+            </div>
+          </li>
+        </ol>
+      </nav>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_1.2fr]">
         <div className="space-y-6">
@@ -426,6 +508,23 @@ const InterviewScheduler = () => {
                       <p className="text-xs text-ink-500">No candidates match that search.</p>
                     )}
                   </fieldset>
+                  {applicationId && (
+                    <div className="flex items-center justify-between border-t border-ink-100 pt-3">
+                      <Button size="sm" variant="ghost" onClick={() => chooseJob("")}>
+                        Change Job
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        onClick={() => {
+                          const el = document.getElementById("schedule-heading");
+                          el?.scrollIntoView({ behavior: "smooth" });
+                        }}
+                      >
+                        Continue to Schedule →
+                      </Button>
+                    </div>
+                  )}
                 </>
               )}
             </section>
@@ -476,17 +575,19 @@ const InterviewScheduler = () => {
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
-                <Input
+                <DatePicker
                   label="Starts"
-                  type="datetime-local"
+                  placeholder="Select start date & time"
+                  showTime
                   required
                   value={form.start}
                   error={errors.start}
                   onChange={(e) => setForm((f) => ({ ...f, start: e.target.value }))}
                 />
-                <Input
+                <DatePicker
                   label="Ends"
-                  type="datetime-local"
+                  placeholder="Select end date & time"
+                  showTime
                   required
                   value={form.end}
                   error={errors.end}
@@ -520,12 +621,20 @@ const InterviewScheduler = () => {
               </div>
 
               <Input
-                label="Meeting link (optional, manual)"
-                hint="Leave empty to create a Google Meet link when Google Calendar is connected."
+                label="Meeting link (Google Meet, Zoom, MS Teams, etc.)"
+                hint="If Google Calendar is connected, Google Meet will be created automatically. If not connected, add a meeting link here so you can start the interview and the candidate can join."
                 placeholder="https://"
                 value={form.meetingUrl}
                 error={errors.meetingUrl}
                 onChange={(e) => setForm((f) => ({ ...f, meetingUrl: e.target.value }))}
+              />
+
+              <Textarea
+                label="Interview instructions & agenda (optional)"
+                placeholder="Guidelines, agenda, topics, or technical requirements for the candidate..."
+                rows={3}
+                value={form.instructions}
+                onChange={(e) => setForm((f) => ({ ...f, instructions: e.target.value }))}
               />
 
               {memberOptions.length > 0 && (
@@ -561,15 +670,68 @@ const InterviewScheduler = () => {
                 </fieldset>
               )}
 
+              {/* Confirmation & Summary Preview */}
+              <div className="rounded-xl border border-brand-200 bg-brand-50/50 p-4 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-brand-900">
+                    Review & Confirmation
+                  </h4>
+                  <span className="text-[11px] font-semibold text-brand-700 bg-brand-100 rounded-full px-2 py-0.5">
+                    Ready to schedule
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs text-ink-700">
+                  <div>
+                    <span className="text-ink-500">Candidate: </span>
+                    <strong className="text-ink-900">{selectedApplication.candidate?.name || "Candidate"}</strong>
+                  </div>
+                  <div>
+                    <span className="text-ink-500">Job: </span>
+                    <strong className="text-ink-900">{selectedJob?.title || "Job"}</strong>
+                  </div>
+                  <div>
+                    <span className="text-ink-500">Round: </span>
+                    <span>{roundLabel(nextRound)} ({form.type})</span>
+                  </div>
+                  <div>
+                    <span className="text-ink-500">Start Time: </span>
+                    <span>{form.start ? `${form.start.replace("T", " ")} (${form.timezone})` : "Not set"}</span>
+                  </div>
+                  {participantIds.length > 0 && (
+                    <div className="col-span-2">
+                      <span className="text-ink-500">Interviewers: </span>
+                      <span>{participantIds.length} assigned member(s)</span>
+                    </div>
+                  )}
+                  {form.instructions && (
+                    <div className="col-span-2 border-t border-brand-200/60 pt-1.5 text-[11px]">
+                      <span className="text-ink-500 font-semibold">Instructions: </span>
+                      <span className="text-ink-800">{form.instructions}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {formError && <ErrorCallout error={formError} />}
-              <Button
-                type="submit"
-                fullWidth
-                isLoading={create.isPending}
-                leftIcon={<CalendarPlus className="h-4 w-4" aria-hidden="true" />}
-              >
-                Schedule and send invitation
-              </Button>
+              <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setApplicationId("")}
+                  leftIcon={<ArrowLeft className="h-4 w-4" />}
+                >
+                  Back to candidates
+                </Button>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  className="flex-1 w-full"
+                  isLoading={create.isPending}
+                  leftIcon={<CalendarPlus className="h-4 w-4" aria-hidden="true" />}
+                >
+                  Schedule and send invitation
+                </Button>
+              </div>
               <p className="text-xs text-ink-500">
                 The candidate gets an invitation and must confirm. Times are shown in the timezone you choose.
               </p>

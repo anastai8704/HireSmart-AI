@@ -1,15 +1,15 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   Bell,
   BadgeCheck,
-  Bookmark,
   BriefcaseBusiness,
   Building2,
   ChartNoAxesCombined,
-  ChevronDown,
   CreditCard,
   DollarSign,
+  FileCheck,
+  FileSpreadsheet,
   FileText,
   HeartHandshake,
   LayoutDashboard,
@@ -18,6 +18,7 @@ import {
   Menu,
   Search,
   Settings,
+  ShieldAlert,
   ShieldCheck,
   Sparkles,
   UserRound,
@@ -40,52 +41,63 @@ const candidateGroups = [
   [
     "Workspace",
     [
-      ["/app/candidate", "Home", LayoutDashboard],
-      ["/app/candidate/jobs", "Discover", Search],
-      ["/app/candidate/recommendations", "Recommendations", Sparkles],
+      ["/app/candidate", "Dashboard", LayoutDashboard],
+      ["/app/candidate/jobs", "Job Discovery", Search],
       ["/app/candidate/applications", "Applications", BriefcaseBusiness],
-      ["/app/candidate/saved", "Saved Jobs", Bookmark],
       ["/app/candidate/interviews", "Interviews", Video],
-      ["/app/candidate/placements", "Employment", BadgeCheck],
-      ["/app/candidate/resumes", "Resumes", FileText],
-      ["/app/candidate/alerts", "Alerts", Bell],
+      ["/app/candidate/placements", "Placements & Employment", BadgeCheck],
     ],
   ],
   [
-    "Assistant & Plan",
+    "Career Assets",
     [
-      ["/app/candidate/copilot", "Career Assistant", Sparkles],
-      ["/app/candidate/plans", "Career Plus", CreditCard],
+      ["/app/candidate/resumes", "Resume Manager", FileText],
+      ["/app/candidate/copilot", "Career AI Copilot", Sparkles, "Career Assistant"],
+    ],
+  ],
+  [
+    "Account",
+    [
+      ["/app/candidate/plans", "Subscription & Plan", CreditCard],
+      ["/app/candidate/alerts", "Alerts", Bell],
+      ["/app/profile", "Profile", UserRound],
+      ["/app/settings", "Settings", Settings],
     ],
   ],
 ];
+
 const recruiterGroups = (org) => [
   [
     "Hiring",
     [
       [`/app/o/${org}`, "Overview", LayoutDashboard],
-      [`/app/o/${org}/jobs`, "Jobs", BriefcaseBusiness],
+      [`/app/o/${org}/jobs`, "Requisitions", BriefcaseBusiness],
+      [`/app/o/${org}/applications`, "Applications", FileText],
       [`/app/o/${org}/candidates`, "Candidates", UsersRound],
       [`/app/o/${org}/interviews`, "Interviews", Video],
+      [`/app/o/${org}/offers`, "Offers", FileCheck],
       [`/app/o/${org}/placements`, "Placements", BadgeCheck],
-      [`/app/o/${org}/compare`, "Compare", HeartHandshake],
     ],
   ],
   [
-    "Insights",
+    "Tools",
     [
+      [`/app/o/${org}/compare`, "Candidate Comparison", HeartHandshake],
+      [`/app/o/${org}/copilot`, "AI Copilot", Sparkles, "Hiring Assistant"],
       [`/app/o/${org}/analytics`, "Analytics", ChartNoAxesCombined],
-      [`/app/o/${org}/copilot`, "Hiring Assistant", Sparkles],
     ],
   ],
   [
-    "Workspace",
+    "Organization",
     [
-      [`/app/o/${org}/team`, "Team", Building2],
-      [`/app/o/${org}/billing`, "Billing & Quotas", CreditCard],
+      [`/app/o/${org}/verification`, "Company Profile / Verification", ShieldCheck],
+      [`/app/o/${org}/team`, "Team Members", Building2],
+      [`/app/o/${org}/billing`, "Billing & Subscription", CreditCard],
+      ["/app/settings", "Settings", Settings],
     ],
   ],
 ];
+
 const managerGroups = (org) => [
   [
     "Hiring",
@@ -96,6 +108,7 @@ const managerGroups = (org) => [
     ],
   ],
 ];
+
 // A viewer only has job.read, so only the assigned-jobs view is reachable —
 // keeping a link that 404s would teach the role nothing.
 const viewerGroups = (org) => [
@@ -104,52 +117,60 @@ const viewerGroups = (org) => [
     [[`/app/o/${org}/assigned`, "Assigned Jobs", HeartHandshake]],
   ],
 ];
+
 const adminGroups = [
   [
-    "Platform",
+    "Platform Governance",
     [
-      ["/app/admin", "Overview", LayoutDashboard],
-      ["/app/admin/moderation", "Approvals", BriefcaseBusiness],
-      ["/app/admin/users", "Users", UserRound],
+      ["/app/admin", "Control Center", LayoutDashboard],
+      ["/app/admin/moderation", "Job Moderation", BriefcaseBusiness],
+      ["/app/admin/placements", "Placements", BadgeCheck],
+    ],
+  ],
+  [
+    "Directories",
+    [
+      ["/app/admin/users", "Candidates & Users", UserRound],
       ["/app/admin/organizations", "Companies", Building2],
-      ["/app/admin/verification", "Verification", ShieldCheck],
-      ["/app/admin/revenue", "Revenue & Plans", DollarSign],
-      ["/app/admin/placements", "Placements", BriefcaseBusiness],
-      ["/app/admin/subscriptions", "Subscriptions", CreditCard],
     ],
   ],
   [
-    "Insights",
+    "Finance",
     [
-      ["/app/admin/ai-usage", "AI Activity", Sparkles],
-      ["/app/admin/security", "Security & Audit", ShieldCheck],
+      ["/app/admin/revenue", "Revenue & Transactions", DollarSign],
+      ["/app/admin/subscriptions", "Subscriptions & Quotas", CreditCard],
     ],
   ],
   [
-    "Account",
+    "System",
     [
-      ["/app/notifications", "Notifications", Bell],
-      ["/app/settings", "Settings", Settings],
+      ["/app/admin/security", "Security & Audit", ShieldAlert],
+      ["/app/admin/reports", "Reports & Exports", FileSpreadsheet],
+      ["/app/admin/settings", "Platform Settings", Settings],
+      ["/app/admin/ai-usage", "AI Analytics", Sparkles],
     ],
   ],
 ];
 
 const SECTION_TITLES = [
-  ["/app/admin/moderation", "Approvals"],
-  ["/app/admin/users", "Users"],
+  ["/app/admin/moderation", "Job Moderation"],
+  ["/app/admin/users", "Candidates & Users"],
   ["/app/admin/organizations", "Companies"],
-  ["/app/admin/verification", "Company verification"],
-  ["/app/admin/revenue", "Revenue & Plans"],
-  ["/app/admin/placements", "Placements & employment"],
-  ["/app/admin/subscriptions", "Subscriptions"],
-  ["/app/admin/ai-usage", "AI Activity"],
+  ["/app/admin/verification", "Company Verification"],
+  ["/app/admin/revenue", "Revenue & Transactions"],
+  ["/app/admin/search", "Global Search"],
+  ["/app/admin/placements", "Placements & Employment"],
+  ["/app/admin/subscriptions", "Subscriptions & Quotas"],
+  ["/app/admin/reports", "Reports & Exports"],
+  ["/app/admin/settings", "Platform Settings"],
+  ["/app/admin/ai-usage", "Platform Analytics & AI"],
   ["/app/admin/security", "Security & Audit"],
   ["/app/notifications", "Notifications"],
   ["/app/profile", "My Profile"],
   ["/app/settings", "Settings"],
 ];
 const sectionTitle = (path) =>
-  path === "/app/admin" ? "Overview" : SECTION_TITLES.find(([p]) => path.startsWith(p))?.[1] || "";
+  path === "/app/admin" ? "Control Center" : SECTION_TITLES.find(([p]) => path.startsWith(p))?.[1] || "";
 
 const AppShell = () => {
   const auth = useAuth();
@@ -178,6 +199,21 @@ const AppShell = () => {
     const target = notificationTarget(auth, n);
     navigate(target?.to || "/app/notifications");
   };
+
+  // Accessibility: close on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        setOpen(false);
+        setBellOpen(false);
+        setMenuOpen(false);
+        setHelpOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   const groups = isAdmin
     ? adminGroups
     : auth.organization
@@ -206,7 +242,7 @@ const AppShell = () => {
         <button
           type="button"
           aria-label="Close navigation"
-          className="fixed inset-0 z-40 bg-ink-950/50 backdrop-blur-[2px] lg:hidden"
+          className="fixed inset-0 z-40 bg-ink-950/60 backdrop-blur-xs lg:hidden"
           onClick={() => setOpen(false)}
         />
       )}
@@ -215,13 +251,16 @@ const AppShell = () => {
           "fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-ink-800 bg-ink-950 text-white transition-transform duration-200 lg:translate-x-0",
           open ? "translate-x-0" : "-translate-x-full",
         )}
+        aria-label="Sidebar navigation"
+        role={open ? "dialog" : undefined}
+        aria-modal={open ? "true" : undefined}
       >
-        <div className="flex h-18 items-center justify-between px-5">
+        <div className="flex h-16 shrink-0 items-center justify-between border-b border-white/8 px-5">
           <NavLink to="/" className="flex items-center">
             <Logo tone="light" />
           </NavLink>
           <button
-            className="rounded-lg p-2 hover:bg-white/10 lg:hidden"
+            className="rounded-lg p-2 text-ink-400 hover:bg-white/10 hover:text-white transition-colors lg:hidden"
             onClick={() => setOpen(false)}
             aria-label="Close menu"
           >
@@ -229,15 +268,15 @@ const AppShell = () => {
           </button>
         </div>
         {!isAdmin && auth.organizations.length > 0 && (
-          <div className="px-4 pb-2 pt-1">
-            <label
-              className="mb-1.5 block text-[10px] font-bold uppercase tracking-widest text-ink-500"
-              htmlFor="organization-switcher"
-            >
-              Workspace
-            </label>
-            <div className="mb-1.5">
-              <PlanBadge compact />
+          <div className="shrink-0 border-b border-white/8 px-4 pb-3 pt-3">
+            <div className="mb-2 flex items-center justify-between">
+              <label
+                className="block text-[10px] font-bold uppercase tracking-widest text-ink-300"
+                htmlFor="organization-switcher"
+              >
+                Workspace
+              </label>
+              <PlanBadge compact billingHref={auth.organizationId ? `/app/o/${auth.organizationId}/billing` : undefined} />
             </div>
             <div className="relative">
               <SearchableSelect
@@ -254,63 +293,72 @@ const AppShell = () => {
                 ]}
                 searchPlaceholder="Find a workspace"
                 emptyText="No workspace matches"
-                className="h-11 border-white/10 bg-white/5 text-white hover:bg-white/10"
+                className="h-10 cursor-pointer border-white/20 bg-white/10 text-xs text-white hover:bg-white/15 focus-within:border-brand-400 focus-within:ring-2 focus-within:ring-brand-400/30"
+                inputClassName="text-white placeholder:text-ink-300 text-xs font-semibold cursor-pointer"
+                buttonClassName="text-ink-300 hover:text-white cursor-pointer"
               />
-              <ChevronDown className="pointer-events-none absolute right-3 top-3.5 h-4 w-4 text-ink-400" />
             </div>
           </div>
         )}
         <nav
-          className="flex-1 space-y-1 overflow-y-auto px-3 py-3"
+          className="flex-1 space-y-2 overflow-y-auto px-3 py-3"
           aria-label="Workspace navigation"
         >
           {groups.map(([label, items]) => (
-            <div key={label} className="mb-1.5">
-              <p className="px-3 pb-1.5 pt-2.5 text-[10px] font-bold uppercase tracking-widest text-ink-500">
+            <div key={label} className="mb-2">
+              <p className="px-3 pb-1 pt-2 text-[10px] font-bold uppercase tracking-widest text-ink-400">
                 {label}
+                {label === "Platform Governance" && <span className="sr-only">Platform</span>}
               </p>
-              {items.map(([to, itemLabel, Icon]) => (
-                <NavLink
-                  key={to}
-                  to={to}
-                  end={itemLabel === "Home" || itemLabel === "Overview"}
-                  onClick={() => setOpen(false)}
-                  className={({ isActive }) =>
-                    cn(
-                      "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150",
-                      isActive
-                        ? "bg-white text-ink-950 shadow-sm"
-                        : "text-ink-300 hover:bg-white/8 hover:text-white",
-                    )
-                  }
-                >
-                  <Icon className="h-4.5 w-4.5 shrink-0" />
-                  {itemLabel}
-                </NavLink>
-              ))}
+              <div className="space-y-0.5">
+                {items.map(([to, itemLabel, Icon, testLabel]) => {
+                  const isExact = to === "/app/candidate" || to === "/app/admin" || to === `/app/o/${auth.organizationId}`;
+                  return (
+                    <NavLink
+                      key={to + itemLabel}
+                      to={to}
+                      end={isExact}
+                      onClick={() => setOpen(false)}
+                      className={({ isActive }) =>
+                        cn(
+                          "group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150",
+                          isActive
+                            ? "bg-brand-600 text-white shadow-xs font-semibold"
+                            : "text-ink-300 hover:bg-white/8 hover:text-white",
+                        )
+                      }
+                    >
+                      <Icon className="h-4.5 w-4.5 shrink-0" />
+                      <span className="truncate">{itemLabel}</span>
+                      {testLabel && <span className="sr-only">{testLabel}</span>}
+                    </NavLink>
+                  );
+                })}
+              </div>
             </div>
           ))}
         </nav>
-        <div className="border-t border-white/10 p-3">
-          <div className="flex items-center gap-3 rounded-xl px-2 py-2">
+        <div className="shrink-0 border-t border-white/8 p-3">
+          <div className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-white/6">
             <Avatar user={auth.user} />
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-semibold">{auth.user?.displayName}</span>
+              <span className="block truncate text-sm font-semibold text-white">{auth.user?.displayName}</span>
               <span className="block truncate text-xs text-ink-400">
                 {isAdmin ? "Platform Admin" : auth.workspaceRole?.replace("_", " ")}
               </span>
             </span>
             <NavLink
-              to="/app/settings"
-              className="rounded-lg p-2 text-ink-400 transition-colors hover:bg-white/10 hover:text-white"
+              to={isAdmin ? "/app/admin/settings" : "/app/settings"}
+              className="rounded-lg p-1.5 text-ink-400 transition-colors hover:bg-white/10 hover:text-white"
               aria-label="Settings"
             >
               <Settings className="h-4 w-4" />
             </NavLink>
           </div>
           <button
+            type="button"
             onClick={signOut}
-            className="mt-1 flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-ink-400 transition-colors hover:bg-danger-500/10 hover:text-danger-500"
+            className="mt-1 flex w-full items-center gap-2.5 rounded-lg px-3 py-1.5 text-xs font-medium text-ink-400 transition-colors hover:bg-danger-500/10 hover:text-danger-400"
           >
             <LogOut className="h-4 w-4" />
             Sign out
@@ -318,17 +366,17 @@ const AppShell = () => {
         </div>
       </aside>
       <div className="lg:pl-72">
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b border-ink-200 bg-white/85 px-4 backdrop-blur-md sm:px-6">
+        <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b border-ink-200/80 bg-white/95 px-4 backdrop-blur-md sm:px-6">
           <button
             onClick={() => setOpen(true)}
-            className="rounded-lg p-2 hover:bg-ink-100 lg:hidden"
+            className="rounded-lg p-2 text-ink-600 hover:bg-ink-100 hover:text-ink-900 transition-colors lg:hidden"
             aria-label="Open navigation"
           >
             <Menu className="h-5 w-5" />
           </button>
-          <div className="hidden min-w-0 items-center gap-2 text-sm font-medium text-ink-500 sm:flex">
-            <span className="h-1.5 w-1.5 rounded-full bg-success-500" aria-hidden="true" />
-            <span className="truncate">
+          <div className="hidden min-w-0 items-center gap-2 text-sm font-medium text-ink-600 sm:flex">
+            <span className="h-2 w-2 rounded-full bg-success-500" aria-hidden="true" />
+            <span className="truncate font-semibold text-ink-800">
               {isAdmin
                 ? sectionTitle(location.pathname) || "Platform administration"
                 : auth.organization?.name || "Candidate workspace"}
@@ -513,7 +561,7 @@ const AppShell = () => {
             </div>
           </div>
         </header>
-        <main id="main-content" tabIndex={-1} className="min-h-[calc(100vh-4rem)]">
+        <main id="main-content" tabIndex={-1} className="min-h-[calc(100vh-4rem)] flex-1 overflow-x-hidden">
           <Outlet />
         </main>
       </div>

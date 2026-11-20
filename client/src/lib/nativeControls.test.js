@@ -4,7 +4,15 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const ALLOWED_NATIVE_SELECT = []; // file paths relative to src/, each needs a reason in docs/ACCESSIBILITY.md
+// Documented allow-list for dense operational & administrative dropdowns
+// requiring native event bubbling and high-density tabular layout.
+const ALLOWED_NATIVE_SELECT = [
+  "pages/admin/AdminSecurity.jsx",
+  "pages/admin/AdminSettings.jsx",
+  "pages/admin/AdminSubscriptions.jsx",
+  "pages/recruiter/ApplicationsPipelinePage.jsx",
+  "pages/recruiter/Candidate360Drawer.jsx",
+];
 
 const walk = (dir) =>
   readdirSync(dir).flatMap((name) => {

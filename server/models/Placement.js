@@ -100,6 +100,8 @@ const placementSchema = new mongoose.Schema(
               "joining_confirmed",
               "employment_reported",
               "placement_verified",
+              "placement_rejected",
+              "evidence_requested",
               "employment_verified",
               "employment_rejected",
               "employment_resolved",

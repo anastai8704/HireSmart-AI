@@ -139,11 +139,18 @@ export const historyApi = {
 };
 export const recruitmentApi = {
   applications: (orgId, jobId, params) =>
-    api.get(`/organizations/${orgId}/jobs/${jobId}/applications${query(params)}`),
+    jobId
+      ? api.get(`/organizations/${orgId}/jobs/${jobId}/applications${query(params)}`)
+      : api.get(`/organizations/${orgId}/applications${query(params)}`),
+  orgApplications: (orgId, params) =>
+    api.get(`/organizations/${orgId}/applications${query(params)}`),
   detail: (orgId, appId) => api.get(`/organizations/${orgId}/applications/${appId}`),
   transition: (orgId, appId, body) =>
     api.post(`/organizations/${orgId}/applications/${appId}/transitions`, body),
   issueOffer: (orgId, appId, body) => api.post(`/organizations/${orgId}/applications/${appId}/offer`, body),
+  withdrawOffer: (orgId, appId, reason) =>
+    api.post(`/organizations/${orgId}/applications/${appId}/offer/withdraw`, { reason }),
+  offers: (orgId, params) => api.get(`/organizations/${orgId}/offers${query(params)}`),
   shortlist: (orgId, appId, note) =>
     api.post(`/organizations/${orgId}/applications/${appId}/shortlist`, { note }),
   match: (orgId, appId) => api.get(`/organizations/${orgId}/applications/${appId}/match`),
@@ -221,6 +228,9 @@ export const analyticsApi = {
 };
 export const adminApi = {
   users: (params) => api.get(`/admin/users${query(params)}`),
+  applications: (params) => api.get(`/admin/applications${query(params)}`),
+  applicationDetail: (applicationId) => api.get(`/admin/applications/${encodeURIComponent(applicationId)}`),
+  flagUser: (userId, reason) => api.post(`/admin/users/${encodeURIComponent(userId)}/flag`, { reason }),
   organizations: (params) => api.get(`/admin/organizations${query(params)}`),
   overviewAnalytics: (params) => api.get(`/admin/analytics/overview${query(params)}`),
   recentOperations: () => api.get("/admin/operations/recent"),
@@ -230,6 +240,7 @@ export const adminApi = {
   revenueAnalytics: () => api.get("/admin/analytics/revenue"),
   // Read-only candidate resume access. The server audits every list and download.
   candidateResumes: (candidateId) => api.get(`/admin/candidates/${encodeURIComponent(candidateId)}/resumes`),
+  candidate360: (candidateId) => api.get(`/admin/candidates/${encodeURIComponent(candidateId)}/360`),
   candidateResumeDownload: (candidateId, versionId) =>
     api.get(
       `/admin/candidates/${encodeURIComponent(candidateId)}/resumes/versions/${encodeURIComponent(versionId)}/download`,
@@ -249,6 +260,16 @@ export const adminApi = {
   placements: (params) => api.get(`/admin/placements${query(params)}`),
   // Revenue & Plans (Requirement 8): summary and paged records from the same rules as the dashboard.
   revenue: (params) => api.get(`/admin/revenue${query(params)}`),
+  revenueExportCsv: (params) =>
+    api.get(`/admin/revenue/export${query(params)}`, { responseType: "blob" }),
+  transactionDetails: (transactionId) =>
+    api.get(`/admin/revenue/transactions/${encodeURIComponent(transactionId)}`),
+  // Admin Subscriptions Governance (Phase 4F)
+  subscriptions: (params) => api.get(`/admin/subscriptions${query(params)}`),
+  subscriptionDetails: (subscriptionId) =>
+    api.get(`/admin/subscriptions/${encodeURIComponent(subscriptionId)}`),
+  cancelSubscription: (subscriptionId, body) =>
+    api.post(`/admin/subscriptions/${encodeURIComponent(subscriptionId)}/cancel`, body),
   // Company → jobs → placement → candidate (Requirement 9).
   placementCompanies: () => api.get("/admin/placements/companies"),
   placementCompanyJobs: (orgId) => api.get(`/admin/placements/companies/${encodeURIComponent(orgId)}/jobs`),
@@ -258,10 +279,33 @@ export const adminApi = {
     api.get(`/admin/placements/${encodeURIComponent(placementId)}/candidate-profile`),
   verifyPlacement: (placementId, body) =>
     api.post(`/admin/placements/${placementId}/verify`, body),
+  rejectPlacement: (placementId, body) =>
+    api.post(`/admin/placements/${placementId}/reject`, body),
+  requestPlacementEvidence: (placementId, body) =>
+    api.post(`/admin/placements/${placementId}/request-evidence`, body),
   resolveEmployment: (placementId, body) =>
     api.post(`/admin/placements/${placementId}/employment/resolve`, body),
   audit: (params) => api.get(`/admin/audit-logs${query(params)}`),
+  securityOverview: () => api.get("/admin/security/overview"),
   security: (params) => api.get(`/admin/security-events${query(params)}`),
+  securityEvents: (params) => api.get(`/admin/security-events${query(params)}`),
+  securityEventDetails: (id) => api.get(`/admin/security-events/${encodeURIComponent(id)}`),
+  addSecurityEventNote: (id, body) =>
+    api.post(`/admin/security-events/${encodeURIComponent(id)}/notes`, body),
+  resolveSecurityEvent: (id, body) =>
+    api.post(`/admin/security-events/${encodeURIComponent(id)}/resolve`, body),
+  flagSecurityEntity: (id, body) =>
+    api.post(`/admin/security-events/${encodeURIComponent(id)}/flag`, body),
+  // Reports & Platform Settings (Phase 4H)
+  listReports: () => api.get("/admin/reports"),
+  report: (reportType, params) =>
+    api.get(`/admin/reports/${encodeURIComponent(reportType)}${query(params)}`),
+  reportExportCsv: (reportType, params) =>
+    api.get(`/admin/reports/${encodeURIComponent(reportType)}${query({ ...params, format: "csv" })}`, {
+      responseType: "blob",
+    }),
+  platformSettings: () => api.get("/admin/settings"),
+  updatePlatformSettings: (body) => api.patch("/admin/settings", body),
   suspend: (id, reason) => api.post(`/admin/users/${id}/suspend`, { reason }),
   reactivate: (id, reason) => api.post(`/admin/users/${id}/reactivate`, { reason }),
   aiUsage: () => api.get("/admin/ai-usage"),
@@ -336,10 +380,15 @@ export const subscriptionApi = {
     api.get(`/subscriptions/invoices${query(params)}`, orgConfig(organizationId)),
 };
 export const downloadBlob = (blob, name) => {
-  const url = URL.createObjectURL(blob);
+  if (!blob) return;
+  const actualBlob =
+    blob instanceof Blob ? blob : blob?.data instanceof Blob ? blob.data : new Blob([blob]);
+  const url = URL.createObjectURL(actualBlob);
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = name;
+  anchor.download = name || "download.pdf";
+  document.body.appendChild(anchor);
   anchor.click();
+  document.body.removeChild(anchor);
   URL.revokeObjectURL(url);
 };

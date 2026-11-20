@@ -47,11 +47,16 @@ const RDashboard = pick(() => import("./pages/recruiter/RecruiterPages"), "Recru
   InterviewScheduler = pick(() => import("./pages/interviews/InterviewScheduler"), "default"),
   Interviews = pick(() => import("./pages/interviews/RecruiterInterviewDashboard"), "default"),
   InterviewDetail = pick(() => import("./pages/recruiter/RecruiterPages"), "InterviewDetail"),
+  OffersDashboard = pick(() => import("./pages/recruiter/OffersDashboard"), "default"),
   Analytics = pick(() => import("./pages/recruiter/RecruiterPages"), "AnalyticsPage"),
   RecruiterCopilot = pick(() => import("./pages/recruiter/RecruiterPages"), "RecruiterCopilot"),
   Team = pick(() => import("./pages/recruiter/RecruiterPages"), "TeamPage"),
   Assigned = pick(() => import("./pages/recruiter/RecruiterPages"), "JobsPage"),
-  RBilling = pick(() => import("./pages/recruiter/RecruiterBilling"), "RecruiterBilling");
+  RBilling = pick(() => import("./pages/recruiter/RecruiterBilling"), "RecruiterBilling"),
+  CompanyVerification = pick(
+    () => import("./pages/recruiter/CompanyProfileVerificationPage"),
+    "CompanyProfileVerificationPage",
+  );
 const Notifications = pick(() => import("./pages/SystemPages"), "NotificationsPage"),
   Settings = pick(() => import("./pages/SystemPages"), "SettingsPage"),
   Integrations = pick(() => import("./pages/settings/IntegrationsPage"), "default"),
@@ -69,6 +74,8 @@ const Notifications = pick(() => import("./pages/SystemPages"), "NotificationsPa
   AdminRevenue = pick(() => import("./pages/admin/AdminRevenue"), "AdminRevenue"),
   AdminPlacements = pick(() => import("./pages/admin/AdminPlacements"), "AdminPlacements"),
   AdminPlacementDetail = pick(() => import("./pages/admin/AdminPlacements"), "AdminPlacementDetail"),
+  AdminReports = pick(() => import("./pages/admin/AdminReports"), "AdminReports"),
+  AdminSettings = pick(() => import("./pages/admin/AdminSettings"), "AdminSettings"),
   AdminSearch = pick(() => import("./pages/admin/AdminSearch"), "AdminSearch");
 const Forbidden = lazy(() => import("./pages/Forbidden")),
   NotFound = lazy(() => import("./pages/NotFound"));
@@ -127,7 +134,8 @@ const App = () => (
               <Route element={<AppShell />}>
                 <Route path="/app/candidate" element={<CDashboard />} />
                 <Route path="/app/candidate/onboarding" element={<Onboarding />} />
-                <Route path="/app/candidate/profile" element={<Onboarding />} />
+                <Route path="/app/candidate/profile" element={<Profile />} />
+                <Route path="/app/candidate/settings" element={<Settings />} />
                 <Route path="/app/candidate/resumes" element={<Resumes />} />
                 <Route path="/app/candidate/resumes/:versionId" element={<ResumeDetail />} />
                 <Route path="/app/candidate/jobs" element={<CJobs />} />
@@ -166,6 +174,7 @@ const App = () => (
                 <Route path="/app/o/:organizationId/jobs" element={<OrgJobs />} />
                 <Route path="/app/o/:organizationId/jobs/new" element={<JobEditor />} />
                 <Route path="/app/o/:organizationId/jobs/:jobId/edit" element={<JobEditor />} />
+                <Route path="/app/o/:organizationId/applications" element={<Applicants />} />
                 <Route
                   path="/app/o/:organizationId/jobs/:jobId/applications"
                   element={<Applicants />}
@@ -177,6 +186,7 @@ const App = () => (
                 <Route path="/app/o/:organizationId/candidates" element={<CandidateSearch />} />
                 <Route path="/app/o/:organizationId/compare" element={<Compare />} />
                 <Route path="/app/o/:organizationId/interviews" element={<Interviews />} />
+                <Route path="/app/o/:organizationId/offers" element={<OffersDashboard />} />
                 <Route path="/app/o/:organizationId/placements" element={<OrganizationPlacements />} />
                 <Route
                   path="/app/o/:organizationId/interviews/schedule"
@@ -191,6 +201,15 @@ const App = () => (
                 <Route path="/app/o/:organizationId/team" element={<Team />} />
                 <Route path="/app/o/:organizationId/assigned" element={<Assigned assigned />} />
                 <Route path="/app/o/:organizationId/billing" element={<RBilling />} />
+                <Route
+                  path="/app/o/:organizationId/verification"
+                  element={<CompanyVerification />}
+                />
+                <Route
+                  path="/app/o/:organizationId/profile"
+                  element={<CompanyVerification />}
+                />
+                <Route path="/app/o/:organizationId/settings" element={<Settings />} />
               </Route>
             </Route>
             <Route element={<ProtectedRoute roles={["admin"]} />}>
@@ -198,6 +217,7 @@ const App = () => (
                 <Route path="/app/admin" element={<AdminHome />} />
                 <Route path="/app/admin/moderation" element={<AdminModeration />} />
                 <Route path="/app/admin/users" element={<AdminUsers />} />
+                <Route path="/app/admin/applications" element={<Navigate to="/app/admin" replace />} />
                 <Route path="/app/admin/organizations" element={<AdminOrgs />} />
                 <Route path="/app/admin/organizations/:organizationId" element={<AdminOrgs />} />
                 <Route path="/app/admin/verification" element={<AdminVerification />} />
@@ -209,6 +229,8 @@ const App = () => (
                 <Route path="/app/admin/placements/:placementId" element={<AdminPlacementDetail />} />
                 <Route path="/app/admin/ai-usage" element={<AdminAI />} />
                 <Route path="/app/admin/security" element={<AdminSecurity />} />
+                <Route path="/app/admin/reports" element={<AdminReports />} />
+                <Route path="/app/admin/settings" element={<AdminSettings />} />
               </Route>
             </Route>
             <Route path="/forbidden" element={<Forbidden />} />

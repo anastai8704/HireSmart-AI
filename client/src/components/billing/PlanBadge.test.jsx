@@ -63,6 +63,15 @@ describe("PlanBadge", () => {
     expect(screen.getByTestId("plan-badge")).toHaveAttribute("data-tone", "danger");
   });
 
+  it("shows clean plan identity without payment failure warning in compact mode", () => {
+    showWith({ planName: "Free", status: "free", paid: false, reason: "free_plan" }, { lastPaymentFailed: true });
+    render(<PlanBadge compact />, { wrapper: MemoryRouter });
+    const badge = screen.getByTestId("plan-badge");
+    expect(badge).toHaveTextContent("Free");
+    expect(badge).not.toHaveTextContent("Last payment failed");
+    expect(badge).toHaveAttribute("data-tone", "neutral");
+  });
+
   it("is a link to billing when given a destination", () => {
     showWith({ planName: "Free", status: "free", paid: false, reason: "free_plan" });
     render(<PlanBadge billingHref="/app/candidate/plans" />, { wrapper: MemoryRouter });

@@ -3,7 +3,7 @@
 const mongoose = require("mongoose");
 const asyncHandler = require("../middleware/asyncHandler");
 const AppError = require("../utils/AppError");
-const { reportFor, runReport, toCsv } = require("../services/reportService");
+const { reportFor, runReport, toCsv, REPORTS } = require("../services/reportService");
 const { audit } = require("../services/auditService");
 
 const FORMATS = new Set(["json", "csv"]);
@@ -51,6 +51,19 @@ const send = async (req, res, scope, organizationId = null) => {
     },
   });
 };
+
+// GET /admin/reports (platform administrators: list available reports catalog)
+exports.listAdminReports = asyncHandler(async (req, res) => {
+  if (req.auth.platformRole !== "platform_admin") throw new AppError("Resource not found", 404, "RESOURCE_NOT_FOUND");
+  const reportsList = Object.entries(REPORTS)
+    .filter(([_, r]) => r.audience.includes("admin"))
+    .map(([type, r]) => ({
+      type,
+      label: r.label,
+      columns: r.columns,
+    }));
+  return res.json({ data: reportsList });
+});
 
 // GET /admin/reports/:reportType (platform administrators; /admin is already gated by requirePlatformAdmin)
 exports.adminReport = asyncHandler(async (req, res) => {

@@ -13,3 +13,9 @@ email-previews/
 
 # demo reset backups (local data, never commit)
 server/backups/
+
+# runtime logs and test outputs
+*.log
+server/*.log
+server/test-results.txt
+

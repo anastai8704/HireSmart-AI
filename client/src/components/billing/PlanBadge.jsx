@@ -18,23 +18,28 @@ export const PlanBadge = ({ compact = false, className, billingHref }) => {
   if (isAdmin || (!badge && !isLoading)) return null;
 
   const current = badge || { label: "Checking plan", status: "", tone: "loading" };
-  const text = current.status ? `${current.label}, ${current.status}` : current.label;
+  
+  // Compact mode (sidebar, header, workspace switcher) displays only the plan identity.
+  // Payment warnings and history belong in billing settings and payment history, not the global navigation badge.
+  const displayTone = compact && current.tone === "danger" && !current.paidInForce ? "neutral" : current.tone;
+  const showStatus = !compact && Boolean(current.status);
+  const text = showStatus ? `${current.label}, ${current.status}` : current.label;
 
   const chip = (
     <span
       data-testid="plan-badge"
-      data-tone={current.tone}
+      data-tone={displayTone}
       aria-label={`Plan: ${text}`}
       className={cn(
         "inline-flex max-w-full items-center gap-1.5 rounded-full border font-semibold uppercase tracking-wide",
         compact ? "px-2 py-0.5 text-[11px]" : "px-2.5 py-1 text-xs",
-        TONES[current.tone] || TONES.neutral,
+        TONES[displayTone] || TONES.neutral,
         className,
       )}
     >
       <span className="truncate">{current.label}</span>
-      {current.status && (
-        <span className={cn("truncate font-medium", compact ? "hidden sm:inline" : "", "opacity-80")}>· {current.status}</span>
+      {showStatus && (
+        <span className="truncate font-medium opacity-80">· {current.status}</span>
       )}
     </span>
   );

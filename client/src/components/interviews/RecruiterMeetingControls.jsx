@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Play, RefreshCw, Video } from "lucide-react";
+import { Link2, Play, RefreshCw, Video } from "lucide-react";
 import Button from "../ui/Button";
+import Input from "../ui/Input";
+import Modal from "../ui/Modal";
 import ConfirmModal from "../ui/ConfirmModal";
 import { useToast } from "../ui/useToast";
 import { interviewApi } from "../../lib/api";
@@ -20,6 +22,8 @@ const RecruiterMeetingControls = ({ orgId, interview, showHint = true }) => {
   const toast = useToast();
   const [confirmStart, setConfirmStart] = useState(false);
   const [fallbackUrl, setFallbackUrl] = useState("");
+  const [editLinkOpen, setEditLinkOpen] = useState(false);
+  const [customUrl, setCustomUrl] = useState(interview.meetingUrl || "");
   const id = interview._id || interview.id;
   const closed = CLOSED.includes(interview.status);
   const info = meetingInfo(interview);
@@ -30,6 +34,16 @@ const RecruiterMeetingControls = ({ orgId, interview, showHint = true }) => {
     qc.invalidateQueries({ queryKey: ["interviews", orgId] });
     qc.invalidateQueries({ queryKey: ["interview-detail", orgId, id] });
   };
+
+  const updateLink = useMutation({
+    mutationFn: (newUrl) => interviewApi.update(orgId, id, { meetingUrl: newUrl.trim() }),
+    onSuccess: () => {
+      setEditLinkOpen(false);
+      toast.success("Meeting link updated. You can now start the interview.");
+      refresh();
+    },
+    onError: (error) => toast.error(error.message || "Could not update meeting link."),
+  });
 
   const start = useMutation({
     mutationFn: () => interviewApi.start(orgId, id),
@@ -105,6 +119,19 @@ const RecruiterMeetingControls = ({ orgId, interview, showHint = true }) => {
             Retry Meet link
           </Button>
         )}
+        {!closed && (
+          <Button
+            size="sm"
+            variant={info.url ? "ghost" : "outline"}
+            leftIcon={<Link2 className="h-4 w-4" aria-hidden="true" />}
+            onClick={() => {
+              setCustomUrl(interview.meetingUrl || "");
+              setEditLinkOpen(true);
+            }}
+          >
+            {info.url ? "Edit link" : "Add meeting link"}
+          </Button>
+        )}
       </div>
       {showHint && !closed && (
         <p id={`start-hint-${id}`} className="text-xs text-ink-500">
@@ -135,6 +162,39 @@ const RecruiterMeetingControls = ({ orgId, interview, showHint = true }) => {
         tone="brand"
         isLoading={start.isPending}
       />
+      <Modal
+        isOpen={editLinkOpen}
+        onClose={() => setEditLinkOpen(false)}
+        title={interview.meetingUrl ? "Edit meeting link" : "Add meeting link"}
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            updateLink.mutate(customUrl);
+          }}
+          className="space-y-4"
+        >
+          <p className="text-xs text-ink-600">
+            Enter a valid video meeting URL (Google Meet, Zoom, Microsoft Teams, etc.). Once saved, you can start the interview and the candidate can join.
+          </p>
+          <Input
+            label="Meeting URL"
+            placeholder="https://meet.google.com/xxx-xxxx-xxx or https://zoom.us/j/..."
+            value={customUrl}
+            onChange={(e) => setCustomUrl(e.target.value)}
+            required
+            autoFocus
+          />
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="ghost" onClick={() => setEditLinkOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" isLoading={updateLink.isPending} disabled={!customUrl.trim()}>
+              Save Link
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 };

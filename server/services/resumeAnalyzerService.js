@@ -406,7 +406,7 @@ const buildSuggestions = (analysis) => {
       severity: "medium",
       title: "Add your LinkedIn profile",
       detail:
-        "Around 87% of recruiters check LinkedIn. Add the full URL so it stays clickable after PDF export.",
+        "Recruiters often review LinkedIn profiles. Add your full URL so it stays clickable after PDF export.",
     });
   }
 
@@ -439,7 +439,9 @@ const buildSuggestions = (analysis) => {
     suggestions.push({
       severity: "high",
       title: "Quantify your achievements",
-      detail: `Only ${achievements.count} bullet points contain measurable results. Rewrite duties as outcomes, for example "Reduced API response time by 40% by adding Redis caching".`,
+      detail: `${
+        achievements.count === 0 ? "No" : `Only ${achievements.count}`
+      } bullet points contain measurable results. Rewrite duties as outcomes, for example "Reduced API response time by 40% by adding Redis caching".`,
     });
   }
 

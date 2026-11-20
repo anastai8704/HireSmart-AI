@@ -56,9 +56,9 @@ export const CompletionRing = ({
             }}
           />
         </svg>
-        <span
+        <div
           className={cn(
-            "absolute inset-0 grid place-items-center text-2xl font-extrabold tabular-nums tracking-tight",
+            "absolute inset-0 flex items-center justify-center font-extrabold tabular-nums tracking-tight",
             tone === "success"
               ? "text-success-700"
               : tone === "warning"
@@ -66,9 +66,18 @@ export const CompletionRing = ({
                 : "text-ink-950",
           )}
         >
-          {clamped}
-          <span className="text-sm font-bold text-ink-400">%</span>
-        </span>
+          <div className="flex items-baseline justify-center leading-none">
+            <span style={{ fontSize: `${Math.round(size * 0.22)}px` }} className="font-extrabold">
+              {clamped}
+            </span>
+            <span
+              style={{ fontSize: `${Math.round(size * 0.11)}px` }}
+              className="ml-0.5 font-bold text-ink-400"
+            >
+              %
+            </span>
+          </div>
+        </div>
       </div>
       {label && <p className="text-sm font-semibold text-ink-700">{label}</p>}
       {sublabel && <p className="max-w-[16rem] text-center text-xs text-ink-500">{sublabel}</p>}

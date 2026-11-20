@@ -8,6 +8,7 @@ const { Application } = require("../models/Application");
 const { ResumeVersion, ParsedResume } = require("../models/Resume");
 const { CandidateMatch, Note } = require("../models/Recruitment");
 const Consent = require("../models/Consent");
+const Interview = require("../models/Interview");
 const asyncHandler = require("../middleware/asyncHandler");
 const AppError = require("../utils/AppError");
 const { parse, applyCursor, meta } = require("../utils/pagination");
@@ -708,14 +709,20 @@ exports.withdraw = asyncHandler(async (req, res) => {
   res.json({ data: safeApplication(app) });
 });
 exports.applications = asyncHandler(async (req, res) => {
-  const job = await getOrgJob(req, req.params.jobId);
+  const jobId = req.params.jobId || req.query.jobId;
   const page = parse(req.query);
-  const filter = applyCursor({ organization: req.auth.organizationId, job: job._id }, page.after);
-  if (req.query.status) filter.status = req.query.status;
-  if (req.query.tag) filter.tags = req.query.tag;
-  const items = await Application.find(filter)
+  const filter = { organization: req.auth.organizationId };
+  if (jobId) {
+    const job = await getOrgJob(req, jobId);
+    filter.job = job._id;
+  }
+  const cursorFilter = applyCursor(filter, page.after);
+  if (req.query.status) cursorFilter.status = req.query.status;
+  if (req.query.tag) cursorFilter.tags = req.query.tag;
+  const items = await Application.find(cursorFilter)
     .select("-resumeSnapshot.text -resumeSnapshot.storageKey")
-    .populate("candidate", "name email headline location skills")
+    .populate("candidate", "name email headline location skills phone")
+    .populate("job", "title company location status")
     .sort({ _id: -1 })
     .limit(page.limit);
   res.json({ data: items, meta: meta(items, page.limit) });
@@ -887,7 +894,7 @@ exports.transition = asyncHandler(async (req, res) => {
   });
   res.json({ data: safeApplication(app, { includeInternal: true }) });
 });
-/** Recruiter: issue an offer for an application in the interview or offer stage. */
+/** Recruiter: issue or draft an offer for an application in the interview or offer stage. */
 exports.issueOffer = asyncHandler(async (req, res) => {
   const app = await Application.findOne({
     _id: req.params.applicationId,
@@ -902,27 +909,40 @@ exports.issueOffer = asyncHandler(async (req, res) => {
 
   const from = app.status;
   const now = new Date();
+  const isDraft = Boolean(req.body.isDraft);
+
   const offer = {
-    status: "issued",
+    status: isDraft ? "draft" : "issued",
     designation: req.body.designation || app.job?.title || "",
     ctc: req.body.ctc ?? null,
     currency: req.body.currency || "INR",
+    payFrequency: req.body.payFrequency || "annual",
+    baseSalary: req.body.baseSalary ?? null,
+    bonus: req.body.bonus ?? null,
     joiningDate: req.body.joiningDate ? new Date(req.body.joiningDate) : null,
-    issuedAt: now,
+    expiresAt: req.body.expiresAt ? new Date(req.body.expiresAt) : null,
+    employmentType: req.body.employmentType || "full_time",
+    notes: req.body.notes || "",
+    draftSavedAt: isDraft ? now : app.offer?.draftSavedAt || null,
+    issuedAt: isDraft ? null : now,
     issuedBy: req.user._id,
     respondedAt: null,
     responseNote: "",
   };
+
   // Re-check the stage and the open offer in the write itself, so two recruiters cannot both issue.
   const filter = {
     _id: app._id,
     organization: app.organization,
     status: from,
-    $or: [{ "offer.status": { $in: ["none", "declined"] } }, { "offer.status": { $exists: false } }],
+    $or: [
+      { "offer.status": { $in: ["none", "draft", "declined", "withdrawn", "expired"] } },
+      { "offer.status": { $exists: false } },
+    ],
   };
   const set = { offer };
   const push = {};
-  if (from !== "offer") {
+  if (!isDraft && from !== "offer") {
     set.status = "offer";
     push.statusHistory = {
       status: "offer",
@@ -939,37 +959,172 @@ exports.issueOffer = asyncHandler(async (req, res) => {
   );
   if (!updated) {
     throw new AppError(
-      "The application changed while the offer was being issued. Reload and try again.",
+      "The application changed while the offer was being processed. Reload and try again.",
       409,
       "STATUS_CHANGED",
     );
   }
-  try {
-    await notify({
-      user: app.candidate._id,
-      organization: app.organization,
-      type: "offer_issued",
-      category: "applications",
-      title: "You have an offer",
-      message: `${app.job?.company || "The company"} has issued an offer for ${app.job?.title || "a role"}. Review it in your applications.`,
-      resourceType: "application",
-      resourceId: app._id,
-      email: app.candidate.email,
-      recipientName: app.candidate.name,
-      idempotencyKey: `application:${app._id}:offer-issued:${offer.issuedAt.getTime()}`,
-    });
-  } catch (error) {
-    logger.error(`Offer notification enqueue failed: ${error.code || error.name}`);
+  if (!isDraft) {
+    try {
+      await notify({
+        user: app.candidate._id,
+        organization: app.organization,
+        type: "offer_issued",
+        category: "applications",
+        title: "You have an offer",
+        message: `${app.job?.company || "The company"} has issued an offer for ${app.job?.title || "a role"}. Review it in your applications.`,
+        resourceType: "application",
+        resourceId: app._id,
+        email: app.candidate.email,
+        recipientName: app.candidate.name,
+        idempotencyKey: `application:${app._id}:offer-issued:${now.getTime()}`,
+      });
+    } catch (error) {
+      logger.error(`Offer notification enqueue failed: ${error.code || error.name}`);
+    }
   }
   await audit({
     req,
     organization: app.organization,
-    action: "application.offer_issued",
+    action: isDraft ? "application.offer_draft_saved" : "application.offer_issued",
     resourceType: "application",
     resourceId: app._id,
-    metadata: { from, designation: offer.designation, hasCtc: offer.ctc !== null },
+    metadata: { from, designation: offer.designation, hasCtc: offer.ctc !== null, isDraft },
   });
   res.json({ data: safeApplication(updated, { includeInternal: true }) });
+});
+
+/** Recruiter: withdraw an open or draft offer. */
+exports.withdrawOffer = asyncHandler(async (req, res) => {
+  const app = await Application.findOne({
+    _id: req.params.applicationId,
+    organization: req.auth.organizationId,
+  })
+    .populate("candidate", "email name")
+    .populate("job", "title company hiringTeam");
+  if (!app) throw new AppError("Application not found", 404, "RESOURCE_NOT_FOUND");
+  await assertApplicationAssignment(req, app);
+
+  const offerStatus = app.offer?.status;
+  if (!["issued", "draft", "viewed"].includes(offerStatus)) {
+    throw new AppError("Only an issued, viewed or draft offer can be withdrawn.", 409, "INVALID_STATE");
+  }
+
+  const now = new Date();
+  const reason = String(req.body.reason || "Withdrawn by hiring team").slice(0, 1000);
+
+  const updated = await Application.findOneAndUpdate(
+    {
+      _id: app._id,
+      organization: app.organization,
+      "offer.status": { $in: ["issued", "draft", "viewed"] },
+    },
+    {
+      $set: {
+        "offer.status": "withdrawn",
+        "offer.withdrawnAt": now,
+        "offer.withdrawnBy": req.user._id,
+        "offer.withdrawnReason": reason,
+      },
+    },
+    { returnDocument: "after" },
+  );
+
+  if (!updated) {
+    throw new AppError("The offer state changed. Reload and try again.", 409, "STATUS_CHANGED");
+  }
+
+  if (offerStatus === "issued" || offerStatus === "viewed") {
+    try {
+      await notify({
+        user: app.candidate._id,
+        organization: app.organization,
+        type: "application_status_changed",
+        category: "applications",
+        title: "Offer withdrawn",
+        message: `${app.job?.company || "The company"} has withdrawn the offer for ${app.job?.title || "a role"}.`,
+        resourceType: "application",
+        resourceId: app._id,
+        idempotencyKey: `application:${app._id}:offer-withdrawn:${now.getTime()}`,
+      });
+    } catch (error) {
+      logger.error(`Offer withdrawal notification failed: ${error.message}`);
+    }
+  }
+
+  await audit({
+    req,
+    organization: app.organization,
+    action: "application.offer_withdrawn",
+    resourceType: "application",
+    resourceId: app._id,
+    metadata: { reason },
+  });
+
+  res.json({ data: safeApplication(updated, { includeInternal: true }) });
+});
+
+/** Recruiter: list all offers across the organization with counts and filters. */
+exports.listOffers = asyncHandler(async (req, res) => {
+  const page = parse(req.query);
+  const orgId = req.auth.organizationId;
+  const filter = {
+    organization: orgId,
+    "offer.status": { $exists: true, $nin: ["none", null, ""] },
+  };
+
+  if (req.query.jobId) {
+    filter.job = req.query.jobId;
+  }
+  if (req.query.status) {
+    if (req.query.status === "awaiting_response") {
+      filter["offer.status"] = { $in: ["issued", "viewed"] };
+    } else {
+      filter["offer.status"] = req.query.status;
+    }
+  }
+
+  // Update expired offers automatically
+  const now = new Date();
+  await Application.updateMany(
+    {
+      organization: orgId,
+      "offer.status": "issued",
+      "offer.expiresAt": { $lt: now, $ne: null },
+    },
+    { $set: { "offer.status": "expired" } }
+  );
+
+  const items = await Application.find(filter)
+    .select("-resumeSnapshot.text -resumeSnapshot.storageKey")
+    .populate("candidate", "name email phone headline location skills")
+    .populate("job", "title company department location status")
+    .populate("offer.issuedBy", "name email")
+    .sort({ "offer.issuedAt": -1, "offer.draftSavedAt": -1, updatedAt: -1 })
+    .limit(page.limit);
+
+  // Compute 6 KPI status metrics for organization
+  const allOrgOffers = await Application.find({
+    organization: orgId,
+    "offer.status": { $exists: true, $nin: ["none", null, ""] },
+  }).select("offer status").lean();
+
+  const counts = {
+    total: allOrgOffers.length,
+    drafts: allOrgOffers.filter((a) => a.offer?.status === "draft").length,
+    awaitingResponse: allOrgOffers.filter((a) => ["issued", "viewed"].includes(a.offer?.status)).length,
+    accepted: allOrgOffers.filter((a) => a.offer?.status === "accepted").length,
+    declined: allOrgOffers.filter((a) => a.offer?.status === "declined").length,
+    expired: allOrgOffers.filter((a) => ["expired", "withdrawn"].includes(a.offer?.status)).length,
+  };
+
+  res.json({
+    data: items.map((a) => safeApplication(a, { includeInternal: true })),
+    meta: {
+      ...meta(items, page.limit),
+      counts,
+    },
+  });
 });
 
 /** Candidate: accept or decline an issued offer. Only the candidate's response records acceptance. */
@@ -977,13 +1132,21 @@ exports.respondToOffer = asyncHandler(async (req, res) => {
   const app = await Application.findOne({ _id: req.params.applicationId, candidate: req.user._id });
   if (!app) throw new AppError("Application not found", 404, "RESOURCE_NOT_FOUND");
   const gate = pipeline.canRespondToOffer(app);
-  if (!gate.ok) throw new AppError(gate.message, 409, gate.code);
+  if (!gate.ok) {
+    if (gate.code === "OFFER_EXPIRED") {
+      await Application.updateOne(
+        { _id: app._id, candidate: req.user._id },
+        { $set: { "offer.status": "expired" } }
+      );
+    }
+    throw new AppError(gate.message, 409, gate.code);
+  }
 
   const response = req.body.response;
   const now = new Date();
   const nextStatus = response === "accept" ? "accepted" : "declined";
   const updated = await Application.findOneAndUpdate(
-    { _id: app._id, candidate: req.user._id, status: "offer", "offer.status": "issued" },
+    { _id: app._id, candidate: req.user._id, status: "offer", "offer.status": { $in: ["issued", "viewed"] } },
     {
       $set: {
         "offer.status": nextStatus,
@@ -1188,14 +1351,30 @@ exports.downloadSubmittedResume = asyncHandler(async (req, res, next) => {
   const item = await Application.findOne({
     _id: req.params.applicationId,
     organization: req.auth.organizationId,
-  }).populate({
-    path: "resumeVersion",
-    select: "+storageKey originalName mimeType storageProvider processingStatus",
-  });
-  if (!item?.resumeVersion)
-    throw new AppError("Submitted resume is unavailable", 404, "RESOURCE_NOT_FOUND");
-  const version = item.resumeVersion;
-  const stream = await storageService.getFileStream(version.storageKey, version.storageProvider);
+  })
+    .select("+resumeSnapshot.storageKey")
+    .populate({
+      path: "resumeVersion",
+      select: "+storageKey originalName mimeType storageProvider processingStatus",
+    });
+  if (!item) throw new AppError("Application not found", 404, "RESOURCE_NOT_FOUND");
+
+  const storageKey = item.resumeVersion?.storageKey || item.resumeSnapshot?.storageKey;
+  const provider = item.resumeVersion?.storageProvider || item.resumeSnapshot?.provider || "local";
+  const originalName =
+    item.resumeVersion?.originalName || item.resumeSnapshot?.originalName || "candidate_resume.pdf";
+  const mimeType =
+    item.resumeVersion?.mimeType || item.resumeSnapshot?.mimeType || "application/pdf";
+
+  if (!storageKey) {
+    throw new AppError(
+      "Candidate has not uploaded a resume for this application",
+      404,
+      "RESOURCE_NOT_FOUND",
+    );
+  }
+
+  const stream = await storageService.getFileStream(storageKey, provider);
   await audit({
     req,
     organization: req.auth.organizationId,
@@ -1203,10 +1382,10 @@ exports.downloadSubmittedResume = asyncHandler(async (req, res, next) => {
     resourceType: "application",
     resourceId: item._id,
   });
-  res.setHeader("Content-Type", version.mimeType);
+  res.setHeader("Content-Type", mimeType);
   res.setHeader(
     "Content-Disposition",
-    `attachment; filename*=UTF-8''${encodeURIComponent(version.originalName)}`,
+    `attachment; filename*=UTF-8''${encodeURIComponent(originalName)}`,
   );
   res.setHeader("Cache-Control", "private, no-store");
   stream.on("error", next);
@@ -1217,7 +1396,9 @@ exports.compare = asyncHandler(async (req, res) => {
   const apps = await Application.find({
     _id: { $in: ids },
     organization: req.auth.organizationId,
-  }).populate("candidate", "name headline skills");
+  })
+    .populate("candidate", "name headline email location skills")
+    .populate("job", "title department location");
   if (apps.length !== ids.length)
     throw new AppError("One or more applications were not found", 404, "RESOURCE_NOT_FOUND");
   for (const application of apps) await assertApplicationAssignment(req, application);
@@ -1227,13 +1408,50 @@ exports.compare = asyncHandler(async (req, res) => {
     status: "completed",
   });
   const byApp = new Map(matches.map((m) => [String(m.application), m]));
+
+  const candidateIds = apps.map((a) => a.candidate?._id).filter(Boolean);
+  const parsedResumes = await ParsedResume.find({
+    candidate: { $in: candidateIds },
+  })
+    .select("candidate experienceYears education experiences skills")
+    .sort({ updatedAt: -1 });
+
+  const resumeByCandidate = new Map();
+  for (const pr of parsedResumes) {
+    const cId = String(pr.candidate);
+    if (!resumeByCandidate.has(cId)) {
+      resumeByCandidate.set(cId, pr);
+    }
+  }
+
+  const interviews = await Interview.find({
+    application: { $in: ids },
+    organization: req.auth.organizationId,
+  }).select("application round status type scheduledAt feedback");
+
+  const interviewsByApp = new Map();
+  for (const iv of interviews) {
+    const appId = String(iv.application);
+    if (!interviewsByApp.has(appId)) interviewsByApp.set(appId, []);
+    interviewsByApp.get(appId).push(iv);
+  }
+
   res.json({
-    data: apps.map((a) => ({
-      applicationId: a._id,
-      candidate: a.candidate,
-      status: a.status,
-      match: byApp.get(String(a._id)) || null,
-    })),
+    data: apps.map((a) => {
+      const match = byApp.get(String(a._id)) || null;
+      const parsedResume = resumeByCandidate.get(String(a.candidate?._id)) || null;
+      const appInterviews = interviewsByApp.get(String(a._id)) || [];
+      return {
+        applicationId: a._id,
+        candidate: a.candidate,
+        job: a.job,
+        status: a.status,
+        appliedAt: a.appliedAt,
+        match,
+        parsedResume,
+        interviews: appInterviews,
+      };
+    }),
     meta: { warning: "Comparison supports human review; AI scores are not autonomous decisions." },
   });
 });

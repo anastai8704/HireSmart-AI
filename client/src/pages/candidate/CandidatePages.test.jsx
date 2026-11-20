@@ -2,7 +2,7 @@
 const upcomingStart = new Date(Date.now() + 2 * 86400000).toISOString();
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
@@ -15,6 +15,8 @@ const {
   mockInterviewApi,
   mockAiApi,
   mockAlertsApi,
+  sampleApplication,
+  sampleOfferApplication,
 } = vi.hoisted(() => {
   const sampleJob = {
     id: "j1",
@@ -70,6 +72,34 @@ const {
     ],
   };
 
+  const sampleOfferApplication = {
+    _id: "a_offer",
+    id: "a_offer",
+    job: sampleJob,
+    jobSnapshot: {
+      title: sampleJob.title,
+      company: sampleJob.company,
+      location: sampleJob.location,
+      workplaceMode: sampleJob.workplaceMode,
+    },
+    status: "offer",
+    appliedAt: "2026-09-01T10:00:00Z",
+    offer: {
+      status: "issued",
+      designation: "Lead Frontend Architect",
+      ctc: 3200000,
+      currency: "INR",
+      joiningDate: "2026-11-01T09:00:00.000Z",
+      issuedAt: "2026-09-10T12:00:00.000Z",
+    },
+    statusHistory: [
+      { status: "submitted", changedAt: "2026-09-01T10:00:00Z", note: "Application submitted" },
+      { status: "under_review", changedAt: "2026-09-02T10:00:00Z", note: "Recruiter started review" },
+      { status: "interview", changedAt: "2026-09-05T10:00:00Z", note: "Interview scheduled" },
+      { status: "offer", changedAt: "2026-09-10T12:00:00Z", note: "Offer extended" },
+    ],
+  };
+
   const sampleInterview = {
     _id: "i1",
     title: "Technical Interview - System Design",
@@ -113,7 +143,16 @@ const {
     mockToast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
     mockJobsApi: {
       list: vi.fn(() => Promise.resolve({ data: [sampleJob, sampleJob2], meta: { count: 2 } })),
-      get: vi.fn((id) => Promise.resolve({ data: id === "j2" ? sampleJob2 : { ...sampleJob, id } })),
+      get: vi.fn((id) =>
+        Promise.resolve({
+          data:
+            id === "j2"
+              ? sampleJob2
+              : id === "j3"
+                ? { id: "j3", _id: "j3", title: "Junior QA Tester" }
+                : { ...sampleJob, id },
+        }),
+      ),
       saved: vi.fn(() => Promise.resolve({ data: [sampleJob] })),
       save: vi.fn((id) => Promise.resolve({ data: { jobId: id, saved: true } })),
       unsave: vi.fn(() => Promise.resolve()),
@@ -167,12 +206,28 @@ const {
             { _id: "a2", job: sampleJob, status: "submitted", appliedAt: "2026-09-01T10:00:00Z" },
             { _id: "a3", job: sampleJob, status: "interview", appliedAt: "2026-09-02T10:00:00Z" },
             { _id: "a4", job: sampleJob, status: "shortlisted", appliedAt: "2026-09-03T10:00:00Z" },
+            sampleOfferApplication,
           ],
-          meta: { count: 4 },
+          meta: { count: 5 },
         }),
       ),
       application: vi.fn((id) => Promise.resolve({ data: { ...sampleApplication, _id: id } })),
       withdraw: vi.fn(() => Promise.resolve({ data: { ...sampleApplication, status: "withdrawn" } })),
+      respondOffer: vi.fn((id, body) =>
+        Promise.resolve({
+          data: {
+            ...sampleApplication,
+            _id: id,
+            offer: {
+              status: body?.response === "accept" ? "accepted" : "declined",
+              designation: "Lead Frontend Architect",
+              ctc: 3200000,
+              currency: "INR",
+              responseNote: body?.note,
+            },
+          },
+        }),
+      ),
       interviews: vi.fn(() =>
         Promise.resolve({
           data: [sampleInterview],
@@ -306,9 +361,13 @@ const {
           ],
         }),
       ),
+      create: vi.fn(() => Promise.resolve({ data: { id: "alert-new", name: "New Alert" } })),
       update: vi.fn(() => Promise.resolve({ data: {} })),
       remove: vi.fn(() => Promise.resolve()),
     },
+    sampleJob,
+    sampleApplication,
+    sampleOfferApplication,
   };
 });
 
@@ -368,6 +427,9 @@ describe("Candidate Dashboard", () => {
     renderWithClient(<CandidateDashboard />);
 
     expect(await screen.findByText("Candidate workspace")).toBeInTheDocument();
+    expect(screen.getByText(/good to see you, priya/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Search roles, skills, companies…")).toBeInTheDocument();
+    expect(screen.getByText(/profile 100% complete/i)).toBeInTheDocument();
     expect(await screen.findByText("Applications")).toBeInTheDocument();
     expect(screen.getByText("In active review")).toBeInTheDocument();
     expect(screen.getByText("Resume versions")).toBeInTheDocument();
@@ -385,6 +447,100 @@ describe("Candidate Dashboard", () => {
     expect(screen.getByText("Technical Interview - System Design")).toBeInTheDocument();
     // Date is DD MMM YYYY in Asia/Kolkata, derived from the same instant as the fixture.
     expect(screen.getByText(new RegExp(formatDate(upcomingStart)))).toBeInTheDocument();
+  });
+
+  it("filters upcoming interviews correctly across scheduled, invited, in_progress, cancelled, and completed", async () => {
+    mockCandidateApi.interviews.mockResolvedValueOnce({
+      data: [
+        {
+          _id: "int_scheduled",
+          title: "Scheduled Architecture Round",
+          status: "scheduled",
+          scheduledStart: new Date(Date.now() + 86400000).toISOString(),
+          application: { job: { title: "Lead Architect", company: "Alpha Co" } },
+          joinState: { canJoin: false, reason: "WAITING_FOR_RECRUITER", message: "Waiting for recruiter to start" },
+        },
+        {
+          _id: "int_invited",
+          title: "Invited Behavioral Round",
+          status: "invited",
+          scheduledStart: new Date(Date.now() + 2 * 86400000).toISOString(),
+          application: { job: { title: "Lead Architect", company: "Alpha Co" } },
+          joinState: { canJoin: false, reason: "NOT_STARTED", message: "Waiting for recruiter to start" },
+        },
+        {
+          _id: "int_inprogress",
+          title: "Live Technical Round",
+          status: "in_progress",
+          scheduledStart: new Date(Date.now() - 600000).toISOString(),
+          meetingUrl: "https://meet.google.com/live-meeting",
+          application: { job: { title: "Staff Engineer", company: "Beta Co" } },
+          joinState: { canJoin: true, reason: "STARTED", message: "The recruiter has started the interview. You can join now." },
+        },
+        {
+          _id: "int_cancelled",
+          title: "Cancelled Screening Round",
+          status: "cancelled",
+          scheduledStart: new Date(Date.now() + 3 * 86400000).toISOString(),
+          application: { job: { title: "Staff Engineer", company: "Beta Co" } },
+        },
+        {
+          _id: "int_completed",
+          title: "Past Completed Round",
+          status: "completed",
+          scheduledStart: new Date(Date.now() - 86400000).toISOString(),
+          application: { job: { title: "Staff Engineer", company: "Beta Co" } },
+        },
+      ],
+      meta: { count: 5 },
+    });
+
+    renderWithClient(<CandidateDashboard />);
+
+    expect(await screen.findByText("Scheduled Architecture Round")).toBeInTheDocument();
+    expect(screen.getByText("Invited Behavioral Round")).toBeInTheDocument();
+    expect(screen.getByText("Live Technical Round")).toBeInTheDocument();
+    expect(screen.queryByText("Cancelled Screening Round")).not.toBeInTheDocument();
+    expect(screen.queryByText("Past Completed Round")).not.toBeInTheDocument();
+
+    // Verify join button for in-progress interview is enabled and joinable
+    const joinButtons = screen.getAllByRole("button", { name: /join interview/i });
+    expect(joinButtons.length).toBeGreaterThan(0);
+    const enabledJoinButton = joinButtons.find((btn) => !btn.disabled);
+    expect(enabledJoinButton).toBeDefined();
+  });
+
+  it("calculates profile completion across the 7 distinct fields and links to registered onboarding route", async () => {
+    // Missing one field: Location
+    mockCandidateApi.profile.mockResolvedValueOnce({
+      data: {
+        user: {
+          id: "u2",
+          displayName: "Rahul V",
+          headline: "DevOps Specialist",
+          location: "",
+          bio: "Automating cloud infrastructure.",
+          skills: ["Terraform", "Kubernetes"],
+          onboardingCompleted: true,
+        },
+        profile: {
+          education: [{ institution: "IIT", degree: "B.Tech" }],
+          experience: [{ company: "CloudCorp", position: "DevOps Engineer" }],
+        },
+      },
+    });
+
+    renderWithClient(<CandidateDashboard />);
+
+    // 6 out of 7 completed = 86%
+    expect(await screen.findByText(/Profile 86% complete/i)).toBeInTheDocument();
+    expect(screen.getByText(/6 of 7 sections/i)).toBeInTheDocument();
+    expect(screen.getByText(/Add: Location/i)).toBeInTheDocument();
+
+    // Navigation links point to registered route /app/candidate/onboarding
+    const profileLinks = screen.getAllByRole("link", { name: /profile/i });
+    const onboardingLinks = profileLinks.filter((link) => link.getAttribute("href") === "/app/candidate/onboarding");
+    expect(onboardingLinks.length).toBeGreaterThan(0);
   });
 });
 
@@ -460,6 +616,46 @@ describe("Job Details & Application", () => {
       );
     });
   });
+
+  it("renders 'Application Submitted' banner and prevents duplicate applications when already applied", async () => {
+    renderWithClient(
+      <Routes>
+        <Route path="/app/candidate/jobs/:jobId" element={<CandidateJobDetail />} />
+      </Routes>,
+      "/app/candidate/jobs/j1",
+    );
+
+    expect(await screen.findByText("Application Submitted")).toBeInTheDocument();
+    expect(screen.getByText(/you applied for this position/i)).toBeInTheDocument();
+    expect(screen.getByText("Track Application")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /apply for this job/i })).toBeNull();
+  });
+
+  it("renders benefits only when provided by API and handles missing company/salary safely", async () => {
+    const { unmount } = renderWithClient(
+      <Routes>
+        <Route path="/app/candidate/jobs/:jobId" element={<CandidateJobDetail />} />
+      </Routes>,
+      "/app/candidate/jobs/j2",
+    );
+
+    expect(await screen.findByText("Benefits & Perks")).toBeInTheDocument();
+    expect(screen.getByText("Flexible Hours")).toBeInTheDocument();
+    unmount();
+
+    renderWithClient(
+      <Routes>
+        <Route path="/app/candidate/jobs/:jobId" element={<CandidateJobDetail />} />
+      </Routes>,
+      "/app/candidate/jobs/j3",
+    );
+
+    expect(await screen.findByText("Junior QA Tester")).toBeInTheDocument();
+    expect(screen.getByText("Company Undisclosed · Location Flexible")).toBeInTheDocument();
+    expect(screen.getByText("No detailed description provided for this role.")).toBeInTheDocument();
+    expect(screen.queryByText("Benefits & Perks")).toBeNull();
+    expect(screen.queryByText(/per year/i)).toBeNull();
+  });
 });
 
 describe("Application Tracking & Hiring Progress", () => {
@@ -495,6 +691,153 @@ describe("Application Tracking & Hiring Progress", () => {
     await waitFor(() => {
       expect(mockCandidateApi.withdraw).toHaveBeenCalledWith("a1", "");
     });
+  });
+
+  it("renders applications summary metrics, stage filters, and allows switching to Offers workspace", async () => {
+    renderWithClient(<ApplicationsPage />);
+
+    expect(await screen.findByText("Track your applications")).toBeInTheDocument();
+
+    // Wait for applications data to load
+    expect(await screen.findByText(/employment offer extended/i)).toBeInTheDocument();
+    expect(screen.getByText("Review Offer Details")).toBeInTheDocument();
+
+    // Summary metric cards
+    expect(screen.getByText("Total Applied")).toBeInTheDocument();
+    expect(screen.getByText("In Review")).toBeInTheDocument();
+    expect(screen.getByText("Offers")).toBeInTheDocument();
+    expect(screen.getByText("Closed")).toBeInTheDocument();
+
+    // Search input
+    expect(screen.getByPlaceholderText(/search by job title, company, or location/i)).toBeInTheDocument();
+
+    // Switch to Offers & Decisions tab
+    const offersTab = screen.getByRole("button", { name: /offers & decisions/i });
+    fireEvent.click(offersTab);
+
+    // Offers workspace should show formal offer details
+    expect(await screen.findByText(/employment offers & decisions/i)).toBeInTheDocument();
+    expect(screen.getAllByText("Lead Frontend Architect").length).toBeGreaterThan(0);
+    expect(screen.getByText(/₹32,00,000\/yr/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /accept offer/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /decline offer/i })).toBeInTheDocument();
+  });
+
+  it("renders executive offer card and allows accepting an offer with confirmation dialog", async () => {
+    mockCandidateApi.application.mockResolvedValueOnce({
+      data: sampleOfferApplication,
+    });
+
+    renderWithClient(
+      <Routes>
+        <Route path="/app/candidate/applications/:applicationId" element={<ApplicationDetail />} />
+      </Routes>,
+      "/app/candidate/applications/a_offer",
+    );
+
+    expect(await screen.findByText(/formal employment offer received/i)).toBeInTheDocument();
+    expect(screen.getByText("Lead Frontend Architect")).toBeInTheDocument();
+    expect(screen.getByText(/₹32,00,000\/yr/i)).toBeInTheDocument();
+
+    // Click Accept Offer to open modal (verify visible green classes: bg-success-600 text-white)
+    const acceptBtn = screen.getByRole("button", { name: /^accept offer$/i });
+    expect(acceptBtn).toHaveClass("bg-success-600");
+    expect(acceptBtn).toHaveClass("text-white");
+    expect(acceptBtn).not.toBeDisabled();
+    fireEvent.click(acceptBtn);
+
+    expect(await screen.findByText("Confirm Acceptance of Offer")).toBeInTheDocument();
+
+    const confirmBtn = screen.getByRole("button", { name: /confirm acceptance/i });
+    fireEvent.click(confirmBtn);
+
+    await waitFor(() => {
+      expect(mockCandidateApi.respondOffer).toHaveBeenCalledWith("a_offer", {
+        response: "accept",
+        note: undefined,
+      });
+    });
+  });
+
+  it("allows declining an offer with confirmation dialog and note", async () => {
+    mockCandidateApi.application.mockResolvedValueOnce({
+      data: sampleOfferApplication,
+    });
+
+    renderWithClient(
+      <Routes>
+        <Route path="/app/candidate/applications/:applicationId" element={<ApplicationDetail />} />
+      </Routes>,
+      "/app/candidate/applications/a_offer",
+    );
+
+    expect(await screen.findByText(/formal employment offer received/i)).toBeInTheDocument();
+
+    // Fill response note
+    const noteInput = screen.getByPlaceholderText(/add an optional note to accompany your decision/i);
+    fireEvent.change(noteInput, { target: { value: "Accepted another opportunity. Thank you!" } });
+
+    // Click Decline Offer
+    const declineBtn = screen.getByRole("button", { name: /^decline offer$/i });
+    fireEvent.click(declineBtn);
+
+    expect(await screen.findByText("Confirm Offer Decline")).toBeInTheDocument();
+
+    const confirmDeclineBtn = screen.getByRole("button", { name: /confirm decline/i });
+    fireEvent.click(confirmDeclineBtn);
+
+    await waitFor(() => {
+      expect(mockCandidateApi.respondOffer).toHaveBeenCalledWith("a_offer", {
+        response: "decline",
+        note: "Accepted another opportunity. Thank you!",
+      });
+    });
+  });
+
+  it("renders distinct disabled state when offer has expired and explains why acceptance is unavailable", async () => {
+    mockCandidateApi.application.mockResolvedValueOnce({
+      data: {
+        ...sampleOfferApplication,
+        offer: {
+          ...sampleOfferApplication.offer,
+          status: "expired",
+          expiresAt: "2026-08-01T00:00:00Z",
+        },
+      },
+    });
+
+    renderWithClient(
+      <Routes>
+        <Route path="/app/candidate/applications/:applicationId" element={<ApplicationDetail />} />
+      </Routes>,
+      "/app/candidate/applications/a_offer",
+    );
+
+    expect(await screen.findByText(/this offer has expired/i)).toBeInTheDocument();
+    expect(screen.getByText(/acceptance is unavailable/i)).toBeInTheDocument();
+    const acceptBtn = screen.getByRole("button", { name: /^accept offer$/i });
+    expect(acceptBtn).toBeDisabled();
+  });
+
+  it("never exposes internal recruiter notes or private scorecard evaluations to candidate", async () => {
+    mockCandidateApi.application.mockResolvedValueOnce({
+      data: {
+        ...sampleApplication,
+        recruiterNotes: "Private candidate assessment: do not share with candidate.",
+        scorecard: { rating: 2, internalRemarks: "Weak system design depth." },
+      },
+    });
+
+    renderWithClient(
+      <Routes>
+        <Route path="/app/candidate/applications/:applicationId" element={<ApplicationDetail />} />
+      </Routes>,
+      "/app/candidate/applications/a1",
+    );
+
+    expect(await screen.findByText("Hiring Progress")).toBeInTheDocument();
+    expect(screen.queryByText(/Private candidate assessment/i)).toBeNull();
+    expect(screen.queryByText(/Weak system design depth/i)).toBeNull();
   });
 });
 
@@ -594,6 +937,96 @@ describe("Interviews & AI Preparation", () => {
     expect(screen.getByText("Targeted Practice Questions")).toBeInTheDocument();
     expect(screen.getByText("React Architecture")).toBeInTheDocument();
   });
+
+  it("renders interview overview KPIs and allows submitting a reschedule request", async () => {
+    renderWithClient(<CandidateInterviews />);
+
+    expect(await screen.findByText("Technical Interview - System Design")).toBeInTheDocument();
+    expect(screen.getByText("Total Interviews")).toBeInTheDocument();
+    expect(screen.getByText("Upcoming")).toBeInTheDocument();
+    expect(screen.getByText("Pending Confirmation")).toBeInTheDocument();
+    expect(screen.getByText("Reschedule Requests")).toBeInTheDocument();
+
+    const rescheduleBtn = screen.getByRole("button", { name: /request reschedule/i });
+    fireEvent.click(rescheduleBtn);
+
+    expect(screen.getByText("Request interview reschedule")).toBeInTheDocument();
+    const textarea = screen.getByLabelText("Reason and preferred availability");
+    fireEvent.change(textarea, { target: { value: "I have a conflicting university exam." } });
+
+    const submitBtn = screen.getByRole("button", { name: /send request/i });
+    fireEvent.click(submitBtn);
+
+    await waitFor(() => {
+      expect(mockInterviewApi.reschedule).toHaveBeenCalledWith("i1", "I have a conflicting university exam.");
+    });
+  });
+
+  it("correctly counts completed interviews and excludes no_show from completed KPI", async () => {
+    mockCandidateApi.interviews.mockImplementationOnce(() =>
+      Promise.resolve({
+        data: [
+          {
+            _id: "int_completed_1",
+            title: "Round 1 Technical",
+            status: "completed",
+            scheduledStart: "2026-09-01T10:00:00Z",
+            scheduledEnd: "2026-09-01T11:00:00Z",
+            timezone: "Asia/Kolkata",
+            application: { job: { title: "Backend Engineer", company: "Stripe" } },
+            joinState: { canJoin: false, reason: "ENDED", message: "This interview has concluded." },
+          },
+          {
+            _id: "int_noshow_1",
+            title: "Round 2 Screening",
+            status: "no_show",
+            scheduledStart: "2026-09-02T10:00:00Z",
+            scheduledEnd: "2026-09-02T11:00:00Z",
+            timezone: "Asia/Kolkata",
+            application: { job: { title: "Backend Engineer", company: "Stripe" } },
+            joinState: { canJoin: false, reason: "ENDED", message: "Candidate marked as no-show." },
+          },
+        ],
+      }),
+    );
+
+    renderWithClient(<CandidateInterviews />);
+
+    expect(await screen.findByText("1 no-show recorded")).toBeInTheDocument();
+    expect(screen.getByText("Total Interviews")).toBeInTheDocument();
+
+    const completedKpi = screen.getByText("Completed").closest(".group");
+    expect(within(completedKpi).getByText("1")).toBeInTheDocument();
+
+    const pastTab = screen.getByRole("button", { name: /Past & Completed/i });
+    fireEvent.click(pastTab);
+    expect(await screen.findByText("Round 1 Technical")).toBeInTheDocument();
+    expect(screen.getByText("Round 2 Screening")).toBeInTheDocument();
+    expect(screen.getByText("No show")).toBeInTheDocument();
+  });
+
+  it("blocks join action and shows ended note for completed or cancelled interviews", async () => {
+    mockCandidateApi.interviews.mockImplementationOnce(() =>
+      Promise.resolve({
+        data: [
+          {
+            _id: "i-cancelled",
+            title: "Cancelled System Design",
+            status: "cancelled",
+            scheduledStart: "2026-09-10T10:00:00Z",
+            timezone: "Asia/Kolkata",
+            application: { job: { title: "Lead Architect", company: "Meta" } },
+            joinState: { canJoin: false, reason: "CANCELLED", message: "This interview was cancelled." },
+          },
+        ],
+      }),
+    );
+    renderWithClient(<CandidateInterviews />);
+    fireEvent.click(await screen.findByRole("button", { name: /all interviews/i }));
+
+    expect(await screen.findByText("Cancelled System Design")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /join interview/i })).toBeNull();
+  });
 });
 
 describe("Resume Manager & Details", () => {
@@ -603,6 +1036,61 @@ describe("Resume Manager & Details", () => {
     expect(await screen.findByText("Your resumes")).toBeInTheDocument();
     expect(screen.getByText("Priya_Sharma_Resume.pdf")).toBeInTheDocument();
     expect(screen.getByText("Drop a PDF or DOCX, or browse files")).toBeInTheDocument();
+  });
+
+  it("renders resume dashboard metrics, download action, and delete confirmation modal", async () => {
+    renderWithClient(<ResumeManager />);
+
+    expect(await screen.findByText("Total Resume Versions")).toBeInTheDocument();
+    expect(screen.getByText("Ready Resumes")).toBeInTheDocument();
+    expect(screen.getByText("Processing")).toBeInTheDocument();
+    expect(screen.getByText("Failed Processing")).toBeInTheDocument();
+
+    const downloadBtn = screen.getByRole("button", { name: /download/i });
+    fireEvent.click(downloadBtn);
+
+    await waitFor(() => {
+      expect(mockResumeApi.download).toHaveBeenCalledWith("rv1");
+    });
+
+    const deleteBtn = screen.getByRole("button", { name: /delete/i });
+    fireEvent.click(deleteBtn);
+
+    expect(screen.getByText("Delete resume version?")).toBeInTheDocument();
+    const confirmDeleteBtn = screen.getByRole("button", { name: /^delete version$/i });
+    fireEvent.click(confirmDeleteBtn);
+
+    await waitFor(() => {
+      expect(mockResumeApi.remove).toHaveBeenCalledWith("rv1");
+    });
+  });
+
+  it("handles failed resume version state with retry action", async () => {
+    mockResumeApi.list.mockImplementationOnce(() =>
+      Promise.resolve({
+        meta: {
+          versions: [
+            {
+              id: "rv-failed",
+              version: 2,
+              originalName: "Corrupt_Resume.pdf",
+              processingStatus: "failed",
+              failure: { code: "CORRUPT_PDF", message: "PDF parser could not extract text" },
+              createdAt: "2026-08-02T10:00:00Z",
+            },
+          ],
+        },
+      }),
+    );
+    renderWithClient(<ResumeManager />);
+
+    expect(await screen.findByText("Corrupt_Resume.pdf")).toBeInTheDocument();
+    const retryBtn = screen.getByRole("button", { name: /retry/i });
+    fireEvent.click(retryBtn);
+
+    await waitFor(() => {
+      expect(mockResumeApi.retry).toHaveBeenCalledWith("rv-failed");
+    });
   });
 
   it("renders parsed skills, ATS score, and AI improvements in resume detail", async () => {
@@ -672,5 +1160,101 @@ describe("Saved Jobs & Job Alerts", () => {
     await waitFor(() => {
       expect(mockAlertsApi.update).toHaveBeenCalledWith("alert1", { active: false });
     });
+  });
+
+  it("allows creating a new persistent job alert via modal", async () => {
+    renderWithClient(<AlertsPage />);
+
+    const createBtn = await screen.findByRole("button", { name: /create job alert/i });
+    fireEvent.click(createBtn);
+
+    expect(await screen.findByText("Create new job alert")).toBeInTheDocument();
+
+    const nameInput = screen.getByPlaceholderText("e.g. Senior React Engineer");
+    const queryInput = screen.getByPlaceholderText("e.g. React, Node.js, Frontend, Full Stack");
+    const locationInput = screen.getByPlaceholderText("e.g. Surat, Gujarat or Bengaluru or Remote");
+
+    fireEvent.change(nameInput, { target: { value: "Full Stack Engineer" } });
+    fireEvent.change(queryInput, { target: { value: "Node.js, React" } });
+    fireEvent.change(locationInput, { target: { value: "Surat" } });
+
+    // Click "Remote" workplace mode button
+    const remoteBtn = screen.getByRole("button", { name: "Remote" });
+    fireEvent.click(remoteBtn);
+
+    // Click "Daily Digest" cadence button
+    const dailyBtn = screen.getByRole("button", { name: "Daily Digest" });
+    fireEvent.click(dailyBtn);
+
+    const submitBtn = screen.getByRole("button", { name: "Create alert" });
+    fireEvent.click(submitBtn);
+
+    await waitFor(() => {
+      expect(mockAlertsApi.create).toHaveBeenCalledWith({
+        name: "Full Stack Engineer",
+        query: "Node.js, React",
+        location: "Surat",
+        workplaceMode: "remote",
+        cadence: "daily",
+      });
+    });
+  });
+
+  it("allows editing an existing job alert via modal", async () => {
+    renderWithClient(<AlertsPage />);
+
+    expect(await screen.findByText("Remote Frontend Roles")).toBeInTheDocument();
+
+    const editBtn = screen.getByRole("button", { name: /edit/i });
+    fireEvent.click(editBtn);
+
+    expect(await screen.findByText("Edit job alert")).toBeInTheDocument();
+
+    const nameInput = screen.getByPlaceholderText("e.g. Senior React Engineer");
+    fireEvent.change(nameInput, { target: { value: "Updated Frontend Lead" } });
+
+    const saveBtn = screen.getByRole("button", { name: "Save changes" });
+    fireEvent.click(saveBtn);
+
+    await waitFor(() => {
+      expect(mockAlertsApi.update).toHaveBeenCalledWith("alert1", {
+        name: "Updated Frontend Lead",
+        query: "React",
+        location: "Remote",
+        workplaceMode: "",
+        cadence: "weekly",
+      });
+    });
+  });
+
+  it("supports continuous typing and editing in Alert Name, Keywords, and Location fields", async () => {
+    renderWithClient(<AlertsPage />);
+
+    const createBtn = await screen.findByRole("button", { name: /create job alert/i });
+    fireEvent.click(createBtn);
+
+    expect(await screen.findByText("Create new job alert")).toBeInTheDocument();
+
+    const nameInput = screen.getByPlaceholderText("e.g. Senior React Engineer");
+    const queryInput = screen.getByPlaceholderText("e.g. React, Node.js, Frontend, Full Stack");
+    const locationInput = screen.getByPlaceholderText("e.g. Surat, Gujarat or Bengaluru or Remote");
+
+    // Continuous sequential keystrokes
+    fireEvent.change(nameInput, { target: { value: "S" } });
+    expect(nameInput.value).toBe("S");
+    fireEvent.change(nameInput, { target: { value: "Staff" } });
+    expect(nameInput.value).toBe("Staff");
+    fireEvent.change(nameInput, { target: { value: "Staff Engineer" } });
+    expect(nameInput.value).toBe("Staff Engineer");
+
+    // Query continuous typing
+    fireEvent.change(queryInput, { target: { value: "Python" } });
+    expect(queryInput.value).toBe("Python");
+    fireEvent.change(queryInput, { target: { value: "Python, Django, FastAPI" } });
+    expect(queryInput.value).toBe("Python, Django, FastAPI");
+
+    // Location continuous typing
+    fireEvent.change(locationInput, { target: { value: "Remote, India" } });
+    expect(locationInput.value).toBe("Remote, India");
   });
 });

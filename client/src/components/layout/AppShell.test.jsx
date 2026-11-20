@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 
 const state = {
@@ -57,6 +57,22 @@ describe("AppShell smoke", () => {
     renderShell("/app/candidate");
     expect(screen.getByText("Career Assistant")).toBeInTheDocument();
     expect(screen.getByText("Applications")).toBeInTheDocument();
+  });
+
+  it("renders candidate sidebar without duplicate placement links and with distinct Profile and Settings", () => {
+    renderShell("/app/candidate");
+    const nav = screen.getByRole("navigation", { name: "Workspace navigation" });
+
+    // Issue 3: Placement link is single unified "Placements & Employment", no duplicate "Placement Support"
+    expect(within(nav).getByRole("link", { name: "Placements & Employment" })).toHaveAttribute(
+      "href",
+      "/app/candidate/placements",
+    );
+    expect(within(nav).queryByRole("link", { name: "Placement Support" })).toBeNull();
+
+    // Issue 5: Distinct Profile and Settings links in Account section
+    expect(within(nav).getByRole("link", { name: "Profile" })).toHaveAttribute("href", "/app/profile");
+    expect(within(nav).getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/app/settings");
   });
   it("renders recruiter grouped nav with org switcher", () => {
     state.role = "recruiter";

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarCheck, Link2, ShieldAlert, Unplug, Video } from "lucide-react";
+import { CalendarCheck, Link2, ShieldAlert, Unplug, UserRound, Video } from "lucide-react";
 import Button from "../../components/ui/Button";
 import Badge from "../../components/ui/Badge";
 import ConfirmModal from "../../components/ui/ConfirmModal";
@@ -175,10 +175,37 @@ const IntegrationsPage = () => {
   const isRecruiterWorkspace = auth.role !== "candidate" && auth.role !== "admin" && Boolean(auth.organizationId);
 
   return (
-    <div className="page-wrap max-w-3xl space-y-6">
-      <Link to="/app/settings" className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-600 hover:text-brand-700">
-        ← Back to settings
-      </Link>
+    <div className="page-wrap max-w-4xl space-y-6">
+      <div className="flex items-center justify-between">
+        <Link
+          to="/app/settings"
+          className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-600 hover:text-brand-700"
+        >
+          ← Back to Settings overview
+        </Link>
+      </div>
+
+      {/* Sub-navigation tabs matching Settings */}
+      <div className="border-b border-ink-200">
+        <nav className="-mb-px flex space-x-6" aria-label="Settings navigation">
+          <Link
+            to="/app/settings"
+            className="flex items-center gap-2 border-b-2 border-transparent py-3 text-sm font-semibold text-ink-500 hover:border-ink-300 hover:text-ink-700"
+          >
+            <UserRound className="h-4 w-4" />
+            Settings Overview
+          </Link>
+          <Link
+            to="/app/settings/integrations"
+            className="flex items-center gap-2 border-b-2 border-brand-600 py-3 text-sm font-semibold text-brand-600"
+            aria-current="page"
+          >
+            <Link2 className="h-4 w-4" />
+            Integrations
+          </Link>
+        </nav>
+      </div>
+
       <PageHeader
         eyebrow="Settings"
         title="Integrations"

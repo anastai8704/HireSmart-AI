@@ -107,6 +107,7 @@ const INTERVIEW_WRITABLE_FIELDS = [
   "timezone",
   "location",
   "meetingUrl",
+  "instructions",
 ];
 
 exports.create = asyncHandler(async (req, res) => {

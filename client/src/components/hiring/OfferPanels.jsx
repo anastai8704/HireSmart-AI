@@ -2,6 +2,7 @@ import { useState } from "react";
 import Button from "../ui/Button";
 import { formatDate as formatDateOnly } from "../../lib/utils";
 import Input, { Textarea } from "../ui/Input";
+import DatePicker from "../ui/DatePicker";
 
 /*
  * Offer panels for the recruiter and candidate application views (Phase 4).
@@ -70,7 +71,14 @@ export const RecruiterOfferPanel = ({ application, onIssue, onHire, pending = fa
       )}
       <Input label="Designation" placeholder="Defaults to the job title" value={designation} onChange={(e) => setDesignation(e.target.value)} />
       <Input label="CTC (annual, INR)" type="number" min="0" value={ctc} onChange={(e) => setCtc(e.target.value)} hint="Leave empty if not agreed yet. It is not filled in for you." />
-      <Input label="Proposed joining date" type="date" value={joiningDate} onChange={(e) => setJoiningDate(e.target.value)} />
+      <div>
+        <label className="mb-1 block text-xs font-semibold text-ink-700">Proposed joining date</label>
+        <DatePicker
+          placeholder="Proposed joining date"
+          value={joiningDate}
+          onChange={(e) => setJoiningDate(e.target.value)}
+        />
+      </div>
       <Textarea label="Note for the record" value={note} onChange={(e) => setNote(e.target.value)} />
       <Button type="submit" variant="primary" fullWidth disabled={pending}>
         Issue offer

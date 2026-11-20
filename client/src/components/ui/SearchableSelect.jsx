@@ -43,6 +43,8 @@ export const SearchableSelect = ({
   error,
   hint,
   className,
+  inputClassName,
+  buttonClassName,
   containerClassName,
   "aria-label": ariaLabel,
   ...rest
@@ -305,7 +307,8 @@ export const SearchableSelect = ({
           }}
           onKeyDown={onKeyDown}
           className={cn(
-            "h-10 min-w-[6rem] flex-1 bg-transparent px-1 text-base text-ink-900 placeholder:text-ink-400 focus:outline-none sm:text-sm",
+            "h-8 min-w-[6rem] flex-1 bg-transparent px-1 text-base placeholder:text-ink-400 focus:outline-none sm:text-sm",
+            inputClassName || "text-ink-900",
             "disabled:cursor-not-allowed disabled:text-ink-500",
             !isSearchable && "cursor-pointer",
           )}
@@ -327,7 +330,7 @@ export const SearchableSelect = ({
           type="button"
           tabIndex={-1}
           aria-hidden="true"
-          className="grid h-8 w-8 shrink-0 place-items-center text-ink-500"
+          className={cn("grid h-8 w-8 shrink-0 place-items-center text-ink-500", buttonClassName)}
           onClick={() => {
             if (disabled) return;
             if (open) closeList();

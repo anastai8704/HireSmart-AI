@@ -2,11 +2,15 @@
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { Download, Eye } from "lucide-react";
 import Kpi from "../../components/ui/Kpi";
 import Badge from "../../components/ui/Badge";
+import Button from "../../components/ui/Button";
+import Modal from "../../components/ui/Modal";
 import { EmptyState, ErrorState, LoadingState } from "../../components/ui/States";
 import { PageHeader } from "../../components/Product";
-import { adminApi } from "../../lib/api";
+import * as toastModule from "../../components/ui/useToast";
+import { adminApi, downloadBlob } from "../../lib/api";
 import { RANGE_PRESETS, istToday, validateCustomRange } from "../../lib/analyticsRange";
 import {
   fmtCount,
@@ -20,6 +24,7 @@ import {
   VERIFICATION_TONE,
 } from "../../lib/revenueFormat";
 import { SearchableSelect } from "../../components/ui/SearchableSelect";
+import DatePicker from "../../components/ui/DatePicker";
 
 const MODE_OPTIONS = [
   { value: "all", label: "All modes" },
@@ -56,6 +61,15 @@ const SummaryCard = ({ label, value, detail, to, testId }) => {
 };
 
 export const AdminRevenue = () => {
+  let toast = { success: () => {}, error: () => {} };
+  try {
+    const fn = toastModule.useToast || toastModule.default;
+    if (typeof fn === "function") {
+      toast = fn() || toast;
+    }
+  } catch {
+    // Outside ToastProvider (e.g. isolated test environments)
+  }
   const [range, setRange] = useState({ preset: "30d", from: "", to: "" });
   // Charts link here with filters in the URL (for example ?status=failed). Read once, on first render.
   const [searchParams] = useSearchParams();
@@ -68,6 +82,8 @@ export const AdminRevenue = () => {
   }));
   const [page, setPage] = useState(1);
   const [todayIst] = useState(() => istToday());
+  const [exporting, setExporting] = useState(false);
+  const [selectedTxnId, setSelectedTxnId] = useState(null);
 
   const customError = range.preset === "custom" ? validateCustomRange(range.from, range.to, todayIst) : null;
   const rangeQuery = rangeParams(range);
@@ -93,6 +109,19 @@ export const AdminRevenue = () => {
     setPage(1);
   };
 
+  const handleExportCsv = async () => {
+    try {
+      setExporting(true);
+      const blob = await adminApi.revenueExportCsv(params);
+      downloadBlob(blob, `revenue-export-${range.preset || "transactions"}.csv`);
+      toast.success("Revenue ledger exported as CSV");
+    } catch (err) {
+      toast.error(err.message || "Failed to export revenue CSV");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const summary = data?.data?.summary;
   const rows = data?.data?.transactions || [];
   const meta = data?.meta || { page: 1, pages: 1, total: 0 };
@@ -104,9 +133,20 @@ export const AdminRevenue = () => {
         title="Revenue & Plans"
         description="Real provider payments only. Net revenue is captured payments minus refunds processed in the selected dates. Sandbox, failed and pending records are excluded."
         action={
-          <Link to="/app/admin/subscriptions" className="text-sm font-semibold text-brand-700 hover:underline">
-            Plan breakdown →
-          </Link>
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              icon={Download}
+              loading={exporting}
+              onClick={handleExportCsv}
+            >
+              Export CSV
+            </Button>
+            <Link to="/app/admin/subscriptions" className="text-sm font-semibold text-brand-700 hover:underline">
+              Plan breakdown →
+            </Link>
+          </div>
         }
       />
 
@@ -132,26 +172,22 @@ export const AdminRevenue = () => {
           </label>
           {range.preset === "custom" && (
             <>
-              <label className="flex flex-col text-xs font-semibold text-ink-600">
-                From (IST)
-                <input
-                  type="date"
-                  className="mt-1 rounded-lg border border-ink-200 px-3 py-2 text-sm"
+              <div className="flex flex-col text-xs font-semibold text-ink-600">
+                <DatePicker
+                  label="From (IST)"
                   value={range.from}
                   max={todayIst}
                   onChange={(e) => setRange((r) => ({ ...r, from: e.target.value }))}
                 />
-              </label>
-              <label className="flex flex-col text-xs font-semibold text-ink-600">
-                To (IST)
-                <input
-                  type="date"
-                  className="mt-1 rounded-lg border border-ink-200 px-3 py-2 text-sm"
+              </div>
+              <div className="flex flex-col text-xs font-semibold text-ink-600">
+                <DatePicker
+                  label="To (IST)"
                   value={range.to}
                   max={todayIst}
                   onChange={(e) => setRange((r) => ({ ...r, to: e.target.value }))}
                 />
-              </label>
+              </div>
             </>
           )}
         </div>
@@ -259,11 +295,12 @@ export const AdminRevenue = () => {
                   <th scope="col" className="px-3 py-2">Refund</th>
                   <th scope="col" className="px-3 py-2">Mode</th>
                   <th scope="col" className="px-3 py-2">Verification</th>
+                  <th scope="col" className="px-3 py-2 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-ink-100">
                 {rows.map((t) => (
-                  <tr key={t.id} data-testid="revenue-row">
+                  <tr key={t.id} data-testid="revenue-row" className="hover:bg-ink-50/50">
                     <td className="px-3 py-2">
                       <div className="font-medium text-ink-900">{t.organizationName || t.subscriberName || "—"}</div>
                       <div className="text-xs text-ink-500">{t.subscriberType === "organization" ? "Company" : "Candidate"}</div>
@@ -288,6 +325,16 @@ export const AdminRevenue = () => {
                       <Badge variant={VERIFICATION_TONE[t.verification] || "default"}>
                         {VERIFICATION_LABELS[t.verification] || t.verification}
                       </Badge>
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        leftIcon={<Eye className="h-3.5 w-3.5" />}
+                        onClick={() => setSelectedTxnId(t.id || t._id)}
+                      >
+                        Inspect
+                      </Button>
                     </td>
                   </tr>
                 ))}
@@ -319,7 +366,120 @@ export const AdminRevenue = () => {
           </nav>
         </>
       )}
+
+      {/* Transaction Details Inspection Modal */}
+      {selectedTxnId && (
+        <TransactionDetailModal
+          transactionId={selectedTxnId}
+          onClose={() => setSelectedTxnId(null)}
+        />
+      )}
     </div>
+  );
+};
+
+const TransactionDetailModal = ({ transactionId, onClose }) => {
+  const query = useQuery({
+    queryKey: ["admin-transaction-detail", transactionId],
+    queryFn: () => adminApi.transactionDetails(transactionId),
+    enabled: Boolean(transactionId),
+  });
+
+  const txn = query.data?.data;
+
+  return (
+    <Modal
+      isOpen={Boolean(transactionId)}
+      open={Boolean(transactionId)}
+      onClose={onClose}
+      title="Payment Transaction Details"
+      description="Cryptographically safe transaction record from payment ledger."
+      size="xl"
+    >
+      {query.isLoading && <LoadingState message="Loading payment details…" />}
+      {query.isError && <ErrorState error={query.error} onRetry={() => query.refetch()} />}
+
+      {query.isSuccess && txn && (
+        <div className="space-y-4">
+          <div className="rounded-xl border border-ink-100 bg-ink-50/50 p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-xs text-ink-500 font-mono">Order / Transaction ID</div>
+                <div className="text-base font-bold text-ink-900 font-mono">{txn.transactionNumber}</div>
+                {txn.invoiceNumber && (
+                  <div className="text-xs text-ink-600 font-mono">Invoice: {txn.invoiceNumber}</div>
+                )}
+              </div>
+              <div className="text-right">
+                <div className="text-xl font-bold text-ink-900">
+                  {fmtInr(txn.amount)} <span className="text-xs font-normal text-ink-500">{txn.currency}</span>
+                </div>
+                <Badge variant={txn.status === "captured" ? "success" : txn.status === "failed" ? "danger" : "default"}>
+                  {txn.status?.toUpperCase()}
+                </Badge>
+              </div>
+            </div>
+          </div>
+
+          {/* Test Mode Warning if applicable */}
+          {txn.mode !== "live" && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+              <span className="font-bold">Test Mode Record:</span> This payment was conducted in test or simulation mode and is isolated from live revenue accounting.
+            </div>
+          )}
+
+          <div className="grid gap-3 sm:grid-cols-2 text-xs">
+            <div className="rounded-lg border border-ink-100 bg-white p-3">
+              <div className="text-ink-500">Subscriber Name</div>
+              <div className="font-semibold text-ink-900">{txn.subscriber?.name || "Subscriber"}</div>
+              <div className="text-ink-400">{txn.subscriber?.email || txn.subscriberType}</div>
+            </div>
+
+            <div className="rounded-lg border border-ink-100 bg-white p-3">
+              <div className="text-ink-500">Plan Tier</div>
+              <div className="font-semibold text-ink-900">{txn.planName || txn.planTier}</div>
+              <div className="text-ink-400 capitalize">Tier: {txn.planTier}</div>
+            </div>
+
+            <div className="rounded-lg border border-ink-100 bg-white p-3">
+              <div className="text-ink-500">Gateway Order ID</div>
+              <div className="font-mono text-ink-900">{txn.gatewayOrderId || "—"}</div>
+            </div>
+
+            <div className="rounded-lg border border-ink-100 bg-white p-3">
+              <div className="text-ink-500">Gateway Payment ID</div>
+              <div className="font-mono text-ink-900">{txn.gatewayPaymentId || "—"}</div>
+            </div>
+
+            <div className="rounded-lg border border-ink-100 bg-white p-3">
+              <div className="text-ink-500">Refund Status</div>
+              <div className="font-medium text-ink-900 capitalize">{txn.refundStatus || "Not Refunded"}</div>
+            </div>
+
+            <div className="rounded-lg border border-ink-100 bg-white p-3">
+              <div className="text-ink-500">Payment Environment</div>
+              <div className="font-medium text-ink-900">{txn.mode === "live" ? "Live Production" : "Razorpay Test Simulation"}</div>
+            </div>
+
+            <div className="rounded-lg border border-ink-100 bg-white p-3">
+              <div className="text-ink-500">Created At (IST)</div>
+              <div className="text-ink-900">{fmtIst(txn.createdAt)}</div>
+            </div>
+
+            <div className="rounded-lg border border-ink-100 bg-white p-3">
+              <div className="text-ink-500">Subscription Association</div>
+              <div className="font-mono text-ink-900 truncate">{txn.providerSubscriptionId || "None"}</div>
+            </div>
+          </div>
+
+          <div className="flex justify-end border-t border-ink-100 pt-3">
+            <Button variant="secondary" onClick={onClose}>
+              Close
+            </Button>
+          </div>
+        </div>
+      )}
+    </Modal>
   );
 };
 

@@ -11,6 +11,9 @@ const SIZES = {
   md: "max-w-lg",
   lg: "max-w-2xl",
   xl: "max-w-4xl",
+  "2xl": "max-w-5xl",
+  "3xl": "max-w-6xl",
+  full: "max-w-7xl",
 };
 
 const Modal = ({
@@ -29,6 +32,11 @@ const Modal = ({
   const descriptionId = useId();
   const panelRef = useRef(null);
   const returnFocusRef = useRef(null);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
 
   // Close on Escape, and prevent the page behind from scrolling.
   useEffect(() => {
@@ -36,7 +44,7 @@ const Modal = ({
 
     returnFocusRef.current = document.activeElement;
     const handleKeyDown = (event) => {
-      if (event.key === "Escape") onClose?.();
+      if (event.key === "Escape") onCloseRef.current?.();
       if (event.key === "Tab" && panelRef.current) {
         const items = [
           ...panelRef.current.querySelectorAll(
@@ -71,7 +79,7 @@ const Modal = ({
       document.removeEventListener("keydown", handleKeyDown);
       returnFocusRef.current?.focus?.();
     };
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 

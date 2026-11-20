@@ -44,6 +44,9 @@ const invites = require("../controllers/v1InviteController");
 const placement = require("../controllers/v1PlacementController");
 const subscription = require("../controllers/v1SubscriptionController");
 const adminRevenue = require("../controllers/v1AdminRevenueController");
+const adminSubscription = require("../controllers/v1AdminSubscriptionController");
+const adminSecurity = require("../controllers/v1AdminSecurityController");
+const adminSettings = require("../controllers/v1AdminSettingsController");
 const { checkAiPlanLimit } = require("../middleware/subscriptionCheck");
 
 const router = express.Router();
@@ -264,7 +267,13 @@ router.put(
   "/organizations/:organizationId/settings",
   authenticate,
   requireOrganization("organization.manage"),
-  validate(strict({ requireJobApproval: z.boolean() })),
+  validate(
+    strict({
+      requireJobApproval: z.boolean().optional(),
+      aiEnabled: z.boolean().optional(),
+      retentionDays: z.number().int().min(30).max(3650).optional(),
+    }),
+  ),
   org.settings,
 );
 router.get(
@@ -639,6 +648,12 @@ router.get(
   requireOrganization("application.review"),
   recruitment.applications,
 );
+router.get(
+  "/organizations/:organizationId/applications",
+  authenticate,
+  requireOrganization("application.review"),
+  recruitment.applications,
+);
 const transitionSchema = strict({
   toStatus: z.enum([
     "under_review",
@@ -677,18 +692,38 @@ router.get(
   recruitment.applicationDetail,
 );
 const offerSchema = strict({
-  designation: z.string().max(200).optional(),
-  ctc: z.number().min(0).max(1_000_000_000).optional(),
-  currency: z.string().trim().min(3).max(10).optional(),
-  joiningDate: z.string().max(40).optional(),
-  note: z.string().max(2000).optional(),
+  designation: z.string().max(200).nullable().optional(),
+  ctc: z.number().min(0).max(1_000_000_000).nullable().optional(),
+  currency: z.string().trim().min(3).max(10).nullable().optional(),
+  payFrequency: z.enum(["annual", "monthly", "hourly"]).nullable().optional(),
+  baseSalary: z.number().min(0).max(1_000_000_000).nullable().optional(),
+  bonus: z.number().min(0).max(1_000_000_000).nullable().optional(),
+  joiningDate: z.string().max(40).nullable().optional(),
+  expiresAt: z.string().max(40).nullable().optional(),
+  employmentType: z.enum(["full_time", "part_time", "contract", "internship"]).nullable().optional(),
+  notes: z.string().max(4000).nullable().optional(),
+  note: z.string().max(2000).nullable().optional(),
+  isDraft: z.boolean().nullable().optional(),
 });
+router.get(
+  "/organizations/:organizationId/offers",
+  authenticate,
+  requireOrganization("application.review"),
+  recruitment.listOffers,
+);
 router.post(
   "/organizations/:organizationId/applications/:applicationId/offer",
   authenticate,
   requireOrganization("application.manage"),
   validate(offerSchema),
   recruitment.issueOffer,
+);
+router.post(
+  "/organizations/:organizationId/applications/:applicationId/offer/withdraw",
+  authenticate,
+  requireOrganization("application.manage"),
+  validate(strict({ reason: z.string().max(1000).optional() })),
+  recruitment.withdrawOffer,
 );
 router.post(
   "/candidates/me/applications/:applicationId/offer-response",
@@ -774,6 +809,7 @@ const interviewSchema = strict({
   location: z.string().max(500).optional().or(z.literal("")),
   meetingUrl: httpUrl.optional().or(z.literal("")),
   participants: z.array(z.string().length(24)).max(20).optional(),
+  instructions: z.string().max(2000).optional().or(z.literal("")),
 });
 router.get(
   "/organizations/:organizationId/interviews",
@@ -938,16 +974,28 @@ router.get(
 router.use("/admin", authenticate, requirePlatformAdmin);
 router.get("/admin/users", authenticate, admin.users);
 router.get("/admin/candidates/:candidateId/resumes", authenticate, admin.candidateResumes);
+router.get("/admin/candidates/:candidateId/360", authenticate, admin.candidate360);
 router.get(
   "/admin/candidates/:candidateId/resumes/versions/:versionId/download",
   authenticate,
   admin.candidateResumeDownload,
 );
 router.get("/admin/organizations", authenticate, admin.organizations);
+router.get("/admin/applications", authenticate, admin.applications);
+router.get("/admin/applications/:applicationId", authenticate, admin.applicationDetail);
+router.post("/admin/users/:userId/flag", authenticate, admin.flagUser);
 router.get("/admin/analytics/overview", authenticate, admin.overviewAnalytics);
+router.get("/admin/reports", authenticate, reports.listAdminReports);
 router.get("/admin/reports/:reportType", authenticate, reports.adminReport);
+router.get("/admin/settings", authenticate, adminSettings.getSettings);
+router.patch("/admin/settings", authenticate, adminSettings.updateSettings);
 router.get("/admin/analytics/revenue", authenticate, adminRevenue.adminRevenueAnalytics);
 router.get("/admin/revenue", authenticate, adminRevenue.adminRevenuePage);
+router.get("/admin/revenue/export", authenticate, adminRevenue.adminExportRevenueCsv);
+router.get("/admin/revenue/transactions/:transactionId", authenticate, adminRevenue.adminGetTransactionDetails);
+router.get("/admin/subscriptions", authenticate, adminSubscription.listAdminSubscriptions);
+router.get("/admin/subscriptions/:subscriptionId", authenticate, adminSubscription.getAdminSubscriptionDetails);
+router.post("/admin/subscriptions/:subscriptionId/cancel", authenticate, adminSubscription.adminCancelSubscription);
 router.get("/admin/organizations/:organizationId/verification", authenticate, org.adminGetOrgDetails);
 router.post("/admin/organizations/:organizationId/verify", authenticate, org.adminVerifyOrg);
 router.post("/admin/organizations/:organizationId/reject", authenticate, org.adminRejectOrg);
@@ -1037,6 +1085,8 @@ router.get("/admin/operations/recent", authenticate, adminOps.recentOperations);
 router.get("/admin/placements/:placementId", authenticate, placement.adminPlacementDetail);
 router.get("/admin/placements/:placementId/candidate-profile", authenticate, placement.adminCandidateProfileForPlacement);
 router.post("/admin/placements/:placementId/verify", authenticate, placement.adminVerifyPlacement);
+router.post("/admin/placements/:placementId/reject", authenticate, placement.adminRejectPlacement);
+router.post("/admin/placements/:placementId/request-evidence", authenticate, placement.adminRequestEvidence);
 
 // Company verification for recruiters (Phase 2). Validation is strict: unknown fields are rejected.
 const verificationAddress = strict({
@@ -1210,7 +1260,7 @@ router.get("/subscriptions/invoices", authenticate, subscription.getInvoices);
 const moderation = require("../controllers/v1ModerationController");
 const moderationDecisionSchema = strict({ reason: z.string().max(500).optional() });
 const bulkModerationSchema = strict({
-  action: z.enum(["approve", "reject"]),
+  action: z.enum(["approve", "reject", "request_changes"]),
   jobIds: z.array(z.string().regex(/^[a-f\d]{24}$/i)).min(1).max(200),
   reason: z.string().max(500).optional(),
   organizationId: z.string().regex(/^[a-f\d]{24}$/i).optional(),
@@ -1236,7 +1286,12 @@ router.post(
 router.get("/admin/ai-usage", authenticate, admin.aiUsage);
 router.get("/admin/ai-activity", authenticate, admin.aiActivity);
 router.get("/admin/audit-logs", authenticate, admin.audit);
-router.get("/admin/security-events", authenticate, admin.security);
+router.get("/admin/security/overview", authenticate, adminSecurity.getSecurityOverview);
+router.get("/admin/security-events", authenticate, adminSecurity.listSecurityEvents);
+router.get("/admin/security-events/:eventId", authenticate, adminSecurity.getSecurityEventDetails);
+router.post("/admin/security-events/:eventId/notes", authenticate, adminSecurity.addInvestigationNote);
+router.post("/admin/security-events/:eventId/resolve", authenticate, adminSecurity.resolveSecurityEvent);
+router.post("/admin/security-events/:eventId/flag", authenticate, adminSecurity.flagEntity);
 router.post(
   "/admin/users/:userId/suspend",
   authenticate,

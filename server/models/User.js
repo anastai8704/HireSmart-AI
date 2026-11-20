@@ -66,6 +66,11 @@ const userSchema = new mongoose.Schema(
       default: "pending_verification",
       index: true,
     },
+    isFlagged: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
     onboardingCompleted: {
       type: Boolean,
       default: false,

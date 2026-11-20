@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Bell,
@@ -7,9 +7,11 @@ import {
   Building2,
   Check,
   CheckCircle2,
+  CreditCard,
   Download,
   FileText,
   KeyRound,
+  Link2,
   RotateCcw,
   ShieldAlert,
   ShieldCheck,
@@ -29,6 +31,7 @@ import { useAuth } from "../context/useAuth";
 import { useToast } from "../components/ui/useToast";
 import { cn, formatDate, formatDateTime, formatRelativeTime, notificationTarget } from "../lib/utils";
 import { PlanSummaryCard } from "../components/billing/PlanSummaryCard";
+import { WorkspaceSettingsSection } from "./recruiter/WorkspaceSettingsSection";
 
 /* Role-appropriate filters. Categories come from the backend notification
    record (n.category) with a text fallback for older notifications. */
@@ -919,28 +922,89 @@ const DataSection = () => {
 };
 
 export const SettingsPage = () => {
-  const auth = useAuth(),
-    [section, setSection] = useState("account"),
-    [deleteOpen, setDeleteOpen] = useState(false),
-    remove = useMutation({
-      mutationFn: () => userApi.remove("Requested from account settings"),
-      onSuccess: () => auth.logout(),
-    });
+  const auth = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTab = searchParams.get("tab") || searchParams.get("section");
+  const [section, setSectionState] = useState(
+    () => requestedTab || (auth.organizationId ? "workspace" : "account"),
+  );
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const remove = useMutation({
+    mutationFn: () => userApi.remove("Requested from account settings"),
+    onSuccess: () => auth.logout(),
+  });
+
+  const setSection = (key) => {
+    setSectionState(key);
+    setSearchParams({ tab: key });
+  };
+
   const nav = [
+    ...(auth.organizationId
+      ? [["workspace", "Workspace", "Organization & hiring rules", Building2]]
+      : []),
     ["account", "Account", "Email & account information", UserRound],
     ["security", "Security", "Password, sessions & activity", ShieldCheck],
     ["notifications", "Notifications", "Preferences by category", Bell],
     ["privacy", "Privacy & AI", "Permissions & data", Sparkles],
     ["data", "Data", "Export your data", Download],
+    ["integrations", "Integrations", "Connected tools & video", Link2],
     ["danger", "Danger zone", "Delete account", ShieldAlert],
   ];
   return (
     <div className="page-wrap max-w-6xl">
       <PageHeader
-        eyebrow="Account"
+        eyebrow={auth.organizationId ? "Organization & Account" : "Account"}
         title="Settings"
-        description="Security, preferences and data — your profile lives in My Profile."
+        description="Workspace configuration, security, preferences and data — your profile lives in My Profile."
+        action={
+          <Button
+            as={Link}
+            to="/app/profile"
+            variant="secondary"
+            size="sm"
+            leftIcon={<UserRound className="h-4 w-4 text-ink-500" />}
+          >
+            My Profile
+          </Button>
+        }
       />
+      {/* Sub-navigation tabs between Settings Overview, Integrations, and Billing */}
+      <div className="mb-6 border-b border-ink-200">
+        <nav className="-mb-px flex space-x-6" aria-label="Settings navigation">
+          <Link
+            to="/app/settings"
+            className="flex items-center gap-2 border-b-2 border-brand-600 py-3 text-sm font-semibold text-brand-600"
+            aria-current="page"
+          >
+            <UserRound className="h-4 w-4" />
+            Settings Overview
+          </Link>
+          <Link
+            to="/app/profile"
+            className="flex items-center gap-2 border-b-2 border-transparent py-3 text-sm font-semibold text-ink-500 hover:border-ink-300 hover:text-ink-700"
+          >
+            <UserRound className="h-4 w-4" />
+            My Profile
+          </Link>
+          <Link
+            to="/app/settings/integrations"
+            className="flex items-center gap-2 border-b-2 border-transparent py-3 text-sm font-semibold text-ink-500 hover:border-ink-300 hover:text-ink-700"
+          >
+            <Link2 className="h-4 w-4" />
+            Integrations
+          </Link>
+          {auth.organizationId && (
+            <Link
+              to={`/app/o/${auth.organizationId}/billing`}
+              className="flex items-center gap-2 border-b-2 border-transparent py-3 text-sm font-semibold text-ink-500 hover:border-ink-300 hover:text-ink-700"
+            >
+              <CreditCard className="h-4 w-4" />
+              Billing & Subscription
+            </Link>
+          )}
+        </nav>
+      </div>
       <div className="grid gap-6 lg:grid-cols-[230px_1fr]">
         <nav aria-label="Settings sections" className="lg:sticky lg:top-20 lg:self-start">
           <div className="flex gap-1.5 overflow-x-auto pb-1 lg:flex-col lg:pb-0">
@@ -980,12 +1044,45 @@ export const SettingsPage = () => {
           </div>
         </nav>
         <div className="min-w-0">
+          {section === "workspace" && auth.organizationId && <WorkspaceSettingsSection auth={auth} />}
           {section === "account" && auth.user && <PlanSummaryCard />}
+          {section === "account" && (
+            <SectionCard
+              title="Connected Tools & Integrations"
+              icon={Link2}
+              description="Manage external calendar, video interview links, and integrations."
+            >
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="max-w-xl text-sm text-ink-600">
+                  Connect Google Calendar to automatically generate Google Meet video links for candidate interviews.
+                </div>
+                <Button as={Link} to="/app/settings/integrations" variant="secondary" size="sm">
+                  Manage Integrations →
+                </Button>
+              </div>
+            </SectionCard>
+          )}
           {section === "account" && (auth.user ? <AccountSection auth={auth} /> : <SkeletonList rows={3} />)}
           {section === "security" && <SecuritySection />}
           {section === "notifications" && (auth.user ? <PrefsSection /> : <SkeletonList rows={3} />)}
           {section === "privacy" && <PrivacySection />}
           {section === "data" && <DataSection />}
+          {section === "integrations" && (
+            <SectionCard
+              title="Integrations & Video Tools"
+              icon={Link2}
+              description="Connect external services to automate interview scheduling."
+            >
+              <div className="space-y-4">
+                <p className="text-sm text-ink-600">
+                  Manage Google Calendar and video meeting links for interviews in the dedicated integrations workspace.
+                </p>
+                <Button as={Link} to="/app/settings/integrations" variant="primary" size="sm">
+                  Open Integrations Panel →
+                </Button>
+              </div>
+            </SectionCard>
+          )}
           {section === "danger" && (
             <SectionCard
               title="Delete account"

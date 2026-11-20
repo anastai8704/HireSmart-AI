@@ -62,9 +62,17 @@ export const AIProvenance = ({ metadata, confidence, limitations = [], tone = "d
           </Badge>
         )}
         {metadata?.fallbackUsed ? (
-          <Badge variant="warning">Fallback Rules</Badge>
+          <Badge variant="warning">
+            {metadata?.provider === "deterministic" ? "Fallback Rules" : `Fallback (${metadata?.provider || "groq"})`}
+          </Badge>
         ) : isLLM ? (
-          <Badge variant="success">Active Model</Badge>
+          <Badge variant="success">
+            {metadata?.provider === "openrouter"
+              ? `OpenRouter · ${metadata?.model?.split("/").pop() || "NVIDIA"}`
+              : metadata?.provider
+                ? `Primary: ${metadata.provider}`
+                : "Active Model"}
+          </Badge>
         ) : null}
       </div>
       <p className={cn("mt-1.5 text-xs", dark ? "text-ink-400" : "text-ink-500")}>
@@ -98,6 +106,11 @@ export const AIProvenance = ({ metadata, confidence, limitations = [], tone = "d
                   <strong className={dark ? "text-ink-300" : "text-ink-700"}>Latency:</strong> {metadata.usage.latencyMs}ms
                 </p>
               ) : null}
+              {metadata.fallbackUsed && metadata.fallbackReason && (
+                <p className={dark ? "text-amber-400" : "text-amber-700"}>
+                  <strong className={dark ? "text-amber-300" : "text-amber-800"}>Fallback Reason:</strong> {metadata.fallbackReason}
+                </p>
+              )}
             </div>
           )}
           {limitations.length > 0 && (

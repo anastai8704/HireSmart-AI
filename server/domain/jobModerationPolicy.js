@@ -14,8 +14,8 @@ const ACTIONS = Object.freeze({
   reinstate: { to: "approved", label: "reinstated" },
 });
 
-/** Bulk actions only cover the two decisions that apply to many listings at once. */
-const BULK_ACTIONS = Object.freeze(["approve", "reject"]);
+/** Bulk actions cover the decisions that apply to many listings at once. */
+const BULK_ACTIONS = Object.freeze(["approve", "reject", "request_changes"]);
 
 /** Fields a proposed change may write to a live job when it is approved. */
 const PUBLIC_EDIT_FIELDS = Object.freeze([
@@ -123,9 +123,14 @@ const evaluateDecision = ({ job, action, org, actorId, isReviewerConflict, reaso
   if (!from) return { ok: false, code: "INVALID_ACTION", message: "Unknown moderation action" };
 
   const current = job.moderation?.status || "none";
-  // A platform admin may take down an approved listing with a reason (rejected). Every other
+  // A platform admin may take down an active listing with a reason (rejected or suspend). Every other
   // listing decision starts from its source state.
-  const allowedFrom = target === "listing" && action === "reject" ? ["pending", "approved"] : [from];
+  const allowedFrom =
+    target === "listing" && action === "reject"
+      ? ["pending", "approved", "none"]
+      : target === "listing" && action === "suspend"
+        ? ["approved", "none"]
+        : [from];
   if (target === "listing" && !allowedFrom.includes(current)) {
     const already = current === spec.to;
     return {

@@ -18,7 +18,7 @@ import {
 import Kpi from "../../components/ui/Kpi";
 import { EmptyState } from "../../components/ui/States";
 import Button from "../../components/ui/Button";
-import Input from "../../components/ui/Input";
+import DatePicker from "../../components/ui/DatePicker";
 import { RANGE_PRESETS } from "../../lib/analyticsRange";
 import { SearchableSelect } from "../../components/ui/SearchableSelect";
 
@@ -316,19 +316,21 @@ export const AdminAnalyticsPanel = ({ analytics, range, onRangeChange, customErr
           ))}
         </div>
         {preset === "custom" && (
-          <div className="flex flex-wrap items-end gap-2">
-            <Input
-              label="From (IST)"
-              type="date"
-              value={range.from || ""}
-              onChange={(e) => onRangeChange({ ...range, from: e.target.value })}
-            />
-            <Input
-              label="To (IST)"
-              type="date"
-              value={range.to || ""}
-              onChange={(e) => onRangeChange({ ...range, to: e.target.value })}
-            />
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="w-48">
+              <DatePicker
+                label="From (IST)"
+                value={range.from || ""}
+                onChange={(e) => onRangeChange({ ...range, from: e.target.value })}
+              />
+            </div>
+            <div className="w-48">
+              <DatePicker
+                label="To (IST)"
+                value={range.to || ""}
+                onChange={(e) => onRangeChange({ ...range, to: e.target.value })}
+              />
+            </div>
           </div>
         )}
         <p className="text-xs text-ink-500">

@@ -5,7 +5,7 @@
 const ANALYTICS_TIMEZONE = "Asia/Kolkata";
 const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
-const PRESET_DAYS = Object.freeze({ "7d": 7, "30d": 30, "90d": 90 });
+const PRESET_DAYS = Object.freeze({ "7d": 7, "30d": 30, "90d": 90, "12m": 365 });
 const MAX_CUSTOM_DAYS = 366;
 const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
@@ -52,7 +52,7 @@ const resolveRange = ({ range = "30d", from, to } = {}, now = new Date()) => {
     fromDay = from;
     toDay = to;
   } else {
-    throw new AnalyticsRangeError("range must be one of 7d, 30d, 90d or custom");
+    throw new AnalyticsRangeError("range must be one of 7d, 30d, 90d, 12m or custom");
   }
   if (fromDay > toDay) throw new AnalyticsRangeError("from must be on or before to");
   const days = Math.round((istMidnightUtc(toDay) - istMidnightUtc(fromDay)) / DAY_MS) + 1;

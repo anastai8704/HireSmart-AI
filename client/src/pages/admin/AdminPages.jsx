@@ -3,13 +3,22 @@ import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
+  ArrowRight,
+  BadgeCheck,
+  BriefcaseBusiness,
   Building2,
+  CheckCircle2,
   Clock3,
+  CreditCard,
   DollarSign,
   FileCheck2,
+  Flag,
   Layers,
+  Search,
+  ShieldAlert,
   ShieldCheck,
   Sparkles,
+  UserRound,
   Users,
   Zap,
 } from "lucide-react";
@@ -30,25 +39,22 @@ import { SearchableSelect } from "../../components/ui/SearchableSelect";
 import Badge from "../../components/ui/Badge";
 import { AdminAnalyticsPanel } from "./AdminAnalyticsPanel";
 import { PlatformHealthPanel } from "../../components/admin/PlatformHealthPanel";
-import { RecentOperationsPanel } from "../../components/admin/RecentOperationsPanel";
 import { CandidateResumesModal } from "../../components/admin/CandidateResumesModal";
+import { Candidate360Drawer } from "../../components/admin/Candidate360Drawer";
 import { buildQueues } from "../../lib/controlCenter";
 import { healthFrom } from "../../lib/platformHealth";
 import { istToday, validateCustomRange } from "../../lib/analyticsRange";
 import Modal from "../../components/ui/Modal";
 import ConfirmModal from "../../components/ui/ConfirmModal";
 import Kpi from "../../components/ui/Kpi";
-import ActivityFeed from "../../components/ui/ActivityFeed";
 import PipelineFunnel from "../../components/ui/PipelineFunnel";
 import { ErrorState, LoadingState, SkeletonList } from "../../components/ui/States";
 import { PageHeader } from "../../components/Product";
-import { adminApi } from "../../lib/api";
+import { adminApi, verificationApi } from "../../lib/api";
 import { useToast } from "../../components/ui/useToast";
 import {
   formatDate,
-  formatDateTime,
   initials,
-  humanizeAction,
   downloadBlob,
 } from "../../lib/utils";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
@@ -161,20 +167,6 @@ export const AdminHome = () => {
   const companyWise = stats?.companyWiseStats || [];
   const deepDive = stats?.deepDive || null;
 
-  const activityItems = (stats?.recentActivity || []).slice(0, 8).map((a) => ({
-    title: humanizeAction(a.action || a.type),
-    meta: `${a.actor?.name || a.user?.name || "System"} · ${a.resourceType || "platform"}${
-      a.organization?.name ? ` · ${a.organization.name}` : ""
-    }`,
-    tone:
-      a.outcome === "failure" || a.outcome === "error"
-        ? "danger"
-        : a.outcome === "denied"
-          ? "warning"
-          : "brand",
-    time: a.createdAt,
-  }));
-
   const funnelStages = [
     { label: "Submitted", value: stats?.applications?.submitted || 0, tone: "ink" },
     { label: "Shortlisted", value: stats?.applications?.shortlisted || 0, tone: "warning" },
@@ -216,54 +208,18 @@ export const AdminHome = () => {
         />
       )}
 
-      <PlatformHealthPanel
-        health={health}
-        checkedAt={healthQuery.dataUpdatedAt || null}
-        refreshing={healthQuery.isFetching}
-        onRetry={() => healthQuery.refetch()}
-      />
-
-      {/* Operational queues: live counts that drill down to the page where the work is done */}
-      <section aria-labelledby="queues-heading">
-        <div className="mb-4">
-          <h2 id="queues-heading" className="text-sm font-bold uppercase tracking-wider text-ink-500">
-            Needs attention
-          </h2>
-          <p className="text-xs text-ink-500">Open a queue to work it. “—” means the count is not available.</p>
+      {/* 1. Platform Headline KPIs */}
+      <section aria-labelledby="headline-kpi-heading">
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h2 id="headline-kpi-heading" className="text-sm font-bold uppercase tracking-wider text-ink-500">
+              Platform Headline KPIs · All Time
+            </h2>
+            <p className="text-xs text-ink-500">Database-verified platform scale and monetization metrics</p>
+          </div>
+          <Badge tone="brand">System Live</Badge>
         </div>
-        <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {queues.map((q) => (
-            <li key={q.key}>
-              <Link
-                to={q.to}
-                data-testid={`queue-${q.key}`}
-                className={`flex h-full items-center justify-between gap-3 rounded-2xl border bg-white p-5 shadow-sm transition hover:border-brand-300 hover:shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
-                  q.tone === "warning" ? "border-warning-200" : "border-ink-100"
-                }`}
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-ink-900">{q.label}</p>
-                  <p className="mt-0.5 truncate text-xs text-ink-500">{q.hint}</p>
-                </div>
-                <span
-                  className={`shrink-0 text-2xl font-extrabold tabular-nums ${
-                    q.tone === "warning" ? "text-warning-700" : "text-ink-900"
-                  }`}
-                >
-                  {q.count === null ? "—" : q.count.toLocaleString("en-IN")}
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      {/* Platform totals (all time, not affected by the range) */}
-      <section aria-labelledby="totals-heading">
-        <h2 id="totals-heading" className="mb-4 text-sm font-bold uppercase tracking-wider text-ink-500">
-          Platform totals · all time
-        </h2>
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <Kpi
             label="Total users"
             value={stats?.users?.total ?? 0}
@@ -272,23 +228,86 @@ export const AdminHome = () => {
             icon={Users}
           />
           <Kpi
-            label="AI runs"
-            value={totalAiRuns}
-            detail="Model matching and resume runs"
+            label="Total organizations"
+            value={stats?.companies?.total ?? 0}
+            detail={`${stats?.companies?.verified ?? 0} verified on platform`}
             tone="ink"
-            icon={Sparkles}
+            icon={Building2}
           />
           <Kpi
-            label="Verified placements"
+            label="Verified organizations"
+            value={stats?.companies?.verified ?? 0}
+            detail={`${stats?.companies?.total ? Math.round(((stats.companies.verified || 0) / stats.companies.total) * 100) : 0}% compliance rate`}
+            tone="success"
+            icon={ShieldCheck}
+          />
+          <Kpi
+            label="Pending verifications"
+            value={(stats?.companies?.pending || 0) + (stats?.companies?.underReview || 0)}
+            detail={`${stats?.companies?.pending || 0} pending · ${stats?.companies?.underReview || 0} under review`}
+            tone={((stats?.companies?.pending || 0) + (stats?.companies?.underReview || 0)) > 0 ? "warning" : "ink"}
+            icon={Clock3}
+          />
+          <Kpi
+            label="Total jobs"
+            value={stats?.jobs?.total ?? 0}
+            detail={`${stats?.jobs?.active ?? 0} active & published`}
+            tone="brand"
+            icon={BriefcaseBusiness}
+          />
+          <Kpi
+            label="Jobs pending approval"
+            value={stats?.jobs?.pending ?? 0}
+            detail="Requires admin moderation"
+            tone={(stats?.jobs?.pending || 0) > 0 ? "warning" : "ink"}
+            icon={AlertTriangle}
+          />
+          <Kpi
+            label="Total applications"
+            value={stats?.applications?.total ?? 0}
+            detail={`${stats?.applications?.shortlisted ?? 0} shortlisted · ${stats?.applications?.interview ?? 0} interviewed`}
+            tone="brand"
+            icon={Layers}
+          />
+          <Kpi
+            label="Placements & hires"
             value={stats?.placements?.verifiedPlacements ?? 0}
-            detail={`${stats?.placements?.joiningConfirmed ?? 0} joinings confirmed`}
+            detail={`${stats?.applications?.hired ?? 0} hired · ${stats?.placements?.joiningConfirmed ?? 0} joinings`}
             tone="success"
             icon={FileCheck2}
+          />
+          <Kpi
+            label="Active subscriptions"
+            value={stats?.kpis?.activePaidSubscriptions ?? 0}
+            detail={`${stats?.kpis?.subscriptionConversion ?? 0}% org conversion`}
+            tone="brand"
+            icon={CreditCard}
+          />
+          <Kpi
+            label="Revenue (Test Mode)"
+            value={`₹${(stats?.kpis?.testRevenue ?? stats?.kpis?.revenue ?? 0).toLocaleString("en-IN")}`}
+            detail={`Test: ₹${(stats?.kpis?.testRevenue ?? stats?.kpis?.revenue ?? 0).toLocaleString("en-IN")} · Live: ₹${(stats?.kpis?.liveRevenue ?? 0).toLocaleString("en-IN")}`}
+            tone="success"
+            icon={DollarSign}
+          />
+          <Kpi
+            label="Security & Risk Events"
+            value={stats?.kpis?.fraudReviewQueue ?? 0}
+            detail={`${stats?.kpis?.suspendedAccounts ?? 0} suspended · ${stats?.kpis?.failedPayments ?? 0} failed payments`}
+            tone={(stats?.kpis?.fraudReviewQueue || 0) > 0 ? "warning" : "ink"}
+            icon={ShieldAlert}
+          />
+          <Kpi
+            label="AI runs"
+            value={totalAiRuns}
+            detail="Model matching & resume runs"
+            tone="ink"
+            icon={Sparkles}
           />
         </div>
       </section>
 
-      {/* Analytics for the selected range, with its own range control and export */}
+      {/* 2. Visual Analytics */}
       <AdminAnalyticsPanel
         analytics={stats}
         range={range}
@@ -369,9 +388,137 @@ export const AdminHome = () => {
         </div>
       )}
 
+      {/* 3. Operational Alerts & Attention Queues */}
+      {(() => {
+        const alerts = [];
+        if ((stats?.jobs?.pending || 0) > 0) {
+          alerts.push({
+            id: "jobs",
+            label: `${stats.jobs.pending} job postings awaiting moderation`,
+            to: "/app/admin/moderation",
+            tone: "warning",
+          });
+        }
+        const pendingVerif = (stats?.companies?.pending || 0) + (stats?.companies?.underReview || 0);
+        if (pendingVerif > 0) {
+          alerts.push({
+            id: "verif",
+            label: `${pendingVerif} organization verification requests pending`,
+            to: "/app/admin/verification",
+            tone: "warning",
+          });
+        }
+        if ((stats?.queues?.placementsAwaitingVerification || 0) > 0) {
+          alerts.push({
+            id: "placements",
+            label: `${stats.queues.placementsAwaitingVerification} confirmed joinings need placement verification`,
+            to: "/app/admin/placements",
+            tone: "warning",
+          });
+        }
+        if ((stats?.kpis?.fraudReviewQueue || 0) > 0) {
+          alerts.push({
+            id: "fraud",
+            label: `${stats.kpis.fraudReviewQueue} organization(s) flagged for fraud review`,
+            to: "/app/admin/organizations",
+            tone: "danger",
+          });
+        }
+        if ((stats?.queues?.subscriptionsPastDue || 0) > 0) {
+          alerts.push({
+            id: "pastDue",
+            label: `${stats.queues.subscriptionsPastDue} subscriptions past due`,
+            to: "/app/admin/subscriptions",
+            tone: "warning",
+          });
+        }
+        if ((stats?.kpis?.failedPayments || 0) > 0) {
+          alerts.push({
+            id: "failedPayments",
+            label: `${stats.kpis.failedPayments} failed payment transactions recorded`,
+            to: "/app/admin/revenue",
+            tone: "danger",
+          });
+        }
+
+        if (alerts.length === 0) {
+          return (
+            <div data-testid="platform-alerts-clear" className="flex items-center gap-3 rounded-2xl border border-success-200 bg-success-50/60 px-5 py-3.5 text-xs text-success-800 shadow-xs">
+              <CheckCircle2 className="h-4.5 w-4.5 shrink-0 text-success-600" />
+              <span>All platform operational queues are clear. No pending administrative bottlenecks.</span>
+            </div>
+          );
+        }
+
+        return (
+          <div data-testid="platform-alerts-banner" className="rounded-2xl border border-warning-200 bg-warning-50/70 p-5 shadow-xs">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-warning-700" />
+                <h3 className="text-sm font-bold text-warning-900">Active Operational Alerts ({alerts.length})</h3>
+              </div>
+              <Badge tone="warning">Action Required</Badge>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2.5">
+              {alerts.map((a) => (
+                <Link
+                  key={a.id}
+                  to={a.to}
+                  data-testid={`alert-${a.id}`}
+                  className={`inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-semibold shadow-xs transition hover:shadow-sm ${
+                    a.tone === "danger"
+                      ? "border-danger-300 bg-white text-danger-800 hover:bg-danger-50"
+                      : "border-warning-300 bg-white text-warning-900 hover:bg-warning-50"
+                  }`}
+                >
+                  <span>{a.label}</span>
+                  <ArrowRight className="h-3.5 w-3.5 opacity-70" />
+                </Link>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Operational queues: live counts that drill down to the page where the work is done */}
+      <section aria-labelledby="queues-heading">
+        <div className="mb-4">
+          <h2 id="queues-heading" className="text-sm font-bold uppercase tracking-wider text-ink-500">
+            Needs attention
+          </h2>
+          <p className="text-xs text-ink-500">Open a queue to work it. “—” means the count is not available.</p>
+        </div>
+        <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {queues.map((q) => (
+            <li key={q.key}>
+              <Link
+                to={q.to}
+                data-testid={`queue-${q.key}`}
+                className={`flex h-full items-center justify-between gap-3 rounded-2xl border bg-white p-5 shadow-sm transition hover:border-brand-300 hover:shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
+                  q.tone === "warning" ? "border-warning-200" : "border-ink-100"
+                }`}
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-ink-900">{q.label}</p>
+                  <p className="mt-0.5 truncate text-xs text-ink-500">{q.hint}</p>
+                </div>
+                <span
+                  className={`shrink-0 text-2xl font-extrabold tabular-nums ${
+                    q.tone === "warning" ? "text-warning-700" : "text-ink-900"
+                  }`}
+                >
+                  {q.count === null ? "—" : q.count.toLocaleString("en-IN")}
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      {/* Operational Cards: Approvals Waiting, Recent Organizations, Subscription & Revenue Overview */}
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Pending job approvals (the first items of the queue) */}
-        <div className="rounded-2xl border border-ink-100 bg-white p-6 shadow-sm">
+        <div className="rounded-2xl border border-ink-100 bg-white p-6 shadow-sm lg:col-span-2">
           <div className="mb-4 flex items-center justify-between">
             <div>
               <h3 className="text-base font-bold text-ink-900">Job approvals waiting</h3>
@@ -400,25 +547,150 @@ export const AdminHome = () => {
           )}
         </div>
 
-        <div className="rounded-2xl border border-ink-100 bg-white p-6 shadow-sm">
-          <h3 className="mb-4 text-base font-bold text-ink-900">Recent operations</h3>
-          <RecentOperationsPanel />
-        </div>
-
-        {/* Recent Activity */}
-        <div className="rounded-2xl border border-ink-100 bg-white p-6 shadow-sm">
+        {/* Recent Activity Card */}
+        <div className="rounded-2xl border border-ink-100 bg-white p-6 shadow-sm" data-testid="recent-orgs-card">
           <div className="mb-4 flex items-center justify-between">
             <div>
               <h3 className="text-base font-bold text-ink-900">Recent Activity</h3>
-              <p className="text-xs text-ink-500">Latest audit events across the platform</p>
+              <p className="text-xs text-ink-500">Active and recently registered companies</p>
             </div>
-            <Button as={Link} to="/app/admin/security" size="sm" variant="ghost">
-              Security & Audit
+            <Button as={Link} to="/app/admin/organizations" size="sm" variant="ghost">
+              View all ({companyWise.length})
             </Button>
           </div>
-          <ActivityFeed items={activityItems} />
+          {companyWise.length === 0 ? (
+            <p className="py-6 text-center text-sm text-ink-400">No organizations registered on platform.</p>
+          ) : (
+            <div className="divide-y divide-ink-100">
+              {companyWise.slice(0, 5).map((org) => {
+                const riskTone =
+                  (org.riskScore || 0) > 60
+                    ? "danger"
+                    : (org.riskScore || 0) > 25
+                      ? "warning"
+                      : "success";
+                return (
+                  <div key={org.id} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="truncate font-semibold text-ink-900">{org.name}</p>
+                        <Badge
+                          tone={
+                            org.verificationStatus === "verified"
+                              ? "success"
+                              : org.verificationStatus === "rejected" || org.verificationStatus === "suspended"
+                                ? "danger"
+                                : "warning"
+                          }
+                        >
+                          {org.verificationStatus || "pending"}
+                        </Badge>
+                      </div>
+                      <p className="mt-0.5 text-xs text-ink-500">
+                        Risk: <span className={riskTone === "danger" ? "font-bold text-danger-600" : riskTone === "warning" ? "font-semibold text-warning-700" : "text-success-700"}>{org.riskScore ?? 0}/100</span> · {org.publishedJobsCount ?? org.jobCount ?? 0} jobs · {org.applicationCount ?? 0} applicants
+                      </p>
+                    </div>
+                    <Button as={Link} to="/app/admin/organizations" size="sm" variant="outline">
+                      Inspect
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Subscription & Revenue Overview Card */}
+        <div className="rounded-2xl border border-ink-100 bg-white p-6 shadow-sm" data-testid="subscription-overview-card">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-bold text-ink-900">Subscription & Revenue Overview</h3>
+                <Badge tone="brand">Razorpay Test Mode</Badge>
+              </div>
+              <p className="text-xs text-ink-500">Active monetization and payment health</p>
+            </div>
+            <Button as={Link} to="/app/admin/subscriptions" size="sm" variant="ghost">
+              Manage
+            </Button>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-xl border border-ink-100 bg-ink-50/50 p-3.5">
+              <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">Active Paid Plans</p>
+              <p className="mt-1 text-2xl font-bold text-ink-900">{stats?.kpis?.activePaidSubscriptions ?? 0}</p>
+              <p className="text-xs text-ink-500">{stats?.kpis?.subscriptionConversion ?? 0}% company conversion</p>
+            </div>
+            <div className="rounded-xl border border-ink-100 bg-ink-50/50 p-3.5">
+              <p className="text-xs font-semibold uppercase tracking-wider text-ink-500">Test Mode Net Volume</p>
+              <p className="mt-1 text-2xl font-bold text-ink-900">₹{(stats?.kpis?.testRevenue ?? stats?.kpis?.revenue ?? 0).toLocaleString("en-IN")}</p>
+              <p className="text-xs text-ink-500">Simulated payments only</p>
+            </div>
+          </div>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-ink-100 pt-3 text-xs text-ink-600">
+            <span>
+              Transactions: <strong>{stats?.kpis?.successfulPayments ?? 0}</strong> successful ·{" "}
+              <strong className={(stats?.kpis?.failedPayments || 0) > 0 ? "text-danger-600" : ""}>{stats?.kpis?.failedPayments ?? 0}</strong> failed
+            </span>
+            {(stats?.queues?.subscriptionsPastDue || 0) > 0 && (
+              <Badge tone="warning">{stats.queues.subscriptionsPastDue} past due</Badge>
+            )}
+          </div>
+          <div className="mt-4 flex items-center gap-2">
+            <Button as={Link} to="/app/admin/subscriptions" size="sm" variant="outline" className="flex-1">
+              Subscriptions
+            </Button>
+            <Button as={Link} to="/app/admin/revenue" size="sm" variant="outline" className="flex-1">
+              Revenue Details
+            </Button>
+          </div>
         </div>
       </div>
+
+      {/* Quick Navigation Shortcuts to Core Admin Tools */}
+      <section aria-labelledby="shortcuts-heading">
+        <h2 id="shortcuts-heading" className="mb-4 text-sm font-bold uppercase tracking-wider text-ink-500">
+          Admin Tool Shortcuts
+        </h2>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          {[
+            { label: "Job Moderation", to: "/app/admin/moderation", icon: BriefcaseBusiness, count: stats?.jobs?.pending },
+            { label: "Company Verification", to: "/app/admin/verification", icon: ShieldCheck, count: (stats?.companies?.pending || 0) + (stats?.companies?.underReview || 0) },
+            { label: "Placements Tracking", to: "/app/admin/placements", icon: BadgeCheck, count: stats?.queues?.placementsAwaitingVerification },
+            { label: "Candidates & Users", to: "/app/admin/users", icon: UserRound },
+            { label: "Organizations", to: "/app/admin/organizations", icon: Building2 },
+            { label: "Global Search", to: "/app/admin/search", icon: Search },
+            { label: "Subscriptions", to: "/app/admin/subscriptions", icon: CreditCard, count: stats?.queues?.subscriptionsPastDue },
+            { label: "Revenue & Ledger", to: "/app/admin/revenue", icon: DollarSign },
+            { label: "Security & Audit", to: "/app/admin/security", icon: ShieldAlert },
+            { label: "AI Usage Analytics", to: "/app/admin/ai-usage", icon: Sparkles },
+          ].map((item) => (
+            <Link
+              key={item.label}
+              to={item.to}
+              data-testid={`shortcut-${item.label.toLowerCase().replace(/[^a-z0-9]/g, "-")}`}
+              className="flex items-center justify-between rounded-xl border border-ink-100 bg-white p-3.5 shadow-xs transition hover:border-brand-400 hover:shadow-sm"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <item.icon className="h-4.5 w-4.5 shrink-0 text-brand-600" />
+                <span className="truncate text-xs font-semibold text-ink-800">{item.label}</span>
+              </div>
+              {Boolean(item.count && item.count > 0) && (
+                <span className="ml-1.5 rounded-full bg-warning-100 px-2 py-0.5 text-[10px] font-bold text-warning-800">
+                  {item.count}
+                </span>
+              )}
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      {/* 4. Platform Health (compact view below alerts/queues) */}
+      <PlatformHealthPanel
+        health={health}
+        checkedAt={healthQuery.dataUpdatedAt || null}
+        refreshing={healthQuery.isFetching}
+        onRetry={() => healthQuery.refetch()}
+      />
     </div>
   );
 };
@@ -523,10 +795,6 @@ export const AdminOrganizations = () => {
   });
 
   const rows = orgsQuery.data?.data || [];
-  const pendingCount = rows.filter(
-    (o) => o.verificationStatus === "pending" || o.verificationStatus === "under_review",
-  ).length;
-  const verifiedCount = rows.filter((o) => o.verificationStatus === "verified").length;
 
   return (
     <div className="page-wrap space-y-6">
@@ -536,29 +804,82 @@ export const AdminOrganizations = () => {
         description="Verify legitimate employer businesses, inspect incorporation documents, and detect suspicious fraudulent hiring demands."
       />
 
-      {/* Top Verification Summary KPIs */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {/* Top Verification Summary KPIs (6 cards) */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <Kpi
           label="Total Companies"
-          value={rows.length}
+          value={orgsQuery.data?.meta?.counts?.total ?? rows.length}
           detail="Registered business tenants"
           tone="ink"
           icon={Building2}
         />
         <Kpi
           label="Pending Review"
-          value={pendingCount}
-          detail="Awaiting verification"
+          value={orgsQuery.data?.meta?.counts?.pending ?? rows.filter((o) => o.verificationStatus === "pending").length}
+          detail="Awaiting review"
           tone="warning"
           icon={Clock3}
         />
         <Kpi
+          label="Under Review"
+          value={orgsQuery.data?.meta?.counts?.underReview ?? rows.filter((o) => o.verificationStatus === "under_review").length}
+          detail="Active investigation"
+          tone="brand"
+          icon={Clock3}
+        />
+        <Kpi
           label="Verified Employers"
-          value={verifiedCount}
+          value={orgsQuery.data?.meta?.counts?.verified ?? rows.filter((o) => o.verificationStatus === "verified").length}
           detail="Active and authorized to post"
           tone="success"
           icon={ShieldCheck}
         />
+        <Kpi
+          label="Rejected"
+          value={orgsQuery.data?.meta?.counts?.rejected ?? rows.filter((o) => o.verificationStatus === "rejected").length}
+          detail="Requirements unmet"
+          tone="danger"
+          icon={AlertTriangle}
+        />
+        <Kpi
+          label="Suspended"
+          value={orgsQuery.data?.meta?.counts?.suspended ?? rows.filter((o) => o.verificationStatus === "suspended").length}
+          detail="Authorization revoked"
+          tone="danger"
+          icon={ShieldAlert}
+        />
+      </div>
+
+      {/* Status Filter Tabs */}
+      <div className="flex items-center gap-1.5 overflow-x-auto border-b border-ink-100 pb-2 shrink-0">
+        {[
+          { id: "all", label: "All Companies", count: orgsQuery.data?.meta?.counts?.total ?? rows.length },
+          { id: "pending", label: "Pending Review", count: orgsQuery.data?.meta?.counts?.pending ?? rows.filter((o) => o.verificationStatus === "pending").length },
+          { id: "under_review", label: "Under Review", count: orgsQuery.data?.meta?.counts?.underReview ?? rows.filter((o) => o.verificationStatus === "under_review").length },
+          { id: "verified", label: "Verified", count: orgsQuery.data?.meta?.counts?.verified ?? rows.filter((o) => o.verificationStatus === "verified").length },
+          { id: "rejected", label: "Rejected", count: orgsQuery.data?.meta?.counts?.rejected ?? rows.filter((o) => o.verificationStatus === "rejected").length },
+          { id: "suspended", label: "Suspended", count: orgsQuery.data?.meta?.counts?.suspended ?? rows.filter((o) => o.verificationStatus === "suspended").length },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setVerificationStatus(tab.id)}
+            className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+              verificationStatus === tab.id
+                ? "bg-brand-600 text-white shadow-xs"
+                : "bg-ink-50 text-ink-700 hover:bg-ink-100"
+            }`}
+          >
+            <span>{tab.label}</span>
+            <span
+              className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
+                verificationStatus === tab.id ? "bg-white/20 text-white" : "bg-ink-200/70 text-ink-600"
+              }`}
+            >
+              {tab.count}
+            </span>
+          </button>
+        ))}
       </div>
 
       {/* Search & Filter Bar */}
@@ -593,12 +914,13 @@ export const AdminOrganizations = () => {
       ) : (
         <DataTable
           headers={[
-            "Company",
+            "Company name",
             "Industry",
-            "Contact & Email",
-            "Tax & Reg No",
-            "Verification",
-            "Risk Assessment",
+            "Contact email",
+            "Registration/GST",
+            "Verification status",
+            "Risk level",
+            "Registration date",
             "Actions",
           ]}
           empty={rows.length === 0}
@@ -639,16 +961,31 @@ export const AdminOrganizations = () => {
                         ? "success"
                         : o.verificationStatus === "under_review" || o.verificationStatus === "pending"
                           ? "warning"
-                          : "danger"
+                          : o.verificationStatus === "rejected" || o.verificationStatus === "suspended"
+                            ? "danger"
+                            : "neutral"
                     }
                   >
-                    {o.verificationStatus || "pending"}
+                    {o.verificationStatus === "verified"
+                      ? "Verified"
+                      : o.verificationStatus === "under_review"
+                        ? "Under Review"
+                        : o.verificationStatus === "pending"
+                          ? "Pending Review"
+                          : o.verificationStatus === "rejected"
+                            ? "Rejected"
+                            : o.verificationStatus === "suspended"
+                              ? "Suspended"
+                              : "Not Submitted for Review"}
                   </Badge>
                 </td>
                 <td className="px-5 py-4">
                   <Badge tone={riskTone}>
                     {risk}/100 {risk <= 25 ? "Low Risk" : risk <= 60 ? "Medium Risk" : "High Risk"}
                   </Badge>
+                </td>
+                <td className="px-5 py-4 text-xs text-ink-500 whitespace-nowrap">
+                  {formatDate(o.createdAt)}
                 </td>
                 <td className="px-5 py-4 text-right">
                   <div className="flex items-center justify-end gap-2">
@@ -838,8 +1175,26 @@ export const AdminOrganizations = () => {
                     <div className="mt-2 divide-y divide-ink-100">
                       {docs.map((doc, idx) => (
                         <div key={idx} className="flex items-center justify-between py-2 text-xs">
-                          <span className="font-medium text-ink-800">{doc.fileName || doc.type}</span>
-                          <span className="text-ink-400">{formatDate(doc.uploadedAt)}</span>
+                          <div>
+                            <span className="font-semibold text-ink-900">{doc.fileName || doc.type}</span>
+                            <span className="ml-2 text-ink-400">({doc.type?.replaceAll("_", " ")}) · {formatDate(doc.uploadedAt)}</span>
+                          </div>
+                          {(doc.id || doc._id) && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={async () => {
+                                try {
+                                  const blob = await verificationApi.adminDownloadDocument(doc.id || doc._id);
+                                  downloadBlob(blob, doc.fileName || "document");
+                                } catch (e) {
+                                  toast.error(e.message || "Failed to download document");
+                                }
+                              }}
+                            >
+                              Download
+                            </Button>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -1006,10 +1361,15 @@ export const AdminUsers = () => {
     [search, setSearch] = useState(""),
     [role, setRole] = useState(""),
     [status, setStatus] = useState(""),
+    [sortBy, setSortBy] = useState("newest"),
     [cursor, setCursor] = useState(null),
     [target, setTarget] = useState(null),
+    [flagTarget, setFlagTarget] = useState(null),
+    [flagReason, setFlagReason] = useState(""),
     [resumeTarget, setResumeTarget] = useState(null),
+    [candidate360Target, setCandidate360Target] = useState(null),
     [reason, setReason] = useState(""),
+    [page, setPage] = useState(1),
     debounced = useDebouncedValue(search, 300);
 
   const params = useMemo(
@@ -1017,10 +1377,11 @@ export const AdminUsers = () => {
       search: debounced || undefined,
       role: role || undefined,
       status: status || undefined,
+      sortBy: sortBy || undefined,
       limit: 100,
       after: cursor || undefined,
     }),
-    [debounced, role, status, cursor],
+    [debounced, role, status, sortBy, cursor],
   );
 
   const q = useQuery({ queryKey: ["admin-users", params], queryFn: () => adminApi.users(params) });
@@ -1041,19 +1402,81 @@ export const AdminUsers = () => {
     onError: (error) => toast.error(error.message),
   });
 
-  const rows = q.data?.data || [];
+  const flagMut = useMutation({
+    mutationFn: () => adminApi.flagUser(flagTarget._id, flagReason || "Flagged for administrative review"),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-users"] });
+      toast.success("Candidate flagged for suspicious activity review");
+      setFlagTarget(null);
+      setFlagReason("");
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  const rows = useMemo(() => q.data?.data || [], [q.data?.data]);
+  const counts = q.data?.meta?.counts || {};
+
+  const pageSize = 15;
+  const totalPages = Math.ceil(rows.length / pageSize) || 1;
+  const pagedRows = useMemo(() => rows.slice((page - 1) * pageSize, page * pageSize), [rows, page, pageSize]);
+
+  // Reset page when search or filters change
+  const handleFilterChange = (setter, val) => {
+    setter(val);
+    setCursor(null);
+    setPage(1);
+  };
 
   return (
     <div className="page-wrap">
       <PageHeader
-        eyebrow="Users"
-        title="User Governance"
-        description="Monitor user accounts, verify platform access, and manage suspensions."
+        eyebrow="Users & Candidates"
+        title="Candidate & User Directory"
+        description="Comprehensive candidate directory, profile 360° oversight, account status, and platform governance."
       />
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+        <Kpi
+          label="Total Users"
+          value={counts.total ?? rows.length}
+          tone="neutral"
+          icon={UserRound}
+          caption="Registered on platform"
+        />
+        <Kpi
+          label="Candidates"
+          value={counts.candidates ?? rows.filter((r) => r.role === "candidate").length}
+          tone="brand"
+          icon={Users}
+          caption="Active job seekers"
+        />
+        <Kpi
+          label="Recruiters"
+          value={counts.recruiters ?? rows.filter((r) => r.role === "recruiter").length}
+          tone="info"
+          icon={BriefcaseBusiness}
+          caption="Employer accounts"
+        />
+        <Kpi
+          label="Active Accounts"
+          value={counts.active ?? rows.filter((r) => r.accountStatus === "active").length}
+          tone="success"
+          icon={CheckCircle2}
+          caption="In good standing"
+        />
+        <Kpi
+          label="Suspended Accounts"
+          value={counts.suspended ?? rows.filter((r) => r.accountStatus === "suspended").length}
+          tone="danger"
+          icon={ShieldAlert}
+          caption="Restricted by admin"
+        />
+      </div>
+
       <FilterBar>
         <Input
           aria-label="Search users"
-          placeholder="Search by name or email"
+          placeholder="Search by name, email, or user ID"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="lg:max-w-xs"
@@ -1061,10 +1484,7 @@ export const AdminUsers = () => {
         <SearchableSelect
           aria-label="Filter by role"
           value={role}
-          onChange={(e) => {
-            setRole(e.target.value);
-            setCursor(null);
-          }}
+          onChange={(e) => handleFilterChange(setRole, e.target.value)}
           options={[
             { value: "", label: "All roles" },
             { value: "candidate", label: "Candidate" },
@@ -1076,14 +1496,23 @@ export const AdminUsers = () => {
         <SearchableSelect
           aria-label="Filter by status"
           value={status}
-          onChange={(e) => {
-            setStatus(e.target.value);
-            setCursor(null);
-          }}
+          onChange={(e) => handleFilterChange(setStatus, e.target.value)}
           options={[
             { value: "", label: "All statuses" },
             { value: "active", label: "Active" },
             { value: "suspended", label: "Suspended" },
+          ]}
+          className="lg:max-w-40"
+        />
+        <SearchableSelect
+          aria-label="Sort users"
+          value={sortBy}
+          onChange={(e) => handleFilterChange(setSortBy, e.target.value)}
+          options={[
+            { value: "newest", label: "Newest first" },
+            { value: "oldest", label: "Oldest first" },
+            { value: "name_asc", label: "Name (A–Z)" },
+            { value: "name_desc", label: "Name (Z–A)" },
           ]}
           className="lg:max-w-40"
         />
@@ -1094,55 +1523,193 @@ export const AdminUsers = () => {
       ) : q.error ? (
         <ErrorState error={q.error} onRetry={() => q.refetch()} />
       ) : (
-        <DataTable
-          headers={["User", "Role", "Status", "Email Verified", "Created", "Actions"]}
-          empty={rows.length === 0}
-          emptyLabel="No users match your filters."
-        >
-          {rows.map((u) => (
-            <tr key={u._id} className="transition-colors hover:bg-ink-50/60">
-              <td className="px-5 py-4">
-                <div className="flex items-center gap-3">
-                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-ink-950 text-xs font-bold text-white">
-                    {initials(u.name)}
-                  </span>
-                  <div>
-                    <p className="font-semibold text-ink-900">{u.name}</p>
-                    <p className="text-xs text-ink-400">{u.email}</p>
+        <div className="space-y-4">
+          <DataTable
+            headers={["Candidate / User", "Role", "Status", "Profile Overview", "Created", "Actions"]}
+            empty={rows.length === 0}
+            emptyLabel="No users match your filters."
+          >
+            {pagedRows.map((u) => (
+              <tr key={u._id} className="transition-colors hover:bg-ink-50/60">
+                <td className="px-5 py-4 min-w-[200px]">
+                  <div className="flex items-center gap-3">
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-ink-950 text-xs font-bold text-white shadow-xs">
+                      {initials(u.name)}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="font-semibold text-ink-900 truncate max-w-[180px]">{u.name}</p>
+                      <p className="text-xs text-ink-400 truncate max-w-[180px]">{u.email}</p>
+                      {u.headline && (
+                        <p className="truncate text-xs text-ink-600 mt-0.5 max-w-[180px]">{u.headline}</p>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </td>
-              <td className="px-5 py-4 capitalize">{u.role}</td>
-              <td className="px-5 py-4">
-                <Badge tone={u.accountStatus === "active" ? "success" : "danger"}>
-                  {u.accountStatus}
-                </Badge>
-              </td>
-              <td className="px-5 py-4">{u.emailVerified ? "Yes" : "No"}</td>
-              <td className="px-5 py-4 text-xs text-ink-500">{formatDate(u.createdAt)}</td>
-              <td className="px-5 py-4 text-right">
-                {u.role === "candidate" && (
-                  <Button size="sm" variant="ghost" onClick={() => setResumeTarget(u)} className="mr-2">
-                    Resumes
-                  </Button>
-                )}
-                {u.role !== "admin" && (
-                  <Button
-                    size="sm"
-                    variant={u.accountStatus === "suspended" ? "outline" : "danger"}
-                    onClick={() => setTarget(u)}
-                  >
-                    {u.accountStatus === "suspended" ? "Reactivate" : "Suspend"}
-                  </Button>
-                )}
-              </td>
-            </tr>
-          ))}
-        </DataTable>
+                </td>
+                <td className="px-5 py-4 capitalize font-medium text-xs whitespace-nowrap">{u.role}</td>
+                <td className="px-5 py-4 whitespace-nowrap">
+                  <div className="flex flex-col gap-1 items-start">
+                    <Badge tone={u.accountStatus === "active" ? "success" : "danger"}>
+                      {u.accountStatus}
+                    </Badge>
+                    {u.emailVerified ? (
+                      <span className="text-[11px] text-success-700 font-medium">✓ Verified</span>
+                    ) : (
+                      <span className="text-[11px] text-warning-700 font-medium">Unverified</span>
+                    )}
+                  </div>
+                </td>
+                <td className="px-5 py-4 min-w-[180px]">
+                  {u.role === "candidate" ? (
+                    <div className="space-y-1">
+                      {u.location && (
+                        <span className="inline-block rounded-md bg-ink-100 px-2 py-0.5 text-[11px] font-medium text-ink-700 mr-1.5 mb-1">
+                          📍 {u.location}
+                        </span>
+                      )}
+                      {(u.skills || []).length > 0 ? (
+                        <div className="flex items-center flex-wrap gap-1">
+                          {u.skills.slice(0, 2).map((sk, idx) => {
+                            const name = typeof sk === "string" ? sk : sk.name || sk.skill;
+                            return (
+                              <span
+                                key={idx}
+                                title={name}
+                                className="inline-block max-w-[95px] truncate rounded bg-brand-50 px-2 py-0.5 text-[10px] font-medium text-brand-700"
+                              >
+                                {name}
+                              </span>
+                            );
+                          })}
+                          {u.skills.length > 2 && (
+                            <span className="rounded bg-ink-100 px-1.5 py-0.5 text-[10px] font-semibold text-ink-600">
+                              +{u.skills.length - 2}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-ink-400">—</span>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-xs text-ink-400">Platform account</span>
+                  )}
+                </td>
+                <td className="px-5 py-4 text-xs text-ink-500 whitespace-nowrap">{formatDate(u.createdAt)}</td>
+                <td className="px-5 py-4 text-right whitespace-nowrap">
+                  <div className="inline-flex items-center gap-1.5 justify-end">
+                    {u.role === "candidate" && (
+                      <>
+                        <Button
+                          size="xs"
+                          variant="primary"
+                          onClick={() => setCandidate360Target(u._id)}
+                        >
+                          360° Profile
+                        </Button>
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          onClick={() => setResumeTarget(u)}
+                        >
+                          Resumes
+                        </Button>
+                        <Button
+                          size="xs"
+                          variant="ghost"
+                          onClick={() => setFlagTarget(u)}
+                          className="text-warning-700 hover:bg-warning-50 px-1.5"
+                          title="Flag suspicious activity"
+                        >
+                          <Flag className="h-3.5 w-3.5" />
+                        </Button>
+                      </>
+                    )}
+                    {u.role !== "admin" && (
+                      <Button
+                        size="xs"
+                        variant={u.accountStatus === "suspended" ? "outline" : "danger"}
+                        onClick={() => setTarget(u)}
+                      >
+                        {u.accountStatus === "suspended" ? "Reactivate" : "Suspend"}
+                      </Button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </DataTable>
+
+          {/* Pagination Controls */}
+          {rows.length > pageSize && (
+            <div className="flex items-center justify-between border-t border-ink-100 bg-white px-6 py-3 text-xs text-ink-600 rounded-b-xl border">
+              <div>
+                Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, rows.length)} of{" "}
+                {rows.length} users (Page {page} of {totalPages})
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page >= totalPages}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {resumeTarget && (
         <CandidateResumesModal candidate={resumeTarget} onClose={() => setResumeTarget(null)} />
+      )}
+
+      {candidate360Target && (
+        <Candidate360Drawer candidateId={candidate360Target} onClose={() => setCandidate360Target(null)} />
+      )}
+
+      {flagTarget && (
+        <Modal
+          isOpen={Boolean(flagTarget)}
+          onClose={() => setFlagTarget(null)}
+          title={`Flag Suspicious Activity: ${flagTarget.name}`}
+        >
+          <div className="space-y-4">
+            <p className="text-sm text-ink-700">
+              Record a security event and audit log to flag this candidate account for suspicious behavior or platform review.
+            </p>
+            <div>
+              <label className="block text-xs font-semibold text-ink-800 uppercase tracking-wider mb-1">
+                Reason / Investigation Note
+              </label>
+              <Textarea
+                rows={3}
+                placeholder="Enter details of suspicious activity or duplicate profile suspicion..."
+                value={flagReason}
+                onChange={(e) => setFlagReason(e.target.value)}
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="ghost" onClick={() => setFlagTarget(null)}>Cancel</Button>
+              <Button
+                variant="primary"
+                onClick={() => flagMut.mutate()}
+                loading={flagMut.isPending}
+              >
+                Record Flag
+              </Button>
+            </div>
+          </div>
+        </Modal>
       )}
 
       {target && (
@@ -1229,80 +1796,5 @@ export const AdminAIUsage = () => {
 /* =========================================================================
    6. ADMIN SECURITY
    ========================================================================= */
-export const AdminSecurity = () => {
-  const [tab, setTab] = useState("security");
-  const [search, setSearch] = useState("");
-  const debounced = useDebouncedValue(search, 300);
+export { AdminSecurity } from "./AdminSecurity";
 
-  const params = useMemo(
-    () => ({ search: debounced || undefined, limit: 100 }),
-    [debounced],
-  );
-
-  const q = useQuery({
-    queryKey: ["admin-security-audit", tab, params],
-    queryFn: () => (tab === "security" ? adminApi.security(params) : adminApi.audit(params)),
-  });
-
-  const rows = q.data?.data || [];
-
-  return (
-    <div className="page-wrap space-y-6">
-      <PageHeader
-        eyebrow="Security & Governance"
-        title="Security & Audit"
-        description="Audit sign-in events, session revocations, role changes, and compliance events across tenants."
-      />
-      <div className="flex gap-2">
-        <button
-          onClick={() => setTab("security")}
-          className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${
-            tab === "security" ? "bg-ink-950 text-white" : "bg-ink-50 text-ink-600 hover:bg-ink-100"
-          }`}
-        >
-          Security Events
-        </button>
-        <button
-          onClick={() => setTab("audit")}
-          className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${
-            tab === "audit" ? "bg-ink-950 text-white" : "bg-ink-50 text-ink-600 hover:bg-ink-100"
-          }`}
-        >
-          Audit Log
-        </button>
-      </div>
-
-      <FilterBar>
-        <Input
-          placeholder="Search logs..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="lg:max-w-xs"
-        />
-      </FilterBar>
-
-      {q.isLoading ? (
-        <SkeletonList />
-      ) : (
-        <DataTable
-          headers={["Event / Action", "User", "Organization", "Outcome / Severity", "Timestamp"]}
-          empty={rows.length === 0}
-        >
-          {rows.map((row) => (
-            <tr key={row._id} className="hover:bg-ink-50/60">
-              <td className="px-5 py-4 font-mono text-xs font-semibold">{row.type || row.action}</td>
-              <td className="px-5 py-4 text-xs">{row.user?.name || row.actor?.name || "System"}</td>
-              <td className="px-5 py-4 text-xs">{row.organization?.name || "—"}</td>
-              <td className="px-5 py-4">
-                <Badge tone={row.severity === "high" || row.outcome === "failure" ? "danger" : "brand"}>
-                  {row.severity || row.outcome || "info"}
-                </Badge>
-              </td>
-              <td className="px-5 py-4 text-xs text-ink-500">{formatDateTime(row.createdAt)}</td>
-            </tr>
-          ))}
-        </DataTable>
-      )}
-    </div>
-  );
-};

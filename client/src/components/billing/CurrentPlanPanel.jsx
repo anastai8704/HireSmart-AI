@@ -16,31 +16,40 @@ const STATUS_CLASS = {
   neutral: "border-ink-200 bg-ink-50 text-ink-700",
 };
 
-export const QuotaMeter = ({ row }) => (
-  <div className="rounded-xl border border-ink-100 bg-white p-4 shadow-xs">
-    <div className="flex items-center justify-between gap-2 text-xs font-semibold text-ink-600">
-      <span>{row.label}</span>
-      <span data-testid={`quota-${row.key}`}>
-        {row.used} of {row.limit}
-      </span>
-    </div>
-    <div
-      role="meter"
-      aria-label={row.label}
-      aria-valuemin={0}
-      aria-valuemax={row.limit}
-      aria-valuenow={Math.min(row.used, row.limit)}
-      aria-valuetext={`${row.used} of ${row.limit} used`}
-      className="mt-2 h-2 w-full overflow-hidden rounded-full bg-ink-100"
-    >
+export const QuotaMeter = ({ row }) => {
+  const isNearLimit = !row.atLimit && row.percent >= 80;
+  return (
+    <div className="rounded-xl border border-ink-100 bg-white p-4 shadow-xs">
+      <div className="flex items-center justify-between gap-2 text-xs font-semibold text-ink-600">
+        <span>{row.label}</span>
+        <span data-testid={`quota-${row.key}`}>
+          {row.used} of {row.limit}
+        </span>
+      </div>
       <div
-        className={cn("h-full rounded-full transition-all", row.atLimit ? "bg-danger-500" : "bg-brand-600")}
-        style={{ width: `${row.percent}%` }}
-      />
+        role="meter"
+        aria-label={row.label}
+        aria-valuemin={0}
+        aria-valuemax={row.limit}
+        aria-valuenow={Math.min(row.used, row.limit)}
+        aria-valuetext={`${row.used} of ${row.limit} used`}
+        className="mt-2 h-2 w-full overflow-hidden rounded-full bg-ink-100"
+      >
+        <div
+          className={cn(
+            "h-full rounded-full transition-all",
+            row.atLimit ? "bg-danger-500" : isNearLimit ? "bg-amber-500" : "bg-brand-600",
+          )}
+          style={{ width: `${Math.min(row.percent, 100)}%` }}
+        />
+      </div>
+      {row.atLimit && <p className="mt-2 text-xs font-medium text-danger-700">Limit reached for this plan.</p>}
+      {isNearLimit && (
+        <p className="mt-2 text-xs font-medium text-amber-700">Approaching limit ({row.percent}% used).</p>
+      )}
     </div>
-    {row.atLimit && <p className="mt-2 text-xs text-danger-700">Limit reached for this plan.</p>}
-  </div>
-);
+  );
+};
 
 export const CurrentPlanPanel = ({
   model,

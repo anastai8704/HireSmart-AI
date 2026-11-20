@@ -28,7 +28,10 @@ export const useSubscriptionCheckout = ({ organizationId, invalidateKeys, succes
   const checkoutMutation = useMutation({
     mutationFn: ({ planTier, billingCycle }) => subscriptionApi.checkout({ planTier, billingCycle }, organizationId),
     onSuccess: (res) => setCheckoutData(res.data),
-    onError: (err) => toast.error(err.message || "Failed to start checkout"),
+    onError: (err) => {
+      setSelectedPlan(null);
+      toast.error(err.message || "Failed to start checkout");
+    },
   });
 
   const cancelCheckoutMutation = useMutation({

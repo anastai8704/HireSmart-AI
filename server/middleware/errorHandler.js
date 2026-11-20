@@ -32,16 +32,22 @@ const errorHandler = (err, req, res, _next) => {
 
   logger.error(err.stack || err.message);
 
+  const isOperationalError = Boolean(err.isOperational);
+  const safeMessage = statusCode >= 500 && !isOperationalError ? "Internal Server Error" : message;
+
   const body = {
     success: false,
     status: `${statusCode}`.startsWith("4") ? "fail" : "error",
-    message: statusCode >= 500 ? "Internal Server Error" : message,
+    message: safeMessage,
   };
 
   // The versioned API has a stable machine-readable error contract while the
   // legacy routes retain their exact response shape for compatibility.
   if (req.originalUrl.startsWith("/api/v1")) {
-    body.code = statusCode >= 500 ? "INTERNAL_ERROR" : err.code || "REQUEST_FAILED";
+    body.code =
+      statusCode >= 500 && !isOperationalError
+        ? "INTERNAL_ERROR"
+        : err.code || (statusCode >= 500 ? "INTERNAL_ERROR" : "REQUEST_FAILED");
     body.requestId = req.id;
     if (err.fieldErrors) body.fieldErrors = err.fieldErrors;
   }

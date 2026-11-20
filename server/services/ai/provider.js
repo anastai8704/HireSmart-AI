@@ -1,11 +1,13 @@
 const { config } = require("../../config/env");
 
 class AIProviderError extends Error {
-  constructor(message, retryable = false, statusCode = null) {
+  constructor(message, retryable = false, statusCode = null, details = null, category = "general") {
     super(message);
     this.name = "AIProviderError";
     this.retryable = retryable;
     this.statusCode = statusCode;
+    this.details = details;
+    this.category = category;
   }
 }
 
@@ -23,13 +25,22 @@ class OpenAICompatibleProvider {
   }
 
   async generateStructured({ system, prompt, schemaName, timeoutMs = config.aiTimeoutMs }) {
+    const effectiveTimeout = Math.max(timeoutMs || config.aiTimeoutMs || 30000, 30000);
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const timer = setTimeout(() => controller.abort(), effectiveTimeout);
     const started = Date.now();
     try {
+      const headers = {
+        authorization: `Bearer ${this.apiKey}`,
+        "content-type": "application/json",
+      };
+      if (this.baseUrl.includes("openrouter.ai") || this.name === "openrouter") {
+        headers["HTTP-Referer"] = config.clientUrl || "http://localhost:5173";
+        headers["X-Title"] = "HireSmart AI";
+      }
       const response = await fetch(`${this.baseUrl}/chat/completions`, {
         method: "POST",
-        headers: { authorization: `Bearer ${this.apiKey}`, "content-type": "application/json" },
+        headers,
         signal: controller.signal,
         body: JSON.stringify({
           model: this.model,
@@ -44,28 +55,63 @@ class OpenAICompatibleProvider {
           ],
         }),
       });
-      if (!response.ok)
+      if (!response.ok) {
+        const errText = await response.text().catch(() => "");
+        let errJson = null;
+        try {
+          errJson = JSON.parse(errText);
+        } catch {
+          errJson = null;
+        }
+        const errorMsg = errJson?.error?.message || errText || "";
+        const isQuotaExhausted =
+          response.status === 429 &&
+          (/quota|resource_exhausted|free_tier|daily limit|exceeded your current quota/i.test(errorMsg) ||
+            errJson?.error?.status === "RESOURCE_EXHAUSTED");
+        const category = isQuotaExhausted
+          ? "quota_exhausted"
+          : response.status === 401
+            ? "authentication_error"
+            : response.status === 404
+              ? "model_not_found"
+              : response.status === 429
+                ? "rate_limit"
+                : response.status >= 500
+                  ? "provider_unavailable"
+                  : "api_error";
+        const retryable =
+          !isQuotaExhausted &&
+          response.status !== 401 &&
+          response.status !== 403 &&
+          response.status !== 404 &&
+          (response.status === 429 || response.status >= 500);
+
         throw new AIProviderError(
-          `AI provider returned ${response.status}`,
-          response.status === 429 || response.status >= 500,
+          isQuotaExhausted
+            ? `AI provider quota exhausted (${response.status})`
+            : `AI provider returned ${response.status}`,
+          retryable,
           response.status,
+          errorMsg.slice(0, 300),
+          category,
         );
+      }
       const rawBody = await response.text();
       if (rawBody.length > 2_000_000)
-        throw new AIProviderError("AI provider response exceeded the size limit");
+        throw new AIProviderError("AI provider response exceeded the size limit", false, 413, null, "payload_too_large");
       let body;
       try {
         body = JSON.parse(rawBody);
       } catch {
-        throw new AIProviderError("AI provider returned malformed HTTP JSON");
+        throw new AIProviderError("AI provider returned malformed HTTP JSON", false, 502, null, "malformed_response");
       }
       const text = body.choices?.[0]?.message?.content;
-      if (!text) throw new AIProviderError("AI provider returned an empty response");
+      if (!text) throw new AIProviderError("AI provider returned an empty response", false, 502, null, "empty_response");
       let output;
       try {
         output = JSON.parse(text);
       } catch {
-        throw new AIProviderError("AI provider returned malformed JSON");
+        throw new AIProviderError("AI provider returned malformed JSON", false, 502, null, "malformed_json");
       }
       return {
         output,
@@ -82,7 +128,7 @@ class OpenAICompatibleProvider {
         },
       };
     } catch (error) {
-      if (error.name === "AbortError") throw new AIProviderError("AI provider timed out", true);
+      if (error.name === "AbortError") throw new AIProviderError("AI provider timed out", false, 504, null, "timeout");
       throw error;
     } finally {
       clearTimeout(timer);
@@ -93,9 +139,17 @@ class OpenAICompatibleProvider {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
+      const headers = {
+        authorization: `Bearer ${this.apiKey}`,
+        "content-type": "application/json",
+      };
+      if (this.baseUrl.includes("openrouter.ai") || this.name === "openrouter") {
+        headers["HTTP-Referer"] = config.clientUrl || "http://localhost:5173";
+        headers["X-Title"] = "HireSmart AI";
+      }
       const response = await fetch(`${this.baseUrl}/embeddings`, {
         method: "POST",
-        headers: { authorization: `Bearer ${this.apiKey}`, "content-type": "application/json" },
+        headers,
         signal: controller.signal,
         body: JSON.stringify({ model: this.model, input: String(text).slice(0, 30000) }),
       });

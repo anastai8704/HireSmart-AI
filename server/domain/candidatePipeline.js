@@ -33,8 +33,12 @@ const canIssueOffer = (application) => {
 
 /** The candidate may accept or decline only an issued offer on the offer stage. */
 const canRespondToOffer = (application) => {
-  if (stageOf(application) !== "offer" || offerStatusOf(application) !== "issued") {
+  const status = offerStatusOf(application);
+  if (stageOf(application) !== "offer" || !["issued", "viewed"].includes(status)) {
     return { ok: false, code: "OFFER_NOT_PENDING", message: "There is no offer waiting for a response" };
+  }
+  if (application?.offer?.expiresAt && new Date() > new Date(application.offer.expiresAt)) {
+    return { ok: false, code: "OFFER_EXPIRED", message: "This offer has expired" };
   }
   return { ok: true };
 };

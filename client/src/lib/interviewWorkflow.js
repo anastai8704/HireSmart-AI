@@ -259,6 +259,7 @@ export const buildScheduleBody = (form) => {
   };
   if ((form.location || "").trim()) body.location = form.location.trim();
   if ((form.meetingUrl || "").trim()) body.meetingUrl = form.meetingUrl.trim();
+  if ((form.instructions || "").trim()) body.instructions = form.instructions.trim();
   if ((form.participantIds || []).length) body.participants = form.participantIds;
   return body;
 };

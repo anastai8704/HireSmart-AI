@@ -1,6 +1,8 @@
 // Recruiter / organization billing (Requirement 2). Every plan state, limit and action comes from the server.
 import { useState } from "react";
+import { useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { AlertTriangle } from "lucide-react";
 
 import { PageHeader } from "../../components/Product";
 import { PlanBadge } from "../../components/billing/PlanBadge";
@@ -24,8 +26,12 @@ const CHECKOUT_COPY = {
 export const RecruiterBilling = () => {
   const toast = useToast();
   const qc = useQueryClient();
-  const { organizationId } = useAuth();
+  const { organizationId: paramOrgId } = useParams();
+  const auth = useAuth();
+  const organizationId = paramOrgId || auth.organizationId;
   const [billingCycle, setBillingCycle] = useState("monthly");
+
+  const canManageBilling = !auth.workspaceRole || ["owner", "admin", "platform_admin"].includes(auth.workspaceRole);
 
   const subQuery = useQuery({
     queryKey: ["recruiter-subscription", organizationId],
@@ -78,6 +84,15 @@ export const RecruiterBilling = () => {
         action={<PlanBadge />}
       />
 
+      {!canManageBilling && (
+        <div role="alert" className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 shadow-xs">
+          <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600" aria-hidden="true" />
+          <p>
+            <span className="font-semibold">View-only billing access:</span> Only workspace owners and administrators can change subscription plans or stop renewals.
+          </p>
+        </div>
+      )}
+
       <CurrentPlanPanel
         model={model}
         subscription={subscription}
@@ -85,7 +100,13 @@ export const RecruiterBilling = () => {
         usage={subscription.usage}
         isRecruiter
         onUpgrade={scrollToPlans}
-        onCancelRenewal={() => cancelMutation.mutate()}
+        onCancelRenewal={() => {
+          if (!canManageBilling) {
+            toast.error("Only workspace owners and administrators can modify subscriptions.");
+            return;
+          }
+          cancelMutation.mutate();
+        }}
         cancelling={cancelMutation.isPending}
       />
 
@@ -97,7 +118,13 @@ export const RecruiterBilling = () => {
           model={model}
           billingCycle={billingCycle}
           onCycleChange={setBillingCycle}
-          onSelect={(plan) => checkout.startCheckout(plan, billingCycle)}
+          onSelect={(plan) => {
+            if (!canManageBilling) {
+              toast.error("Only workspace owners and administrators can modify subscriptions.");
+              return;
+            }
+            checkout.startCheckout(plan, billingCycle);
+          }}
           starting={checkout.starting}
           selectedTier={checkout.selectedPlan?.tier}
           headingId="plan-options-heading"

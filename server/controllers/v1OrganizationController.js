@@ -297,8 +297,13 @@ exports.adminReactivateOrg = asyncHandler(async (req, res) => {
 exports.settings = asyncHandler(async (req, res) => {
   const org = await Organization.findOne({ _id: req.auth.organizationId });
   if (!org) throw new AppError("Resource not found", 404, "RESOURCE_NOT_FOUND");
+  if (!org.settings) org.settings = {};
   if (typeof req.body.requireJobApproval === "boolean")
     org.settings.requireJobApproval = req.body.requireJobApproval;
+  if (typeof req.body.aiEnabled === "boolean")
+    org.settings.aiEnabled = req.body.aiEnabled;
+  if (typeof req.body.retentionDays === "number")
+    org.settings.retentionDays = req.body.retentionDays;
   await org.save();
   await audit({
     req,
@@ -306,7 +311,11 @@ exports.settings = asyncHandler(async (req, res) => {
     action: "organization.settings.updated",
     resourceType: "organization",
     resourceId: org._id,
-    metadata: { requireJobApproval: org.settings.requireJobApproval },
+    metadata: {
+      requireJobApproval: org.settings.requireJobApproval,
+      aiEnabled: org.settings.aiEnabled,
+      retentionDays: org.settings.retentionDays,
+    },
   });
   res.json({ data: { id: org._id, name: org.name, slug: org.slug, settings: org.settings } });
 });

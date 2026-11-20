@@ -1,3 +1,4 @@
+const crypto = require("node:crypto");
 const { config } = require("../../config/env");
 const { z } = require("zod");
 const AIAnalysis = require("../../models/AIAnalysis");
@@ -393,12 +394,14 @@ const run = async ({
     : BASE_SYSTEM_PROMPT;
 
   const prompt = buildPrompt(feature, input);
+  const requestId = crypto.randomUUID ? crypto.randomUUID() : `req-${Date.now()}`;
 
   let result;
   let fallbackUsed = false;
+  let fallbackReason = null;
   let lastError;
   const configuredProviders = allowExternal
-    ? [config.aiPrimaryProvider, config.aiFallbackProvider]
+    ? [config.aiPrimaryProvider, config.aiFallbackProvider, "deterministic"]
     : ["deterministic"];
   const providers = configuredProviders.filter((v, i, a) => v && a.indexOf(v) === i);
 
@@ -410,11 +413,32 @@ const run = async ({
         model: "rules-v1",
         usage: { inputTokens: 0, outputTokens: 0, estimatedCostUsd: 0, latencyMs: 0 },
       };
-      fallbackUsed = providers[0] !== "deterministic";
+      if (providers[0] !== "deterministic") {
+        fallbackUsed = true;
+        fallbackReason = lastError?.message || "Primary AI provider unavailable; deterministic safety fallback applied.";
+        console.log(
+          `[ai-runtime-diagnostic]`,
+          JSON.stringify({
+            requestId,
+            feature,
+            selectedPrimaryProvider: providers[0],
+            selectedPrimaryModel: config.aiModel,
+            actualProviderCalled: "deterministic",
+            actualModelCalled: "rules-v1",
+            httpStatus: 200,
+            durationMs: 0,
+            failureCategory: null,
+            fallbackReason,
+            finalProvider: "deterministic",
+            finalModel: "rules-v1",
+          }),
+        );
+      }
       break;
     }
 
     const provider = getProvider(providerName, providerIndex === 0 ? "primary" : "fallback");
+    const startedAttempt = Date.now();
     for (let attempt = 0; attempt <= config.aiMaxRetries; attempt += 1) {
       try {
         result = await provider.generateStructured({
@@ -422,6 +446,23 @@ const run = async ({
           prompt,
           schemaName: feature,
         });
+        console.log(
+          `[ai-runtime-diagnostic]`,
+          JSON.stringify({
+            requestId,
+            feature,
+            selectedPrimaryProvider: providers[0],
+            selectedPrimaryModel: config.aiModel,
+            actualProviderCalled: providerName,
+            actualModelCalled: provider.model,
+            httpStatus: 200,
+            durationMs: result.usage?.latencyMs || Date.now() - startedAttempt,
+            failureCategory: null,
+            fallbackReason: null,
+            finalProvider: result.provider,
+            finalModel: result.model,
+          }),
+        );
         break;
       } catch (error) {
         lastError = error;
@@ -429,12 +470,30 @@ const run = async ({
           `[ai] provider "${providerName}" attempt ${attempt + 1} failed:`,
           error.message,
         );
+        console.log(
+          `[ai-runtime-diagnostic]`,
+          JSON.stringify({
+            requestId,
+            feature,
+            selectedPrimaryProvider: providers[0],
+            selectedPrimaryModel: config.aiModel,
+            actualProviderCalled: providerName,
+            actualModelCalled: provider.model,
+            httpStatus: error.statusCode || 500,
+            durationMs: Date.now() - startedAttempt,
+            failureCategory: error.category || "api_error",
+            fallbackReason: error.message,
+            finalProvider: "pending_fallback",
+            finalModel: "pending_fallback",
+          }),
+        );
         if (!error.retryable || attempt === config.aiMaxRetries) break;
         await sleep(250 * 2 ** attempt);
       }
     }
     if (result) break;
     fallbackUsed = true;
+    fallbackReason = lastError?.message || `Provider ${providerName} unavailable; routed to alternative provider.`;
   }
 
   if (!result) {
@@ -508,7 +567,8 @@ const run = async ({
       model: result.model,
       promptVersion: `${feature}-v1`,
       fallbackUsed,
-      isLLM: result.provider !== "deterministic" && !fallbackUsed,
+      fallbackReason: fallbackUsed ? (fallbackReason || "Routed to fallback provider") : null,
+      isLLM: result.provider !== "deterministic",
       usage: result.usage,
       generatedAt: analysis.createdAt,
     },

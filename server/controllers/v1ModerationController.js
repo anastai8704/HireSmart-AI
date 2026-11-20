@@ -27,13 +27,18 @@ const RISK_BANDS = Object.freeze({
 
 const moderationDto = (job) => ({
   id: job._id,
+  _id: job._id,
   title: job.title,
   company: job.company,
   location: job.location,
+  department: job.department || "General",
   workplaceMode: job.workplaceMode,
+  jobType: job.jobType,
+  employmentType: job.employmentType || job.jobType,
   organization: job.organization
     ? {
         id: job.organization._id || job.organization,
+        _id: job.organization._id || job.organization,
         name: job.organization?.name,
         slug: job.organization?.slug,
         verificationStatus: job.organization?.verificationStatus || "pending",
@@ -43,10 +48,18 @@ const moderationDto = (job) => ({
     : null,
   status: job.status,
   version: job.version,
-  requiredSkills: job.requiredSkills,
+  skills: job.skills || [],
+  requiredSkills: job.requiredSkills || [],
+  preferredSkills: job.preferredSkills || [],
   description: job.description,
   experience: job.experience,
+  minExpYears: job.minExpYears || 0,
+  maxExpYears: job.maxExpYears || 0,
+  educationRequired: job.educationRequired || "",
+  benefits: job.benefits || [],
   compensation: job.compensation || (job.salary ? { min: 0, max: job.salary, currency: "INR", period: "year" } : null),
+  salary: job.salary,
+  salaryInrLpa: job.salary ? `₹${(job.salary / 100000).toFixed(1)} LPA` : "Not specified",
   moderation: job.moderation,
   changeReview: job.pendingChanges?.status
     ? {
@@ -57,7 +70,9 @@ const moderationDto = (job) => ({
         reviewedAt: job.pendingChanges.reviewedAt,
       }
     : null,
+  applicationQuestions: job.applicationQuestions || [],
   createdAt: job.createdAt,
+  updatedAt: job.updatedAt,
 });
 
 // Count expressions. Each one is the same predicate the matching queue uses.
@@ -68,12 +83,14 @@ const liveApprovedCond = {
   $and: [{ $eq: [jobRef("status"), "published"] }, { $eq: [jobRef("moderation.status"), "approved"] }],
 };
 
-/** Company cards: one row per company with job counts. Filters apply to the companies, not the jobs. */
+/** Company cards: one row per company with job counts and all pending jobs. */
 exports.companyModerationSummary = asyncHandler(async (req, res) => {
   requireAdmin(req);
   const search = req.query.search ? String(req.query.search).trim().slice(0, 100) : "";
   const verificationStatus = req.query.verificationStatus;
   const riskLevel = req.query.riskLevel;
+  const statusFilter = req.query.status;
+  const sort = req.query.sort || "pending_desc";
 
   const pipeline = [
     {
@@ -108,23 +125,29 @@ exports.companyModerationSummary = asyncHandler(async (req, res) => {
           closed: countWhere({ $eq: [jobRef("status"), "closed"] }),
           drafts: countWhere({ $eq: [jobRef("status"), "draft"] }),
         },
-        // A short preview of the jobs that need review, in the same order the queue uses.
+        // All jobs that need review for this company
         jobs: {
           $map: {
             input: {
-              $slice: [{ $filter: { input: "$jobs", as: "j", cond: pendingCond } }, 3],
+              $filter: { input: "$jobs", as: "j", cond: pendingCond },
             },
             as: "j",
             in: {
               id: "$$j._id",
+              _id: "$$j._id",
               title: "$$j.title",
+              department: { $ifNull: ["$$j.department", "General"] },
               location: "$$j.location",
               workplaceMode: "$$j.workplaceMode",
+              jobType: "$$j.jobType",
+              employmentType: { $ifNull: ["$$j.employmentType", "$$j.jobType"] },
               status: "$$j.status",
               salary: "$$j.salary",
               compensation: "$$j.compensation",
-              moderation: { status: "$$j.moderation.status" },
-              changeReview: { status: "$$j.pendingChanges.status" },
+              experience: "$$j.experience",
+              requiredSkills: { $ifNull: ["$$j.requiredSkills", []] },
+              moderation: { status: "$$j.moderation.status", reason: "$$j.moderation.reason" },
+              changeReview: { status: "$$j.pendingChanges.status", reason: "$$j.pendingChanges.reason" },
               createdAt: "$$j.createdAt",
             },
           },
@@ -137,16 +160,145 @@ exports.companyModerationSummary = asyncHandler(async (req, res) => {
   const matchConditions = {};
   if (search) {
     const pattern = new RegExp(escapeRegex(search), "i");
-    matchConditions.$or = [{ companyName: pattern }, { companySlug: pattern }];
+    const orConds = [
+      { companyName: pattern },
+      { companySlug: pattern },
+      { "jobs.title": pattern },
+      { "jobs.location": pattern },
+    ];
+    if (mongoose.isValidObjectId(search)) {
+      orConds.push({ _id: new mongoose.Types.ObjectId(search) });
+      orConds.push({ "jobs._id": new mongoose.Types.ObjectId(search) });
+    }
+    matchConditions.$or = orConds;
   }
   if (verificationStatus && verificationStatus !== "all") matchConditions.verificationStatus = verificationStatus;
   if (riskLevel && riskLevel !== "all" && RISK_BANDS[riskLevel]) matchConditions.riskScore = RISK_BANDS[riskLevel];
+  if (statusFilter && statusFilter !== "all") {
+    if (statusFilter === "pending") matchConditions["jobCounts.pending"] = { $gt: 0 };
+    else if (statusFilter === "approved") matchConditions["jobCounts.approved"] = { $gt: 0 };
+    else if (statusFilter === "rejected") matchConditions["jobCounts.rejected"] = { $gt: 0 };
+    else if (statusFilter === "changes_requested") matchConditions["jobCounts.changesRequested"] = { $gt: 0 };
+    else if (statusFilter === "suspended") {
+      matchConditions.$or = [{ "jobCounts.suspended": { $gt: 0 } }, { "jobCounts.closed": { $gt: 0 } }];
+    }
+  }
+
   if (Object.keys(matchConditions).length > 0) pipeline.push({ $match: matchConditions });
 
-  pipeline.push({ $sort: { "jobCounts.pending": -1, latestSubmission: -1, companyName: 1 } });
+  // Sorting
+  const sortStage = {};
+  if (sort === "newest") {
+    sortStage.latestSubmission = -1;
+    sortStage["jobCounts.pending"] = -1;
+  } else if (sort === "oldest") {
+    sortStage.latestSubmission = 1;
+    sortStage["jobCounts.pending"] = -1;
+  } else if (sort === "risk_high") {
+    sortStage.riskScore = -1;
+    sortStage["jobCounts.pending"] = -1;
+  } else if (sort === "name_asc") {
+    sortStage.companyName = 1;
+  } else {
+    // default: pending_desc
+    sortStage["jobCounts.pending"] = -1;
+    sortStage.latestSubmission = -1;
+    sortStage.companyName = 1;
+  }
+  pipeline.push({ $sort: sortStage });
 
-  const companies = await Organization.aggregate(pipeline);
-  res.json({ data: companies, meta: { total: companies.length } });
+  const [companies, overallCountsAgg] = await Promise.all([
+    Organization.aggregate(pipeline),
+    Job.aggregate([
+      {
+        $group: {
+          _id: null,
+          total: { $sum: 1 },
+          pending: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ["$status", "published"] },
+                    {
+                      $or: [
+                        { $eq: ["$moderation.status", "pending"] },
+                        { $eq: ["$pendingChanges.status", "pending"] },
+                      ],
+                    },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+          approved: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ["$status", "published"] },
+                    { $eq: ["$moderation.status", "approved"] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+          rejected: {
+            $sum: {
+              $cond: [{ $eq: ["$moderation.status", "rejected"] }, 1, 0],
+            },
+          },
+          changesRequested: {
+            $sum: {
+              $cond: [{ $eq: ["$moderation.status", "changes_requested"] }, 1, 0],
+            },
+          },
+          suspended: {
+            $sum: {
+              $cond: [
+                {
+                  $or: [
+                    { $eq: ["$moderation.status", "suspended"] },
+                    { $eq: ["$status", "closed"] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+        },
+      },
+    ]),
+  ]);
+
+  const counts = overallCountsAgg[0] || {
+    total: 0,
+    pending: 0,
+    approved: 0,
+    rejected: 0,
+    changesRequested: 0,
+    suspended: 0,
+  };
+
+  res.json({
+    data: companies,
+    meta: {
+      total: companies.length,
+      counts: {
+        total: counts.total || 0,
+        pending: counts.pending || 0,
+        approved: counts.approved || 0,
+        rejected: counts.rejected || 0,
+        changesRequested: counts.changesRequested || 0,
+        suspended: counts.suspended || 0,
+      },
+    },
+  });
 });
 
 const parseDate = (value, field, endOfDay = false) => {

@@ -5,9 +5,9 @@ import { cn } from "../../lib/utils";
 export const Card = ({ className, hoverable = false, children, ...props }) => (
   <div
     className={cn(
-      "rounded-[var(--radius-card)] border border-ink-200 bg-white shadow-sm",
+      "rounded-[var(--radius-card)] border border-ink-200/80 bg-white shadow-xs",
       hoverable &&
-        "transition-all duration-200 hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-md",
+        "transition-all duration-200 hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-sm",
       className,
     )}
     {...props}

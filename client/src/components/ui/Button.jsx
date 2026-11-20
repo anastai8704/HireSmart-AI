@@ -6,22 +6,23 @@ import { cn } from "../../lib/utils";
 
 const VARIANTS = {
   primary:
-    "bg-brand-600 text-white shadow-sm hover:bg-brand-700 active:bg-brand-800 disabled:bg-brand-300",
+    "bg-brand-600 text-white shadow-xs hover:bg-brand-700 active:bg-brand-800 disabled:bg-brand-300",
   gradient:
-    "bg-gradient-to-r from-brand-600 to-[#4f7cff] text-white shadow-sm shadow-brand-600/25 hover:from-brand-700 hover:to-[#4069e0] active:from-brand-800 active:to-[#3a5fd0] disabled:opacity-60",
+    "bg-gradient-to-r from-brand-600 to-[#4f7cff] text-white shadow-xs shadow-brand-600/20 hover:from-brand-700 hover:to-[#4069e0] active:from-brand-800 active:to-[#3a5fd0] disabled:opacity-60",
   secondary:
-    "bg-white text-ink-800 border border-ink-200 shadow-sm hover:bg-ink-50 active:bg-ink-100",
+    "bg-white text-ink-800 border border-ink-200/90 shadow-xs hover:bg-ink-50 hover:border-ink-300 active:bg-ink-100",
   ghost: "bg-transparent text-ink-600 hover:bg-ink-100 hover:text-ink-900",
   danger:
-    "bg-danger-500 text-white shadow-sm hover:bg-danger-700 active:bg-danger-700 disabled:bg-danger-500/50",
-  success: "bg-success-500 text-white shadow-sm hover:bg-success-700 active:bg-success-700",
+    "bg-danger-600 text-white shadow-xs hover:bg-danger-700 active:bg-danger-800 disabled:bg-danger-300 disabled:text-white/70",
+  success:
+    "bg-success-600 text-white shadow-xs hover:bg-success-700 active:bg-success-800 disabled:bg-success-300 disabled:text-white/70",
   outline:
-    "bg-transparent text-brand-700 border border-brand-300 hover:bg-brand-50 active:bg-brand-100",
+    "bg-transparent text-brand-700 border border-brand-300 hover:bg-brand-50 hover:border-brand-400 active:bg-brand-100",
   /** For dark surfaces: translucent outline button (secondary action on charcoal). */
   lightOutline:
     "bg-white/5 text-white border border-white/20 backdrop-blur-sm hover:bg-white/10 hover:border-white/35 active:bg-white/15",
   /** For dark surfaces: solid white primary (high-contrast conversion action). */
-  solid: "bg-white text-ink-950 shadow-sm hover:bg-ink-100 active:bg-ink-200",
+  solid: "bg-white text-ink-950 shadow-xs hover:bg-ink-100 active:bg-ink-200",
 };
 
 const SIZES = {

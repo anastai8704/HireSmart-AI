@@ -3,7 +3,8 @@ import { Link } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { CalendarClock, CheckCheck, Ban } from "lucide-react";
 import Button from "../ui/Button";
-import Input, { Textarea } from "../ui/Input";
+import { Textarea } from "../ui/Input";
+import DatePicker from "../ui/DatePicker";
 import { SearchableSelect } from "../ui/SearchableSelect";
 import Modal from "../ui/Modal";
 import ConfirmModal from "../ui/ConfirmModal";
@@ -62,22 +63,28 @@ const RescheduleForm = ({ orgId, interview, onDone }) => {
   return (
     <form onSubmit={submit} noValidate aria-label="Reschedule interview" className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-2">
-        <Input
-          label="New start"
-          type="datetime-local"
-          required
-          value={form.start}
-          error={errors.start}
-          onChange={(e) => setForm((f) => ({ ...f, start: e.target.value }))}
-        />
-        <Input
-          label="New end"
-          type="datetime-local"
-          required
-          value={form.end}
-          error={errors.end}
-          onChange={(e) => setForm((f) => ({ ...f, end: e.target.value }))}
-        />
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-ink-700">New start</label>
+          <DatePicker
+            placeholder="Select start date & time"
+            showTime
+            required
+            value={form.start}
+            error={errors.start}
+            onChange={(e) => setForm((f) => ({ ...f, start: e.target.value }))}
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-ink-700">New end</label>
+          <DatePicker
+            placeholder="Select end date & time"
+            showTime
+            required
+            value={form.end}
+            error={errors.end}
+            onChange={(e) => setForm((f) => ({ ...f, end: e.target.value }))}
+          />
+        </div>
       </div>
       <SearchableSelect
         label="Timezone"

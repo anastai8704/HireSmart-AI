@@ -163,13 +163,22 @@ const getProviderClient = (cfg = readPaymentConfig()) => {
  * checkout can be diagnosed. Key ids, secrets and the raw provider message are never logged.
  */
 const providerError = (operation, cause) => {
+  const providerStatus = Number.isInteger(cause?.statusCode) ? cause.statusCode : undefined;
+  const providerErrorCode = typeof cause?.error?.code === "string" ? cause.error.code : undefined;
   const safe = {
     operation,
-    providerStatus: Number.isInteger(cause?.statusCode) ? cause.statusCode : undefined,
-    providerErrorCode: typeof cause?.error?.code === "string" ? cause.error.code : undefined,
+    providerStatus,
+    providerErrorCode,
     providerErrorType: cause?.name || undefined,
   };
   logger.error(`Payment provider call failed: ${JSON.stringify(safe)}`);
+  if (providerStatus === 401 || (providerErrorCode === "BAD_REQUEST_ERROR" && /auth/i.test(cause?.error?.description || ""))) {
+    return new AppError(
+      "Payment gateway authentication failed. Please verify Razorpay test API keys in server configuration.",
+      502,
+      "PAYMENT_GATEWAY_AUTH_ERROR",
+    );
+  }
   return new AppError("The payment provider could not complete this request. Try again shortly.", 502, "PAYMENT_PROVIDER_ERROR");
 };
 

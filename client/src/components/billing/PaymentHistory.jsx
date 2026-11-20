@@ -6,6 +6,7 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import Badge from "../ui/Badge";
 import Button from "../ui/Button";
 import { Input, Select } from "../ui/Input";
+import DatePicker from "../ui/DatePicker";
 import { EmptyState, ErrorState, LoadingState } from "../ui/States";
 import { subscriptionApi } from "../../lib/api";
 import { formatDate } from "../../lib/utils";
@@ -86,15 +87,13 @@ export const PaymentHistory = ({ queryKeyBase, organizationId, plans, title = "P
             options={HISTORY_STATUS_OPTIONS}
             onChange={(e) => setDraft({ ...draft, status: e.target.value })}
           />
-          <Input
+          <DatePicker
             label="From (IST)"
-            type="date"
             value={draft.from}
             onChange={(e) => setDraft({ ...draft, from: e.target.value })}
           />
-          <Input
+          <DatePicker
             label="To (IST)"
-            type="date"
             value={draft.to}
             error={dateError || undefined}
             onChange={(e) => setDraft({ ...draft, to: e.target.value })}

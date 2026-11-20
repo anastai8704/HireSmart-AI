@@ -26,6 +26,8 @@ const { Placement } = require("../models/Placement");
 const { Subscription } = require("../models/Subscription");
 const { PaymentTransaction } = require("../models/PaymentTransaction");
 const AuditLog = require("../models/AuditLog");
+const AIAnalysis = require("../models/AIAnalysis");
+const SecurityEvent = require("../models/SecurityEvent");
 const AppError = require("../utils/AppError");
 const { effectiveEmploymentStatus } = require("../domain/employmentStatus");
 
@@ -278,17 +280,21 @@ const REPORTS = {
       { key: "planTier", label: "Plan" },
       { key: "amount", label: "Amount" },
       { key: "currency", label: "Currency" },
+      { key: "mode", label: "Environment Mode" },
+      { key: "gateway", label: "Gateway" },
       { key: "status", label: "Status" },
       { key: "createdAt", label: "Created (UTC)" },
     ],
-    async build({ range, organizationId }) {
+    async build({ range, organizationId, query }) {
+      const modeFilter = query?.mode && ["test", "live", "simulation"].includes(query.mode) ? { mode: query.mode } : {};
       const filter = {
         ...inRange("createdAt", range),
+        ...modeFilter,
         ...(organizationId ? { subscriberType: "organization", subscriberId: organizationId } : {}),
       };
       const docs = await records(
         PaymentTransaction.find(filter)
-          .select("transactionNumber invoiceNumber subscriberType planTier amount currency status createdAt")
+          .select("transactionNumber invoiceNumber subscriberType planTier amount currency mode gateway status createdAt")
           .sort({ createdAt: 1 }),
       );
       return docs.map((t) => ({
@@ -298,6 +304,8 @@ const REPORTS = {
         planTier: t.planTier,
         amount: t.amount ?? 0,
         currency: t.currency || "INR",
+        mode: t.mode || "simulation",
+        gateway: t.gateway || "simulation",
         status: t.status,
         createdAt: toIso(t.createdAt),
       }));
@@ -315,17 +323,17 @@ const REPORTS = {
       { key: "successfulPayments", label: "Successful payments" },
       { key: "failedPayments", label: "Failed payments" },
     ],
-    async build({ range }) {
-      // Same eligibility as the admin Revenue page: real razorpay captures only (test and live are both
-      // revenue, labelled by mode elsewhere). Simulations, grants and failed attempts never count.
-      // Refunds reduce revenue on the day the refund was processed (refundedAt); legacy rows fall back to updatedAt.
+    async build({ range, query }) {
+      // Same eligibility as the admin Revenue page: real razorpay captures only.
+      // Filter by mode when requested (distinguishing test vs live).
+      const modeMatch = query?.mode && ["test", "live"].includes(query.mode) ? { mode: query.mode } : {};
       const [captured, refunds, failed] = await Promise.all([
         PaymentTransaction.aggregate([
-          { $match: { ...REVENUE_MATCH, ...inRange("createdAt", range) } },
+          { $match: { ...REVENUE_MATCH, ...modeMatch, ...inRange("createdAt", range) } },
           { $group: { _id: dayOf("$createdAt"), amount: { $sum: "$amount" }, count: { $sum: 1 } } },
         ]),
         PaymentTransaction.aggregate([
-          { $match: refundsInRange(range) },
+          { $match: { ...refundsInRange(range), ...modeMatch } },
           {
             $group: {
               _id: dayOf({ $ifNull: ["$refundedAt", "$updatedAt"] }),
@@ -335,7 +343,7 @@ const REPORTS = {
           },
         ]),
         PaymentTransaction.aggregate([
-          { $match: { status: "failed", gateway: { $in: REVENUE_GATEWAYS }, ...inRange("createdAt", range) } },
+          { $match: { status: "failed", gateway: { $in: REVENUE_GATEWAYS }, ...modeMatch, ...inRange("createdAt", range) } },
           { $group: { _id: dayOf("$createdAt"), count: { $sum: 1 } } },
         ]),
       ]);
@@ -406,6 +414,127 @@ const REPORTS = {
       return rows.map((r) => ({ date: r._id.day, category: r._id.category, events: r.events }));
     },
   },
+
+  user_growth: {
+    label: "User and account growth",
+    audience: ["admin"],
+    columns: [
+      { key: "date", label: "Date (IST)" },
+      { key: "candidates", label: "New Candidates" },
+      { key: "recruiters", label: "New Recruiters" },
+      { key: "total", label: "Total New Accounts" },
+    ],
+    async build({ range }) {
+      const rows = await User.aggregate([
+        { $match: inRange("createdAt", range) },
+        {
+          $group: {
+            _id: { day: dayOf("$createdAt"), role: "$role" },
+            count: { $sum: 1 },
+          },
+        },
+        { $sort: { "_id.day": 1 } },
+      ]);
+      const days = new Map();
+      for (const r of rows) {
+        const d = r._id.day;
+        if (!days.has(d)) days.set(d, { candidates: 0, recruiters: 0, total: 0 });
+        const entry = days.get(d);
+        if (r._id.role === "candidate") entry.candidates += r.count;
+        else if (r._id.role === "recruiter") entry.recruiters += r.count;
+        entry.total += r.count;
+      }
+      return [...days.entries()]
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([date, counts]) => ({
+          date,
+          candidates: counts.candidates,
+          recruiters: counts.recruiters,
+          total: counts.total,
+        }));
+    },
+  },
+
+  security_events: {
+    label: "Security incidents & fraud alerts",
+    audience: ["admin"],
+    columns: [
+      { key: "date", label: "Date (IST)" },
+      { key: "type", label: "Incident Type" },
+      { key: "severity", label: "Severity" },
+      { key: "status", label: "Status" },
+      { key: "count", label: "Incidents" },
+    ],
+    async build({ range }) {
+      const rows = await SecurityEvent.aggregate([
+        { $match: inRange("createdAt", range) },
+        {
+          $group: {
+            _id: {
+              day: dayOf("$createdAt"),
+              type: "$type",
+              severity: "$severity",
+              status: { $ifNull: ["$status", "open"] },
+            },
+            count: { $sum: 1 },
+          },
+        },
+        { $sort: { "_id.day": 1, count: -1 } },
+      ]);
+      return rows.map((r) => ({
+        date: r._id.day,
+        type: r._id.type,
+        severity: r._id.severity || "info",
+        status: r._id.status,
+        count: r.count,
+      }));
+    },
+  },
+
+  ai_usage: {
+    label: "AI usage & token consumption",
+    audience: ["admin"],
+    columns: [
+      { key: "date", label: "Date (IST)" },
+      { key: "feature", label: "AI Feature" },
+      { key: "provider", label: "Provider" },
+      { key: "model", label: "Model" },
+      { key: "runs", label: "Analysis Runs" },
+      { key: "inputTokens", label: "Input Tokens" },
+      { key: "outputTokens", label: "Output Tokens" },
+      { key: "estimatedCostUsd", label: "Estimated Cost ($ USD)" },
+    ],
+    async build({ range }) {
+      const rows = await AIAnalysis.aggregate([
+        { $match: inRange("createdAt", range) },
+        {
+          $group: {
+            _id: {
+              day: dayOf("$createdAt"),
+              feature: "$feature",
+              provider: "$provider",
+              model: "$model",
+            },
+            runs: { $sum: 1 },
+            inputTokens: { $sum: "$usage.inputTokens" },
+            outputTokens: { $sum: "$usage.outputTokens" },
+            estimatedCostUsd: { $sum: "$usage.estimatedCostUsd" },
+          },
+        },
+        { $sort: { "_id.day": 1, runs: -1 } },
+      ]);
+      return rows.map((r) => ({
+        date: r._id.day,
+        feature: r._id.feature || "general",
+        provider: r._id.provider || "gemini",
+        model: r._id.model || "standard",
+        runs: r.runs,
+        inputTokens: r.inputTokens || 0,
+        outputTokens: r.outputTokens || 0,
+        estimatedCostUsd: Number((r.estimatedCostUsd || 0).toFixed(4)),
+      }));
+    },
+  },
 };
 
 const REPORT_TYPES = Object.freeze(Object.keys(REPORTS));
@@ -435,6 +564,7 @@ const runReport = async ({ type, scope, query = {} }) => {
     await report.build({
       range,
       organizationId: scope.audience === "organization" ? scope.organizationId : null,
+      query,
     }),
   );
   return {

@@ -7,11 +7,11 @@
 import { cn } from "../../lib/utils";
 
 const VARIANTS = {
-  default: "bg-ink-100 text-ink-700 border-ink-200",
-  brand: "bg-brand-50 text-brand-700 border-brand-200",
-  success: "bg-success-50 text-success-700 border-success-500/30",
-  warning: "bg-warning-50 text-warning-700 border-warning-500/30",
-  danger: "bg-danger-50 text-danger-700 border-danger-500/30",
+  default: "bg-ink-100 text-ink-700 border-ink-200/80",
+  brand: "bg-brand-50 text-brand-700 border-brand-200/80",
+  success: "bg-success-50 text-success-700 border-success-200/70",
+  warning: "bg-warning-50 text-warning-700 border-warning-200/70",
+  danger: "bg-danger-50 text-danger-700 border-danger-200/70",
   outline: "bg-transparent text-ink-600 border-ink-300",
 };
 

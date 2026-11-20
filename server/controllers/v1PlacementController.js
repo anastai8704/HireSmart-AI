@@ -1,9 +1,8 @@
 const { Placement } = require("../models/Placement");
-// Model modules below are required for their side effect only (registering the Mongoose models).
-require("../models/Application");
-require("../models/Organization");
-require("../models/Job");
-require("../models/User");
+const User = require("../models/User");
+const Job = require("../models/Job");
+const Organization = require("../models/Organization");
+const { Application } = require("../models/Application");
 const { notifyCompanyLeads } = require("../services/billingNotifications");
 const { audit } = require("../services/auditService");
 const asyncHandler = require("../middleware/asyncHandler");
@@ -23,6 +22,8 @@ const pipeline = require("../domain/candidatePipeline");
 const { parse, applyCursor, meta } = require("../utils/pagination");
 const mongoose = require("mongoose");
 const { placementStatuses: PLACEMENT_STATUSES } = require("../models/Placement");
+
+const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const requireAdmin = (req) => {
   if (req.auth.platformRole !== "platform_admin") throw new AppError("Resource not found", 404, "RESOURCE_NOT_FOUND");
@@ -131,19 +132,66 @@ exports.listAdminPlacements = asyncHandler(async (req, res) => {
   }
   if (req.query.organizationId) filter.organization = objectIdOrReject(req.query.organizationId);
   if (req.query.jobId) filter.job = objectIdOrReject(req.query.jobId);
+  if (req.query.candidateId) filter.candidate = objectIdOrReject(req.query.candidateId);
   if (req.query.verified === "true") filter["verification.isVerified"] = true;
   if (req.query.verified === "false") filter["verification.isVerified"] = { $ne: true };
 
-  const scoped = applyCursor(filter, page.after);
-  const items = await Placement.find(scoped)
-    .populate("organization", "name slug")
-    .populate("candidate", "name email")
-    .populate("job", "title location")
-    .populate("verification.verifiedBy", "name")
-    .sort({ _id: -1 })
-    .limit(page.limit);
+  if (req.query.from || req.query.to) {
+    filter.createdAt = {};
+    if (req.query.from) filter.createdAt.$gte = new Date(req.query.from);
+    if (req.query.to) {
+      const toDate = new Date(req.query.to);
+      toDate.setHours(23, 59, 59, 999);
+      filter.createdAt.$lte = toDate;
+    }
+  }
 
-  // Admin reads of employment status are sensitive access too (Requirement 9).
+  if (req.query.search) {
+    const rawSearch = String(req.query.search).trim();
+    const pattern = new RegExp(escapeRegex(rawSearch).slice(0, 100), "i");
+    if (mongoose.Types.ObjectId.isValid(rawSearch)) {
+      filter.$or = [{ _id: new mongoose.Types.ObjectId(rawSearch) }];
+    } else {
+      const [matchedCandidates, matchedJobs, matchedOrgs] = await Promise.all([
+        User.find({ role: "candidate", $or: [{ name: pattern }, { email: pattern }] }).select("_id").limit(50),
+        Job.find({ title: pattern }).select("_id").limit(50),
+        Organization.find({ name: pattern }).select("_id").limit(50),
+      ]);
+      const candIds = matchedCandidates.map((c) => c._id);
+      const jobIds = matchedJobs.map((j) => j._id);
+      const orgIds = matchedOrgs.map((o) => o._id);
+      filter.$or = [
+        { candidate: { $in: candIds } },
+        { job: { $in: jobIds } },
+        { organization: { $in: orgIds } },
+        { "offerDetails.designation": pattern },
+      ];
+    }
+  }
+
+  let sort = { _id: -1 };
+  if (req.query.sortBy === "oldest") sort = { _id: 1 };
+  else if (req.query.sortBy === "status") sort = { status: 1, _id: -1 };
+  else if (req.query.sortBy === "newest") sort = { _id: -1 };
+
+  const scoped = applyCursor(filter, page.after);
+  const [items, totalMatching, totalPlacements, pendingVerification, verifiedPlacements, currentlyWorking, employmentEnded] =
+    await Promise.all([
+      Placement.find(scoped)
+        .populate("organization", "name slug")
+        .populate("candidate", "name email")
+        .populate("job", "title location")
+        .populate("verification.verifiedBy", "name")
+        .sort(sort)
+        .limit(page.limit),
+      Placement.countDocuments(filter),
+      Placement.countDocuments({}),
+      Placement.countDocuments({ "verification.isVerified": { $ne: true } }),
+      Placement.countDocuments({ "verification.isVerified": true }),
+      Placement.countDocuments({ $or: [{ status: "currently_working" }, { "employment.status": "active_verified" }] }),
+      Placement.countDocuments({ $or: [{ status: "employment_ended" }, { "employment.status": "employment_ended_verified" }] }),
+    ]);
+
   await audit({
     req,
     organization: req.query.organizationId ? objectIdOrReject(req.query.organizationId) : null,
@@ -153,9 +201,18 @@ exports.listAdminPlacements = asyncHandler(async (req, res) => {
     metadata: { scope: "admin", count: items.length, statusFilter: req.query.status || "" },
   });
 
+  const responseMeta = meta(items, page.limit, totalMatching);
+  responseMeta.counts = {
+    total: totalPlacements,
+    pending: pendingVerification,
+    verified: verifiedPlacements,
+    currentlyWorking,
+    employmentEnded,
+  };
+
   res.json({
     data: items.map((p) => placementAdminView(p)),
-    meta: meta(items, page.limit, await Placement.countDocuments(filter)),
+    meta: responseMeta,
   });
 });
 
@@ -259,6 +316,10 @@ exports.adminVerifyPlacement = asyncHandler(async (req, res) => {
     throw new AppError("Placement record not found", 404, "RESOURCE_NOT_FOUND");
   }
 
+  if (placement.verification?.isVerified) {
+    throw new AppError("Placement record is already verified", 409, "ALREADY_VERIFIED");
+  }
+
   // Verification is a separate fact from employment status. Keep an organization-reported
   // employment status (currently_working / employment_ended) intact; only pre-employment
   // placements move to placement_verified.
@@ -292,6 +353,107 @@ exports.adminVerifyPlacement = asyncHandler(async (req, res) => {
     resourceType: "placement",
     resourceId: placement._id,
     metadata: { verifiedBy: req.user.name },
+  });
+
+  res.json({ data: placement });
+});
+
+exports.adminRejectPlacement = asyncHandler(async (req, res) => {
+  if (req.auth.platformRole !== "platform_admin") {
+    throw new AppError("Resource not found", 404, "RESOURCE_NOT_FOUND");
+  }
+
+  const reason = String(req.body?.reason || req.body?.adminRemarks || "").trim();
+  if (!reason || reason.length < 3) {
+    throw new AppError("A rejection reason of at least 3 characters is required", 422, "VALIDATION_FAILED");
+  }
+
+  const placement = await Placement.findById(objectIdOrReject(req.params.placementId))
+    .populate("organization", "name")
+    .populate("candidate", "name email")
+    .populate("job", "title");
+
+  if (!placement) {
+    throw new AppError("Placement record not found", 404, "RESOURCE_NOT_FOUND");
+  }
+
+  const statusBefore = placement.status;
+  placement.verification = {
+    isVerified: false,
+    verifiedBy: req.user._id,
+    verifiedAt: null,
+    proofDocumentUrl: String(req.body.proofDocumentUrl || placement.verification?.proofDocumentUrl || "").slice(0, 2048),
+    adminRemarks: reason,
+  };
+
+  placement.employmentHistory.push({
+    event: "placement_rejected",
+    fromStatus: statusBefore,
+    toStatus: placement.status,
+    source: "platform_reported",
+    actor: req.user._id,
+    at: new Date(),
+    note: reason,
+  });
+
+  await placement.save();
+
+  await audit({
+    req,
+    organization: placement.organization?._id || placement.organization,
+    action: "admin.placement_rejected",
+    resourceType: "placement",
+    resourceId: placement._id,
+    metadata: { reason, rejectedBy: req.user.name },
+  });
+
+  res.json({ data: placement });
+});
+
+exports.adminRequestEvidence = asyncHandler(async (req, res) => {
+  if (req.auth.platformRole !== "platform_admin") {
+    throw new AppError("Resource not found", 404, "RESOURCE_NOT_FOUND");
+  }
+
+  const note = String(req.body?.note || req.body?.adminRemarks || "").trim();
+  if (!note || note.length < 3) {
+    throw new AppError("A note of at least 3 characters is required to request evidence", 422, "VALIDATION_FAILED");
+  }
+
+  const placement = await Placement.findById(objectIdOrReject(req.params.placementId))
+    .populate("organization", "name")
+    .populate("candidate", "name email")
+    .populate("job", "title");
+
+  if (!placement) {
+    throw new AppError("Placement record not found", 404, "RESOURCE_NOT_FOUND");
+  }
+
+  placement.verification = {
+    ...(placement.verification?.toObject ? placement.verification.toObject() : placement.verification || {}),
+    isVerified: false,
+    adminRemarks: note,
+  };
+
+  placement.employmentHistory.push({
+    event: "evidence_requested",
+    fromStatus: placement.status,
+    toStatus: placement.status,
+    source: "platform_reported",
+    actor: req.user._id,
+    at: new Date(),
+    note,
+  });
+
+  await placement.save();
+
+  await audit({
+    req,
+    organization: placement.organization?._id || placement.organization,
+    action: "admin.placement_evidence_requested",
+    resourceType: "placement",
+    resourceId: placement._id,
+    metadata: { note, requestedBy: req.user.name },
   });
 
   res.json({ data: placement });

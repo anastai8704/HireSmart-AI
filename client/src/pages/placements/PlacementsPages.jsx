@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Badge from "../../components/ui/Badge";
 import Button from "../../components/ui/Button";
 import ConfirmModal from "../../components/ui/ConfirmModal";
+import DatePicker from "../../components/ui/DatePicker";
 import { EmptyState, ErrorState, LoadingState } from "../../components/ui/States";
 import { PageHeader } from "../../components/Product";
 import { useToast } from "../../components/ui/useToast";
@@ -22,23 +23,10 @@ const errorMessage = (err, fallback) => err?.response?.data?.error?.message || e
 
 const VerifiedBadge = ({ placement }) =>
   placement.verification?.isVerified ? (
-    <Badge variant="success">Platform verified{placement.verification?.verifiedAt ? ` ${fmtIst(placement.verification.verifiedAt)}` : ""}</Badge>
+    <Badge variant="success" className="whitespace-nowrap font-medium">Platform verified{placement.verification?.verifiedAt ? ` ${fmtIst(placement.verification.verifiedAt)}` : ""}</Badge>
   ) : (
-    <Badge variant="warning">Not yet verified by the platform</Badge>
+    <Badge variant="warning" className="whitespace-nowrap font-medium">Not yet verified by the platform</Badge>
   );
-
-const StatusLine = ({ placement }) => (
-  <div className="space-y-1 text-sm">
-    <div>
-      <span className="text-ink-500">Employment status: </span>
-      <strong className="text-ink-900">{EMPLOYMENT_STATUS_LABELS[employmentOf(placement)] || "Not recorded yet"}</strong>
-      {placement.employmentStatusSource ? (
-        <span className="text-ink-500"> · {SOURCE_LABELS[placement.employmentStatusSource]}</span>
-      ) : null}
-    </div>
-    <VerifiedBadge placement={placement} />
-  </div>
-);
 
 /* ---------- Candidate ---------- */
 
@@ -81,10 +69,15 @@ const CandidateActions = ({ placement, onDone }) => {
 
   const employment = employmentOf(placement);
   if (PENDING.includes(employment)) {
-    return <p className="text-sm text-ink-600">Your update is recorded. It becomes final once the company or the platform verifies it.</p>;
+    return (
+      <div className="inline-flex items-center gap-2 rounded-xl border border-amber-200/80 bg-amber-50/80 px-3 py-1.5 text-xs font-semibold text-amber-900 shadow-2xs">
+        <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+        Update pending verification
+      </div>
+    );
   }
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       {JOINABLE.includes(employment) && (
         <Button size="sm" variant="secondary" onClick={() => setDialog("join")}>
           Confirm joining date
@@ -117,16 +110,15 @@ const CandidateActions = ({ placement, onDone }) => {
           tone="brand"
           children={
             <div className="space-y-3 text-left">
-              <label className="block text-xs font-semibold text-ink-600">
-                {dialog === "leave" ? "Last working day" : "Date"}
-                <input
-                  type="date"
+              <div>
+                <DatePicker
+                  label={dialog === "leave" ? "Last working day" : "Date"}
                   max={today}
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-ink-200 px-3 py-2 text-sm"
+                  required
                 />
-              </label>
+              </div>
               <label className="block text-xs font-semibold text-ink-600">
                 {dialog === "leave" ? "Reason (optional)" : "Note (optional)"}
                 <textarea
@@ -168,19 +160,64 @@ export const CandidatePlacements = () => {
       {data && rows.length === 0 && (
         <EmptyState title="No placements yet" description="A placement appears here after a company marks your application as hired." />
       )}
-      <div className="grid gap-4">
+      <div className="grid gap-5">
         {rows.map((p) => (
-          <article key={p._id} aria-label={`Placement at ${p.organization?.name || "company"}`} className="space-y-3 rounded-xl border border-ink-100 bg-white p-5">
-            <header>
-              <h2 className="text-base font-bold text-ink-900">{p.organization?.name || "Company"}</h2>
-              <p className="text-sm text-ink-600">{p.offerDetails?.designation || p.job?.title || "Role"}</p>
-            </header>
-            <StatusLine placement={p} />
-            {p.employmentPeriod?.startDate && (
-              <p className="text-xs text-ink-500">Started {fmtIst(p.employmentPeriod.startDate)}</p>
-            )}
-            {p.employmentPeriod?.endDate && <p className="text-xs text-ink-500">Left {fmtIst(p.employmentPeriod.endDate)}</p>}
-            <CandidateActions placement={p} onDone={() => queryClient.invalidateQueries({ queryKey: ["my-placements"] })} />
+          <article
+            key={p._id}
+            aria-label={`Placement at ${p.organization?.name || "company"}`}
+            className="rounded-2xl border border-ink-100 bg-white p-6 shadow-xs transition hover:border-ink-200 hover:shadow-sm"
+          >
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <h2 className="text-lg font-bold text-ink-950">
+                    {p.organization?.name || "Company"}
+                  </h2>
+                  <VerifiedBadge placement={p} />
+                </div>
+                <p className="text-sm font-medium text-ink-600">
+                  {p.offerDetails?.designation || p.job?.title || "Role"}
+                </p>
+              </div>
+
+              <div className="shrink-0">
+                <CandidateActions
+                  placement={p}
+                  onDone={() => queryClient.invalidateQueries({ queryKey: ["my-placements"] })}
+                />
+              </div>
+            </div>
+
+            {/* Employment Details Grid */}
+            <div className="mt-4 grid gap-3 rounded-xl bg-ink-50/60 p-4 text-xs sm:grid-cols-2 lg:grid-cols-3">
+              <div>
+                <span className="font-semibold text-ink-500">Employment status</span>
+                <p className="mt-0.5 text-sm font-bold text-ink-900">
+                  {EMPLOYMENT_STATUS_LABELS[employmentOf(p)] || "Not recorded yet"}
+                </p>
+                {p.employmentStatusSource && (
+                  <p className="mt-0.5 text-ink-400">Source: {SOURCE_LABELS[p.employmentStatusSource]}</p>
+                )}
+              </div>
+
+              <div>
+                <span className="font-semibold text-ink-500">Start date</span>
+                <p className="mt-0.5 text-sm font-semibold text-ink-800">
+                  {p.employmentPeriod?.startDate ? fmtIst(p.employmentPeriod.startDate) : "Not recorded"}
+                </p>
+              </div>
+
+              <div>
+                <span className="font-semibold text-ink-500">End date / Duration</span>
+                <p className="mt-0.5 text-sm font-semibold text-ink-800">
+                  {p.employmentPeriod?.endDate
+                    ? fmtIst(p.employmentPeriod.endDate)
+                    : p.employmentPeriod?.startDate
+                      ? "Currently employed"
+                      : "—"}
+                </p>
+              </div>
+            </div>
           </article>
         ))}
       </div>
@@ -225,23 +262,23 @@ const CompanyActions = ({ placement, organizationId, onDone }) => {
   const employment = employmentOf(placement);
   const pending = PENDING.includes(employment);
   return (
-    <div className="flex flex-wrap gap-2" data-org={organizationId}>
+    <div className="flex flex-wrap items-center gap-2" data-org={organizationId}>
       {JOINABLE.includes(employment) && (
-        <Button size="sm" variant="secondary" onClick={() => setConfirm("joined")}>
+        <Button size="sm" variant="secondary" className="whitespace-nowrap" onClick={() => setConfirm("joined")}>
           Record as working here
         </Button>
       )}
       {employment === "active_verified" && (
-        <Button size="sm" variant="secondary" onClick={() => setConfirm("ended")}>
+        <Button size="sm" variant="secondary" className="whitespace-nowrap" onClick={() => setConfirm("ended")}>
           Record employment ended
         </Button>
       )}
       {pending && (
         <>
-          <Button size="sm" variant="secondary" onClick={() => verify.mutate()} isLoading={verify.isPending}>
+          <Button size="sm" variant="secondary" className="whitespace-nowrap" onClick={() => verify.mutate()} isLoading={verify.isPending}>
             Verify this change
           </Button>
-          <Button size="sm" variant="danger" onClick={() => setConfirm("reject")}>
+          <Button size="sm" variant="danger" className="whitespace-nowrap" onClick={() => setConfirm("reject")}>
             Reject this change
           </Button>
         </>
@@ -316,39 +353,88 @@ export const OrganizationPlacements = () => {
       {error && <ErrorState error={error} onRetry={refetch} />}
       {data && rows.length === 0 && <EmptyState title="No placements yet" description="Hires appear here when an application is marked hired." />}
       {rows.length > 0 && (
-        <div className="overflow-x-auto rounded-xl border border-ink-100 bg-white">
-          <table className="w-full min-w-[720px] text-left text-sm" aria-label="Company placements">
-            <thead className="bg-ink-50 text-xs uppercase tracking-wide text-ink-500">
+        <div className="rounded-xl border border-ink-200 bg-white shadow-xs overflow-x-auto lg:overflow-x-visible">
+          <table className="w-full text-left text-sm" aria-label="Company placements">
+            <thead className="bg-ink-50/80 text-xs font-semibold uppercase tracking-wider text-ink-500 border-b border-ink-100">
               <tr>
-                <th scope="col" className="px-3 py-2">Candidate</th>
-                <th scope="col" className="px-3 py-2">Hired for</th>
-                <th scope="col" className="px-3 py-2">Reported status</th>
-                <th scope="col" className="px-3 py-2">Verification</th>
-                <th scope="col" className="px-3 py-2">Actions</th>
+                <th scope="col" className="px-4 py-3.5 w-[22%]">Candidate</th>
+                <th scope="col" className="px-4 py-3.5 w-[22%]">Hired for</th>
+                <th scope="col" className="px-4 py-3.5 w-[22%]">Reported status</th>
+                <th scope="col" className="px-4 py-3.5 w-[18%]">Verification</th>
+                <th scope="col" className="px-4 py-3.5 w-[16%]">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-ink-100">
-              {rows.map((p) => (
-                <tr key={p._id}>
-                  <td className="px-3 py-2 font-medium text-ink-900">{p.candidate?.name || "Candidate"}</td>
-                  <td className="px-3 py-2">{p.job?.title || "Job removed"}</td>
-                  <td className="px-3 py-2">
-                    {EMPLOYMENT_STATUS_LABELS[employmentOf(p)] || "Not recorded yet"}
-                    <div className="text-xs text-ink-500">Pipeline: {PLACEMENT_STATUS_LABELS[p.status] || p.status}</div>
-                    {p.employmentStatusSource ? <div className="text-xs text-ink-500">{SOURCE_LABELS[p.employmentStatusSource]}</div> : null}
-                  </td>
-                  <td className="px-3 py-2">
-                    <VerifiedBadge placement={p} />
-                  </td>
-                  <td className="px-3 py-2">
-                    <CompanyActions
-                      placement={p}
-                      organizationId={organizationId}
-                      onDone={() => queryClient.invalidateQueries({ queryKey: ["org-placements", organizationId] })}
-                    />
-                  </td>
-                </tr>
-              ))}
+              {rows.map((p) => {
+                const candidateInitials = p.candidate?.name
+                  ? p.candidate.name.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase()
+                  : "C";
+                const employmentStatus = employmentOf(p);
+                const statusLabel = EMPLOYMENT_STATUS_LABELS[employmentStatus] || "Not recorded yet";
+                const statusVariant =
+                  employmentStatus === "active_verified"
+                    ? "success"
+                    : employmentStatus.includes("pending")
+                      ? "brand"
+                      : "default";
+
+                return (
+                  <tr key={p._id} className="hover:bg-ink-50/40 transition-colors">
+                    <td className="px-4 py-3.5 align-top">
+                      <div className="flex items-center gap-3">
+                        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-brand-50 text-xs font-bold text-brand-700">
+                          {candidateInitials}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="font-semibold text-ink-950 truncate">{p.candidate?.name || "Candidate"}</p>
+                          <p className="text-xs text-ink-500 truncate">
+                            {p.candidate?.email || (p.candidate?._id ? `ID: ${p.candidate._id.slice(-6)}` : "Hired candidate")}
+                          </p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3.5 align-top">
+                      <p className="font-medium text-ink-900">{p.job?.title || "Job removed"}</p>
+                      <p className="text-xs text-ink-500">
+                        {p.offerDetails?.designation || p.job?.department || "General Hiring"}
+                        {p.organization?.name ? ` · ${p.organization.name}` : ""}
+                      </p>
+                    </td>
+                    <td className="px-4 py-3.5 align-top">
+                      <div className="space-y-1">
+                        <div>
+                          <Badge variant={statusVariant} size="sm" className="whitespace-nowrap">
+                            {statusLabel}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-ink-500">
+                          Pipeline: <span className="font-medium text-ink-700">{PLACEMENT_STATUS_LABELS[p.status] || p.status}</span>
+                        </p>
+                        {p.employmentStatusSource ? (
+                          <p className="text-[11px] text-ink-400">
+                            Source: {SOURCE_LABELS[p.employmentStatusSource] || p.employmentStatusSource}
+                          </p>
+                        ) : null}
+                        {(p.employmentPeriod?.startDate || p.offerDetails?.joiningDate) ? (
+                          <p className="text-[11px] text-ink-500">
+                            Start: {fmtIst(p.employmentPeriod?.startDate || p.offerDetails?.joiningDate)}
+                          </p>
+                        ) : null}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3.5 align-top">
+                      <VerifiedBadge placement={p} />
+                    </td>
+                    <td className="px-4 py-3.5 align-top">
+                      <CompanyActions
+                        placement={p}
+                        organizationId={organizationId}
+                        onDone={() => queryClient.invalidateQueries({ queryKey: ["org-placements", organizationId] })}
+                      />
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

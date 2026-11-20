@@ -52,6 +52,17 @@ if (nodeEnv === "test") {
   }
 }
 
+const detectProviderName = (configuredName, baseUrl) => {
+  const norm = String(configuredName || "").trim().toLowerCase();
+  if (norm && norm !== "deterministic" && norm !== "openai-compatible") return norm;
+  const url = String(baseUrl || "").toLowerCase();
+  if (url.includes("openrouter.ai")) return "openrouter";
+  if (url.includes("groq.com")) return "groq";
+  if (url.includes("generativelanguage.googleapis.com")) return "gemini";
+  if (url.includes("api.openai.com")) return "openai";
+  return norm || "deterministic";
+};
+
 const config = Object.freeze({
   nodeEnv,
   isProduction: nodeEnv === "production",
@@ -91,8 +102,8 @@ const config = Object.freeze({
     ? String(process.env.COOKIE_SECURE).toLowerCase() === "true"
     : nodeEnv === "production",
   cookieSameSite: process.env.COOKIE_SAME_SITE || "lax",
-  aiPrimaryProvider: (process.env.AI_PRIMARY_PROVIDER || "deterministic").toLowerCase(),
-  aiFallbackProvider: (process.env.AI_FALLBACK_PROVIDER || "deterministic").toLowerCase(),
+  aiPrimaryProvider: detectProviderName(process.env.AI_PRIMARY_PROVIDER, process.env.AI_BASE_URL),
+  aiFallbackProvider: detectProviderName(process.env.AI_FALLBACK_PROVIDER, process.env.AI_FALLBACK_BASE_URL),
   aiFallbackBaseUrl: process.env.AI_FALLBACK_BASE_URL || "",
   aiFallbackApiKey: process.env.AI_FALLBACK_API_KEY || "",
   aiFallbackModel: process.env.AI_FALLBACK_MODEL || "",

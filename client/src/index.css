@@ -23,16 +23,37 @@
   --color-ink-950: #0e1222;
   --color-success-50: #ecfdf5;
   --color-success-100: #d1fae5;
+  --color-success-200: #a7f3d0;
+  --color-success-300: #6ee7b7;
+  --color-success-400: #34d399;
   --color-success-500: #10b981;
+  --color-success-600: #059669;
   --color-success-700: #047857;
+  --color-success-800: #065f46;
+  --color-success-900: #064e3b;
+  --color-success-950: #022c22;
   --color-warning-50: #fffbeb;
   --color-warning-100: #fef3c7;
+  --color-warning-200: #fde68a;
+  --color-warning-300: #fcd34d;
+  --color-warning-400: #fbbf24;
   --color-warning-500: #f59e0b;
+  --color-warning-600: #d97706;
   --color-warning-700: #b45309;
+  --color-warning-800: #92400e;
+  --color-warning-900: #78350f;
+  --color-warning-950: #451a03;
   --color-danger-50: #fef2f2;
   --color-danger-100: #fee2e2;
+  --color-danger-200: #fecaca;
+  --color-danger-300: #fca5a5;
+  --color-danger-400: #f87171;
   --color-danger-500: #ef4444;
+  --color-danger-600: #dc2626;
   --color-danger-700: #b91c1c;
+  --color-danger-800: #991b1b;
+  --color-danger-900: #7f1d1d;
+  --color-danger-950: #450a0a;
   --color-canvas: #f4f5fa;
   --color-cyan-300: #67e8f9;
   --color-cyan-400: #22d3ee;
@@ -47,8 +68,8 @@
   --animate-pop-in: pop-in 0.45s cubic-bezier(0.22, 1.2, 0.36, 1) both;
   --animate-float-soft: float-soft 7s ease-in-out infinite;
   --animate-glow-breathe: glow-breathe 9s ease-in-out infinite;
-  --shadow-card: 0 1px 2px rgb(14 18 34 / 0.05), 0 2px 10px -2px rgb(14 18 34 / 0.06);
-  --shadow-card-hover: 0 4px 16px -4px rgb(92 80 212 / 0.16), 0 2px 6px -2px rgb(14 18 34 / 0.08);
+  --shadow-card: 0 1px 3px 0 rgb(14 18 34 / 0.05), 0 1px 2px -1px rgb(14 18 34 / 0.05);
+  --shadow-card-hover: 0 4px 14px -2px rgb(14 18 34 / 0.08), 0 2px 6px -1px rgb(14 18 34 / 0.04);
 }
 @keyframes fade-up {
   from {
@@ -163,7 +184,7 @@
     margin-inline: auto;
     width: 100%;
     max-width: 80rem;
-    padding: 2rem 1rem 4rem;
+    padding: 1.5rem 1rem 3.5rem;
   }
   .eyebrow {
     font-size: 0.72rem;
@@ -203,7 +224,13 @@
   @media (min-width: 640px) {
     .page-wrap {
       padding-inline: 1.5rem;
-      padding-top: 2.5rem;
+      padding-top: 2rem;
+      padding-bottom: 4rem;
+    }
+  }
+  @media (min-width: 1024px) {
+    .page-wrap {
+      padding-inline: 2rem;
     }
   }
 }

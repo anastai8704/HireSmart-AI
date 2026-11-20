@@ -222,6 +222,59 @@ describe("Recruiter dashboard", () => {
     expect(screen.getByText("Screening call")).toBeInTheDocument();
     expect(screen.getByText("Asha Sharma")).toBeInTheDocument();
   });
+
+  it("renders all 7 Phase 3A KPI cards with organization-scoped metrics", async () => {
+    renderPage(<RecruiterDashboard />);
+
+    expect(await screen.findByText("Total Active Jobs")).toBeInTheDocument();
+    expect(screen.getByText("Total Applications")).toBeInTheDocument();
+    expect(screen.getByText("New Applications")).toBeInTheDocument();
+    expect(screen.getByText("Shortlisted Candidates")).toBeInTheDocument();
+    expect(screen.getByText("Interviews Scheduled")).toBeInTheDocument();
+    expect(screen.getByText("Offers Sent")).toBeInTheDocument();
+    expect(screen.getByText("Hired Candidates")).toBeInTheDocument();
+  });
+
+  it("renders quick actions and analytics filter controls", async () => {
+    renderPage(<RecruiterDashboard />);
+
+    // Quick actions
+    const createJobLinks = await screen.findAllByRole("link", { name: /create job/i });
+    expect(createJobLinks.length).toBeGreaterThanOrEqual(1);
+    expect(createJobLinks[0]).toHaveAttribute("href", "/app/o/org1/jobs/new");
+
+    const scheduleLinks = screen.getAllByRole("link", { name: /schedule interview/i });
+    expect(scheduleLinks.length).toBeGreaterThanOrEqual(1);
+    expect(scheduleLinks[0]).toHaveAttribute("href", "/app/o/org1/interviews/schedule");
+
+    expect(screen.getByRole("link", { name: /view applications/i })).toHaveAttribute(
+      "href",
+      "/app/o/org1/jobs?tab=applications",
+    );
+    expect(screen.getByRole("link", { name: /manage jobs/i })).toHaveAttribute(
+      "href",
+      "/app/o/org1/jobs",
+    );
+
+    // Filters toolbar
+    expect(screen.getByRole("button", { name: "Last 7d" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Last 30d" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Last 90d" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "All time" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Filter by job")).toBeInTheDocument();
+    expect(screen.getByLabelText("Filter by application status")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /refresh/i })).toBeInTheDocument();
+
+    // Activity tab switch
+    const feedBtn = screen.getByRole("button", { name: /activity feed/i });
+    expect(feedBtn).toBeInTheDocument();
+    fireEvent.click(feedBtn);
+    expect(screen.getByText(/applied for Backend Engineer/i)).toBeInTheDocument();
+
+    // Date range click
+    fireEvent.click(screen.getByRole("button", { name: "Last 7d" }));
+    expect(await screen.findByRole("button", { name: /activity feed/i })).toBeInTheDocument();
+  });
 });
 
 describe("Recruiter Interviews Management (Phase 10)", () => {
